@@ -30,6 +30,18 @@
    MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
+
+    Curve
+   Copyright (c) Thomas Derham
+
+   The modifications for Curve are licensed to you solely under the terms of the 
+   AGPLv3 license terms as described above.
+
+   CURVE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
+
+  ==============================================================================
 */
 
 #include <JuceHeader.h>
@@ -38,36 +50,6 @@
 
 #include "InternalPlugins.h"
 #include "PluginGraph.h"
-
-#define PIP_DEMO_UTILITIES_INCLUDED 1
-
-// An alternative version of createAssetInputStream from the demo utilities header
-// that fetches resources from embedded binary data instead of files
-static std::unique_ptr<InputStream> createAssetInputStream (const char* resourcePath)
-{
-    for (int i = 0; i < BinaryData::namedResourceListSize; ++i)
-    {
-        if (String (BinaryData::originalFilenames[i]) == String (resourcePath))
-        {
-            int dataSizeInBytes;
-            auto* resource = BinaryData::getNamedResource (BinaryData::namedResourceList[i], dataSizeInBytes);
-            return std::make_unique<MemoryInputStream> (resource, dataSizeInBytes, false);
-        }
-    }
-
-    return {};
-}
-
-#include "../../../../examples/Plugins/AUv3SynthPluginDemo.h"
-#include "../../../../examples/Plugins/ArpeggiatorPluginDemo.h"
-#include "../../../../examples/Plugins/AudioPluginDemo.h"
-#include "../../../../examples/Plugins/DSPModulePluginDemo.h"
-#include "../../../../examples/Plugins/GainPluginDemo.h"
-#include "../../../../examples/Plugins/MidiLoggerPluginDemo.h"
-#include "../../../../examples/Plugins/MultiOutSynthPluginDemo.h"
-#include "../../../../examples/Plugins/NoiseGatePluginDemo.h"
-#include "../../../../examples/Plugins/SamplerPluginDemo.h"
-#include "../../../../examples/Plugins/SurroundPluginDemo.h"
 
 //==============================================================================
 class InternalPlugin final : public AudioPluginInstance
@@ -183,243 +165,6 @@ private:
 };
 
 //==============================================================================
-class SineWaveSynth final : public AudioProcessor
-{
-public:
-    SineWaveSynth()
-        : AudioProcessor (BusesProperties().withOutput ("Output", AudioChannelSet::stereo()))
-    {
-        const int numVoices = 8;
-
-        // Add some voices...
-        for (int i = numVoices; --i >= 0;)
-            synth.addVoice (new SineWaveVoice());
-
-        // ..and give the synth a sound to play
-        synth.addSound (new SineWaveSound());
-    }
-
-    static String getIdentifier()
-    {
-        return "Sine Wave Synth";
-    }
-
-    //==============================================================================
-    void prepareToPlay (double newSampleRate, int) override
-    {
-        synth.setCurrentPlaybackSampleRate (newSampleRate);
-    }
-
-    void releaseResources() override {}
-
-    //==============================================================================
-    void processBlock (AudioBuffer<float>& buffer, MidiBuffer& midiMessages) override
-    {
-        const int numSamples = buffer.getNumSamples();
-
-        buffer.clear();
-        synth.renderNextBlock (buffer, midiMessages, 0, numSamples);
-        buffer.applyGain (0.8f);
-    }
-
-    using AudioProcessor::processBlock;
-
-    const String getName() const override                                           { return getIdentifier(); }
-    double getTailLengthSeconds() const override                                    { return 0.0; }
-    bool acceptsMidi() const override                                               { return true; }
-    bool producesMidi() const override                                              { return true; }
-    AudioProcessorEditor* createEditor() override                                   { return nullptr; }
-    bool hasEditor() const override                                                 { return false; }
-    int getNumPrograms() override                                                   { return 1; }
-    int getCurrentProgram() override                                                { return 0; }
-    void setCurrentProgram (int) override                                           {}
-    const String getProgramName (int) override                                      { return {}; }
-    void changeProgramName (int, const String&) override                            {}
-    void getStateInformation (juce::MemoryBlock&) override                          {}
-    void setStateInformation (const void*, int) override                            {}
-
-private:
-    //==============================================================================
-    struct SineWaveSound final : public SynthesiserSound
-    {
-        SineWaveSound() = default;
-
-        bool appliesToNote (int /*midiNoteNumber*/) override    { return true; }
-        bool appliesToChannel (int /*midiChannel*/) override    { return true; }
-    };
-
-    struct SineWaveVoice final : public SynthesiserVoice
-    {
-        SineWaveVoice() = default;
-
-        bool canPlaySound (SynthesiserSound* sound) override
-        {
-            return dynamic_cast<SineWaveSound*> (sound) != nullptr;
-        }
-
-        void startNote (int midiNoteNumber, float velocity,
-                        SynthesiserSound* /*sound*/,
-                        int /*currentPitchWheelPosition*/) override
-        {
-            currentAngle = 0.0;
-            level = velocity * 0.15;
-            tailOff = 0.0;
-
-            double cyclesPerSecond = MidiMessage::getMidiNoteInHertz (midiNoteNumber);
-            double cyclesPerSample = cyclesPerSecond / getSampleRate();
-
-            angleDelta = cyclesPerSample * 2.0 * MathConstants<double>::pi;
-        }
-
-        void stopNote (float /*velocity*/, bool allowTailOff) override
-        {
-            if (allowTailOff)
-            {
-                // start a tail-off by setting this flag. The render callback will pick up on
-                // this and do a fade out, calling clearCurrentNote() when it's finished.
-
-                if (approximatelyEqual (tailOff, 0.0)) // we only need to begin a tail-off if it's not already doing so - the
-                                                       // stopNote method could be called more than once.
-                    tailOff = 1.0;
-            }
-            else
-            {
-                // we're being told to stop playing immediately, so reset everything..
-
-                clearCurrentNote();
-                angleDelta = 0.0;
-            }
-        }
-
-        void pitchWheelMoved (int /*newValue*/) override
-        {
-            // not implemented for the purposes of this demo!
-        }
-
-        void controllerMoved (int /*controllerNumber*/, int /*newValue*/) override
-        {
-            // not implemented for the purposes of this demo!
-        }
-
-        void renderNextBlock (AudioBuffer<float>& outputBuffer, int startSample, int numSamples) override
-        {
-            if (! approximatelyEqual (angleDelta, 0.0))
-            {
-                if (tailOff > 0)
-                {
-                    while (--numSamples >= 0)
-                    {
-                        const float currentSample = (float) (sin (currentAngle) * level * tailOff);
-
-                        for (int i = outputBuffer.getNumChannels(); --i >= 0;)
-                            outputBuffer.addSample (i, startSample, currentSample);
-
-                        currentAngle += angleDelta;
-                        ++startSample;
-
-                        tailOff *= 0.99;
-
-                        if (tailOff <= 0.005)
-                        {
-                            // tells the synth that this voice has stopped
-                            clearCurrentNote();
-
-                            angleDelta = 0.0;
-                            break;
-                        }
-                    }
-                }
-                else
-                {
-                    while (--numSamples >= 0)
-                    {
-                        const float currentSample = (float) (sin (currentAngle) * level);
-
-                        for (int i = outputBuffer.getNumChannels(); --i >= 0;)
-                            outputBuffer.addSample (i, startSample, currentSample);
-
-                        currentAngle += angleDelta;
-                        ++startSample;
-                    }
-                }
-            }
-        }
-
-        using SynthesiserVoice::renderNextBlock;
-
-    private:
-        double currentAngle = 0, angleDelta = 0, level = 0, tailOff = 0;
-    };
-
-    //==============================================================================
-    Synthesiser synth;
-
-    //==============================================================================
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SineWaveSynth)
-};
-
-//==============================================================================
-class ReverbPlugin final : public AudioProcessor
-{
-public:
-    ReverbPlugin()
-        : AudioProcessor (BusesProperties().withInput  ("Input",  AudioChannelSet::stereo())
-                                           .withOutput ("Output", AudioChannelSet::stereo()))
-    {}
-
-    static String getIdentifier()
-    {
-        return "Reverb";
-    }
-
-    void prepareToPlay (double newSampleRate, int) override
-    {
-        reverb.setSampleRate (newSampleRate);
-    }
-
-    void reset() override
-    {
-        reverb.reset();
-    }
-
-    void releaseResources() override {}
-
-    void processBlock (AudioBuffer<float>& buffer, MidiBuffer&) override
-    {
-        auto numChannels = buffer.getNumChannels();
-
-        if (numChannels == 1)
-            reverb.processMono (buffer.getWritePointer (0), buffer.getNumSamples());
-        else
-            reverb.processStereo (buffer.getWritePointer (0),
-                                  buffer.getWritePointer (1),
-                                  buffer.getNumSamples());
-
-        for (int ch = 2; ch < numChannels; ++ch)
-            buffer.clear (ch, 0, buffer.getNumSamples());
-    }
-
-    using AudioProcessor::processBlock;
-
-    const String getName() const override                                           { return getIdentifier(); }
-    double getTailLengthSeconds() const override                                    { return 0.0; }
-    bool acceptsMidi() const override                                               { return false; }
-    bool producesMidi() const override                                              { return false; }
-    AudioProcessorEditor* createEditor() override                                   { return nullptr; }
-    bool hasEditor() const override                                                 { return false; }
-    int getNumPrograms() override                                                   { return 1; }
-    int getCurrentProgram() override                                                { return 0; }
-    void setCurrentProgram (int) override                                           {}
-    const String getProgramName (int) override                                      { return {}; }
-    void changeProgramName (int, const String&) override                            {}
-    void getStateInformation (juce::MemoryBlock&) override                          {}
-    void setStateInformation (const void*, int) override                            {}
-
-private:
-    Reverb reverb;
-};
-
-//==============================================================================
 
 InternalPluginFormat::InternalPluginFactory::InternalPluginFactory (const std::initializer_list<Constructor>& constructorsIn)
     : constructors (constructorsIn),
@@ -454,20 +199,6 @@ InternalPluginFormat::InternalPluginFormat()
         [] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor> (AudioProcessorGraph::AudioGraphIOProcessor::midiInputNode); },
         [] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor> (AudioProcessorGraph::AudioGraphIOProcessor::audioOutputNode); },
         [] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor> (AudioProcessorGraph::AudioGraphIOProcessor::midiOutputNode); },
-
-        [] { return std::make_unique<InternalPlugin> (std::make_unique<SineWaveSynth>()); },
-        [] { return std::make_unique<InternalPlugin> (std::make_unique<ReverbPlugin>()); },
-
-        [] { return std::make_unique<InternalPlugin> (std::make_unique<AUv3SynthProcessor>()); },
-        [] { return std::make_unique<InternalPlugin> (std::make_unique<Arpeggiator>()); },
-        [] { return std::make_unique<InternalPlugin> (std::make_unique<DspModulePluginDemoAudioProcessor>()); },
-        [] { return std::make_unique<InternalPlugin> (std::make_unique<GainProcessor>()); },
-        [] { return std::make_unique<InternalPlugin> (std::make_unique<JuceDemoPluginAudioProcessor>()); },
-        [] { return std::make_unique<InternalPlugin> (std::make_unique<MidiLoggerPluginDemoProcessor>()); },
-        [] { return std::make_unique<InternalPlugin> (std::make_unique<MultiOutSynth>()); },
-        [] { return std::make_unique<InternalPlugin> (std::make_unique<NoiseGate>()); },
-        [] { return std::make_unique<InternalPlugin> (std::make_unique<SamplerAudioProcessor>()); },
-        [] { return std::make_unique<InternalPlugin> (std::make_unique<SurroundProcessor>()); }
     }
 {
 }

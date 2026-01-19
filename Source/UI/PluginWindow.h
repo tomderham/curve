@@ -30,6 +30,18 @@
    MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
+
+    Curve
+   Copyright (c) Thomas Derham
+
+   The modifications for Curve are licensed to you solely under the terms of the 
+   AGPLv3 license terms as described above.
+
+   CURVE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
+
+  ==============================================================================
 */
 
 #pragma once

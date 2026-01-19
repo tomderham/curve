@@ -30,6 +30,18 @@
    MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
+
+    Curve
+   Copyright (c) Thomas Derham
+
+   The modifications for Curve are licensed to you solely under the terms of the 
+   AGPLv3 license terms as described above.
+
+   CURVE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
+
+  ==============================================================================
 */
 
 #include <JuceHeader.h>
@@ -221,24 +233,9 @@ public:
                                bool async)
         : PluginListComponent (manager, listToRepresent, pedal, props, async)
     {
-        addAndMakeVisible (validationModeLabel);
-        addAndMakeVisible (validationModeBox);
 
-        validationModeLabel.attachToComponent (&validationModeBox, true);
-        validationModeLabel.setJustificationType (Justification::right);
-        validationModeLabel.setSize (100, 30);
-
-        auto unusedId = 1;
-
-        for (const auto mode : { "In-process", "Out-of-process" })
-            validationModeBox.addItem (mode, unusedId++);
-
-        validationModeBox.setSelectedItemIndex (getAppProperties().getUserSettings()->getIntValue (scanModeKey));
-
-        validationModeBox.onChange = [this]
-        {
-            getAppProperties().getUserSettings()->setValue (scanModeKey, validationModeBox.getSelectedItemIndex());
-        };
+        // always use out-of-process plugin scanning
+        getAppProperties().getUserSettings()->setValue (scanModeKey, 1); // hard codes to out-of-process
 
         handleResize();
     }
@@ -252,14 +249,7 @@ private:
     void handleResize()
     {
         PluginListComponent::resized();
-
-        const auto& buttonBounds = getOptionsButton().getBounds();
-        validationModeBox.setBounds (buttonBounds.withWidth (130).withRightX (getWidth() - buttonBounds.getX()));
     }
-
-
-    Label validationModeLabel { {}, "Scan mode" };
-    ComboBox validationModeBox;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CustomPluginListComponent)
 };
@@ -321,8 +311,18 @@ MainHostWindow::MainHostWindow()
     RuntimePermissions::request (RuntimePermissions::recordAudio,
                                  [safeThis] (bool granted) mutable
                                  {
-                                     auto savedState = getAppProperties().getUserSettings()->getXmlValue ("audioDeviceState");
-                                     safeThis->deviceManager.initialise (granted ? 256 : 0, 256, savedState.get(), true);
+                                    auto savedState = getAppProperties().getUserSettings()->getXmlValue ("audioDeviceState");
+                                    if(savedState != nullptr && savedState->getStringAttribute("audioInputDeviceName") != "" &&
+                                                savedState->getStringAttribute("audioOutputDeviceName") != "") 
+                                    {
+                                        safeThis->deviceManager.initialise (granted ? 256 : 0, 256, savedState.get(), false);
+                                    }
+                                    else
+                                    {
+                                        // close device and clear previous state by using default-constructed setup
+                                        juce::AudioDeviceManager::AudioDeviceSetup setup;
+                                        safeThis->deviceManager.setAudioDeviceSetup(setup, false);
+                                    }
                                  });
 
    #if JUCE_IOS || JUCE_ANDROID
@@ -336,6 +336,10 @@ MainHostWindow::MainHostWindow()
     knownPluginList.setCustomScanner (std::make_unique<CustomPluginScanner>());
 
     graphHolder.reset (new GraphDocumentComponent (formatManager, deviceManager, knownPluginList));
+
+    // always use double-precision processing
+    if (graphHolder != nullptr)
+        graphHolder->setDoublePrecision (true);
 
     setContentNonOwned (graphHolder.get(), false);
 
@@ -403,7 +407,8 @@ MainHostWindow::~MainHostWindow()
 
 void MainHostWindow::closeButtonPressed()
 {
-    tryToQuitApplication();
+    // hide main window when close button pressed
+    setVisible(false);
 }
 
 struct AsyncQuitRetrier final : private Timer
@@ -454,15 +459,8 @@ void MainHostWindow::tryToQuitApplication()
         if (graphHolder->graph->saveDocument (PluginGraph::getDefaultGraphDocumentOnMobile()))
             releaseAndQuit();
        #else
-        SafePointer<MainHostWindow> parent { this };
-        graphHolder->graph->saveIfNeededAndUserAgreesAsync ([parent, releaseAndQuit] (FileBasedDocument::SaveResult r)
-        {
-            if (parent == nullptr)
-                return;
-
-            if (r == FileBasedDocument::savedOk)
-                releaseAndQuit();
-        });
+       // quit without alerting user, even if preset considered changed
+        releaseAndQuit();
        #endif
 
         return;
@@ -491,7 +489,7 @@ void MainHostWindow::changeListenerCallback (ChangeBroadcaster* changed)
         auto f = graphHolder->graph->getFile();
 
         if (f.existsAsFile())
-            title = f.getFileName() + " - " + title;
+            title = f.getFileNameWithoutExtension() + " - " + title;
 
         setName (title);
     }
@@ -1027,10 +1025,8 @@ bool MainHostWindow::isDoublePrecisionProcessingEnabled()
 
 bool MainHostWindow::isAutoScalePluginWindowsEnabled()
 {
-    if (auto* props = getAppProperties().getUserSettings())
-        return props->getBoolValue ("autoScalePluginWindows", false);
-
-    return false;
+    // always auto-scale plugin windows
+    return true;
 }
 
 void MainHostWindow::updatePrecisionMenuItem (ApplicationCommandInfo& info)
@@ -1043,4 +1039,48 @@ void MainHostWindow::updateAutoScaleMenuItem (ApplicationCommandInfo& info)
 {
     info.setInfo ("Auto-Scale Plug-in Windows", {}, "General", 0);
     info.setTicked (isAutoScalePluginWindowsEnabled());
+}
+
+void MainHostWindow::loadPreset(juce::File file)
+{
+    if (graphHolder != nullptr)
+    {
+        graphHolder->setPlaybackActive(false);
+    }
+    graphHolder->graph->loadFrom (file, true);
+    if (graphHolder != nullptr)
+    {
+        graphHolder->setPlaybackActive(true);
+    }
+}
+
+void MainHostWindow::saveAsPreset()
+{
+    if (graphHolder != nullptr && graphHolder->graph != nullptr)
+        graphHolder->graph->saveAsAsync ({}, true, true, true, nullptr);
+}
+
+void MainHostWindow::showPluginListWindow()
+{
+    if (pluginListWindow == nullptr)
+        pluginListWindow.reset (new PluginListWindow (*this, formatManager));
+    pluginListWindow->toFront (true);
+}
+
+void MainHostWindow::showAboutBox()
+{
+    juce::String msg =
+        "Version " + juce::JUCEApplication::getInstance()->getApplicationVersion() + "\n"
+        + "Copyright " + juce::String(juce::CharPointer_UTF8 ("\xc2\xa9")) + " 2026 Thomas Derham.\n\n"
+        + "Portions Copyright " + juce::String (juce::CharPointer_UTF8 ("\xc2\xa9")) + " 2004-2025 Raw Material Software.\n"
+        + "All Rights Reserved.\n\n"
+        + "This program is free software: you can redistribute it and/or modify "
+        + "it under the terms of the GNU Affero General Public License as published by "
+        + "the Free Software Foundation, either version 3 of the License, or "
+        + "(at your option) any later version.\n\n"
+        + "Made with JUCE.\n"
+        + "Audio Unit is a trademark of Apple Inc.\n"
+        + "VST is a registered trademark of Steinberg Media Technologies GmbH.";
+
+    juce::NativeMessageBox::showMessageBoxAsync (juce::AlertWindow::InfoIcon, "About " + juce::JUCEApplication::getInstance()->getApplicationName(), msg);
 }

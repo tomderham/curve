@@ -30,6 +30,18 @@
    MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
+
+    Curve
+   Copyright (c) Thomas Derham
+
+   The modifications for Curve are licensed to you solely under the terms of the 
+   AGPLv3 license terms as described above.
+
+   CURVE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
+
+  ==============================================================================
 */
 
 #pragma once
@@ -123,6 +135,13 @@ public:
 
     std::unique_ptr<GraphDocumentComponent> graphHolder;
 
+    void showAudioSettings();
+    void saveAsPreset();
+    void showPluginListWindow();
+    void loadPreset (juce::File);
+    juce::AudioDeviceManager& getDeviceManager() { return deviceManager; }
+    void showAboutBox();
+
 private:
     //==============================================================================
     static bool isDoublePrecisionProcessingEnabled();
@@ -130,8 +149,6 @@ private:
 
     static void updatePrecisionMenuItem (ApplicationCommandInfo& info);
     static void updateAutoScaleMenuItem (ApplicationCommandInfo& info);
-
-    void showAudioSettings();
 
     //==============================================================================
     AudioDeviceManager deviceManager;

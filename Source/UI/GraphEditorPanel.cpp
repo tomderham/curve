@@ -30,6 +30,18 @@
    MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
+
+   Curve
+   Copyright (c) Thomas Derham
+
+   The modifications for Curve are licensed to you solely under the terms of the 
+   AGPLv3 license terms as described above.
+
+   CURVE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
+
+  ==============================================================================
 */
 
 #include <JuceHeader.h>
@@ -1237,8 +1249,6 @@ void GraphDocumentComponent::init()
 
     keyState.addListener (&graphPlayer.getMidiMessageCollector());
 
-    keyboardComp.reset (new MidiKeyboardComponent (keyState, MidiKeyboardComponent::horizontalKeyboard));
-    addAndMakeVisible (keyboardComp.get());
     statusBar.reset (new TooltipBar());
     addAndMakeVisible (statusBar.get());
 
@@ -1288,13 +1298,11 @@ void GraphDocumentComponent::resized()
     }();
 
     const int titleBarHeight = 40;
-    const int keysHeight = 60;
     const int statusHeight = 20;
 
     if (isOnTouchDevice())
         titleBarComponent->setBounds (r.removeFromTop (titleBarHeight));
 
-    keyboardComp->setBounds (r.removeFromBottom (keysHeight));
     statusBar->setBounds (r.removeFromBottom (statusHeight));
     graphPanel->setBounds (r);
 
@@ -1317,11 +1325,20 @@ void GraphDocumentComponent::releaseGraph()
         graphPanel = nullptr;
     }
 
-    keyboardComp = nullptr;
     statusBar = nullptr;
 
     graphPlayer.setProcessor (nullptr);
     graph = nullptr;
+}
+
+void GraphDocumentComponent::setPlaybackActive(bool isActive)
+{
+    if(isActive) {
+        graphPlayer.setProcessor(&graph->graph);
+    }
+    else {
+        graphPlayer.setProcessor(nullptr);
+    }
 }
 
 bool GraphDocumentComponent::isInterestedInDragSource (const SourceDetails& details)

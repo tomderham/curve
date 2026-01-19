@@ -30,11 +30,25 @@
    MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
 
   ==============================================================================
+
+    Curve
+   Copyright (c) Thomas Derham
+
+   The modifications for Curve are licensed to you solely under the terms of the 
+   AGPLv3 license terms as described above.
+
+   CURVE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
+
+  ==============================================================================
 */
 
 #include <JuceHeader.h>
 #include "UI/MainHostWindow.h"
 #include "Plugins/InternalPlugins.h"
+#include "UI/TrayIconController.h"
+#include "UI/AudioResilienceManager.h"
 
 #if ! (JUCE_PLUGINHOST_VST || JUCE_PLUGINHOST_VST3 || JUCE_PLUGINHOST_AU)
  #error "If you're building the audio plugin host, you probably want to enable VST and/or AU support"
@@ -156,14 +170,41 @@ public:
         // initialise our settings file..
 
         PropertiesFile::Options options;
-        options.applicationName     = "Juce Audio Plugin Host";
+        options.applicationName     = "Curve";
         options.filenameSuffix      = "settings";
         options.osxLibrarySubFolder = "Preferences";
 
         appProperties.reset (new ApplicationProperties());
         appProperties->setStorageParameters (options);
 
+        // create presets folder if it doesn't exist
+        auto appDataDir = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory).getChildFile ("Application Support").getChildFile(JUCEApplication::getInstance()->getApplicationName());
+        auto presetsDir = appDataDir.getChildFile("Presets");
+        if (! appDataDir.exists())
+            appDataDir.createDirectory();
+        if (! presetsDir.exists())
+            presetsDir.createDirectory();
+
         mainWindow.reset (new MainHostWindow());
+
+        // hide editor window initially
+        mainWindow->setVisible(false);
+
+        // initialize menu bar controller
+        trayIcon.reset(new TrayIconController(*mainWindow));
+
+        // initialize audio resilience manager
+        auto& deviceManager = mainWindow->getDeviceManager();
+        resilienceManager.reset(new AudioResilienceManager(deviceManager, [this]
+        {
+            // lambda function to reload the current preset (used by resilienceManager)
+            if (mainWindow != nullptr && mainWindow->graphHolder != nullptr && mainWindow->graphHolder->graph != nullptr)
+            {
+                auto f = mainWindow->graphHolder->graph->getFile();
+                if (f.existsAsFile())
+                    mainWindow->loadPreset (f);
+            }
+        }));
 
         commandManager.registerAllCommandsForTarget (this);
         commandManager.registerAllCommandsForTarget (mainWindow.get());
@@ -214,6 +255,8 @@ public:
 
     void shutdown() override
     {
+        trayIcon = nullptr;
+        resilienceManager = nullptr;
         mainWindow = nullptr;
         appProperties = nullptr;
         LookAndFeel::setDefaultLookAndFeel (nullptr);
@@ -244,7 +287,7 @@ public:
         return true;
     }
 
-    const String getApplicationName() override       { return "Juce Plug-In Host"; }
+    const String getApplicationName() override       { return ProjectInfo::projectName; }
     const String getApplicationVersion() override    { return ProjectInfo::versionString; }
     bool moreThanOneInstanceAllowed() override       { return true; }
 
@@ -254,6 +297,8 @@ public:
 private:
     std::unique_ptr<MainHostWindow> mainWindow;
     std::unique_ptr<PluginScannerSubprocess> storedScannerSubprocess;
+    std::unique_ptr<TrayIconController> trayIcon;
+    std::unique_ptr<AudioResilienceManager> resilienceManager;
 };
 
 static PluginHostApp& getApp()                    { return *dynamic_cast<PluginHostApp*> (JUCEApplication::getInstance()); }
