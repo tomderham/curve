@@ -37,12 +37,16 @@ When the app opens, its icon will be added to the macOS menu bar as shown below.
   - Then, connect channel(s) on the audio input and output blocks to inputs and output on the plugin by clicking a green dot on one block and dragging a connecting line to a green dot on another block. A trivial example is shown below, where the two channels (L/R) of the audio input are sent to an AUNBandEQ block, and the two channels (L/R) of the EQ output are sent to the first two channels of the audio output. You can of course add additional plugin blocks and connect them together however you wish.
   - To open the editor of a plugin (e.g. to set the desired EQ in AUNBandEQ), simply double click on the plugin box. To save the preset, click the menu bar icon and select 'Save as preset'. It should default to the correct preset folder but it's good to double check (it should be ~/Library/Application Support/Curve/Presets/ where ~/Library is the user specific library at /Users/<username>/Library). Choose a suitable name and save the preset. The editor window can be hidden using red close (top left) or selecting 'Hide Editor' from the app menu.
   - If you want to modify a preset later, first load the preset, make the changes, 'Save as preset' and select the existing file name. Note that changes to presets are *not* saved unless you explicitly use 'Save as preset'. You can repeat the process to create multiple presets. You can rename presets by manually changing their filenames in the preset folder using Finder.
-  - If you click on the menu bar icon again, you should now see the list of presets you have created - simply click on them to instantly switch between them.
-  - By switching between plugins, you can switch between different settings of the same plugin(s), or switch between completely different (combinations of) plugins, and/or switch between different audio interface channel routings. For example, you might have one preset that does EQ correction and sends audio to output channels connected to headphones, and another preset that does different EQ correction and sends audio to output channels connected to monitor speakers.
+  - If you click on the menu bar icon again, you should now see the list of presets you have created - simply click on them to instantly switch between them. The currently selected preset has a check mark.
+  - By switching between plugins, you can switch between different settings of the same plugin(s), or switch between completely different (combinations of) plugins, and/or switch between different audio interface channel routings. For example, you might have one preset that does EQ correction and sends audio to output channels connected to headphones, and another preset that does different EQ correction and sends audio to output channels connected to monitor speakers - see the screenshots below.
 - If you want the app to automatically load each time you log on, simply add it to your macOS login items under System Settings -> General -> Login Items & Extensions -> Open at Login (click the + icon and select Curve).
   
 <img width="216" height="338" alt="MainMenu" src="https://github.com/user-attachments/assets/50c915da-c8cc-412e-b178-23c2cbdefa8a" />
-<img width="498" height="399" alt="Preset1" src="https://github.com/user-attachments/assets/812e36cc-6048-4d78-a5a0-c71b818b835f" />
+<img width="282" height="338" alt="AudioSettings" src="https://github.com/user-attachments/assets/09f7eace-a963-40a3-9709-a286135bab95" />
+<br>
+<img width="375" height="338" alt="Preset1" src="https://github.com/user-attachments/assets/812e36cc-6048-4d78-a5a0-c71b818b835f" />
+<img width="375" height="338" alt="Preset2" src="https://github.com/user-attachments/assets/9ad02aaf-f49e-4aeb-9813-ca0b473519a4" />
+
 
 ### Loopback interfaces
 
