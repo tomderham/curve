@@ -89,13 +89,21 @@ If you see a more severe error message saying `"Curve.app" is damaged and can’
     ```
 4.  After running this command, the app will no longer be quarantined and should open without any warnings. This `xattr` command completely bypasses the security checks mentioned in Scenario 1.
 
+### Uninstallation
+
+It is sufficient to simply delete Curve app from /Applications (or drag it to Trash).
+If you want to completely uninstall all traces of Curve, additionally do the following:
+1. delete the file: ~/Library/Preferences/Curve.settings
+2. delete the folder: ~/Library/Application Support/Curve (note - this contains the presets folder, so back it up first if you might need it later)
+3. from terminal, run: tccutil reset Microphone com.thomasderham.curve (note - this will remove the grant of microphone permissions to Curve)
+
 ## Building from source code on macOS
 
 Please note that this project is licensed under the AGPLv3, as it is derived from the JUCE framework. Ensure that your use of this code and any derivative works complies with the terms of this license and includes the necessary copyright notices.
 
 The CMake build process is configured to produce a Universal 2 Binary for macOS by default.
 
-This application is a customized version of the `AudioPluginHost` example provided with the JUCE framework.
+This application is a customized version of the `AudioPluginHost` example provided with the JUCE framework. Many thanks to the JUCE developers for making this framework and the reference host application available under open source license.
 
 ### Prerequisites
 
