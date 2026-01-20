@@ -35,7 +35,7 @@ When the app opens, its icon will be added to the macOS menu bar as shown below.
   - You should see Audio Input and Audio Output blocks, each with some green dots that correspond to the channels you enabled in Audio settings.
   - Right click the background of the Editor window - the list of installed plugins will show. Select a plugin you want to use, and a corresponding block will appear with inputs at the top and outputs at the bottom. If the number of inputs and outputs is not what you want, right click the block and select 'Configure Audio I/O' to correct it.
   - Then, connect channel(s) on the audio input and output blocks to inputs and output on the plugin by clicking a green dot on one block and dragging a connecting line to a green dot on another block. A trivial example is shown below, where the two channels (L/R) of the audio input are sent to an AUNBandEQ block, and the two channels (L/R) of the EQ output are sent to the first two channels of the audio output. You can of course add additional plugin blocks and connect them together however you wish.
-  - To open the editor of a plugin (e.g. to set the desired EQ in AUNBandEQ), simply double click on the plugin box. To save the preset, click the menu bar icon and select 'Save as preset'. It should default to the correct preset folder but it's good to double check (it should be ~/Library/Application Support/Curve/Presets/ where ~/Library is the user specific library at /Users/<username>/Library). Choose a suitable name and save the preset. The editor window can be hidden using red close (top left) or selecting 'Hide Editor' from the app menu.
+  - To open the editor of a plugin (e.g. to set the desired EQ in AUNBandEQ), simply double click on the plugin box. To save the preset, click the menu bar icon and select 'Save as preset'. It should default to the correct preset folder but it's good to double check (it should be ~/Library/Application Support/Curve/Presets/ where ~/Library is the user specific library at /Users/your_user_name/Library). Choose a suitable name and save the preset. The editor window can be hidden using red close (top left) or selecting 'Hide Editor' from the app menu.
   - If you want to modify a preset later, first load the preset, make the changes, 'Save as preset' and select the existing file name. Note that changes to presets are *not* saved unless you explicitly use 'Save as preset'. You can repeat the process to create multiple presets. You can rename presets by manually changing their filenames in the preset folder using Finder.
   - If you click on the menu bar icon again, you should now see the list of presets you have created - simply click on them to instantly switch between them. The currently selected preset has a check mark.
   - By switching between plugins, you can switch between different settings of the same plugin(s), or switch between completely different (combinations of) plugins, and/or switch between different audio interface channel routings. For example, you might have one preset that does EQ correction and sends audio to output channels connected to headphones, and another preset that does different EQ correction and sends audio to output channels connected to monitor speakers - see the screenshots below.
@@ -94,11 +94,12 @@ If you see a more severe error message saying `"Curve.app" is damaged and can’
 It is sufficient to simply delete Curve app from /Applications (or drag it to Trash).
 But if you want to completely uninstall all traces of Curve, additionally do the following:
 1. delete the file: ~/Library/Preferences/Curve.settings
-2. delete the folder: ~/Library/Caches/Curve
-3. delete the folder: ~/Library/Caches/com.thomasderham.curve
-4. delete the folder: ~/Library/HTTPCaches/com.thomasderham.curve
-5. delete the folder: ~/Library/Application Support/Curve (note - this contains the presets folder, so back it up first if you might need it later)
-6. from terminal, run: tccutil reset Microphone com.thomasderham.curve (note - this will remove the grant of microphone permissions to Curve)
+2. delete the file: ~/Library/Preferences/com.thomasderham.curve.plist
+3. delete the folder: ~/Library/Caches/Curve
+4. delete the folder: ~/Library/Caches/com.thomasderham.curve
+5. delete the folder: ~/Library/HTTPCaches/com.thomasderham.curve
+6. delete the folder: ~/Library/Application Support/Curve (note - this contains the presets folder, so back it up first if you might need it later)
+7. from terminal, run: tccutil reset Microphone com.thomasderham.curve (note - this will remove the grant of microphone permissions to Curve)
 
 ## Building from source code on macOS
 
