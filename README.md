@@ -92,10 +92,13 @@ If you see a more severe error message saying `"Curve.app" is damaged and can’
 ### Uninstallation
 
 It is sufficient to simply delete Curve app from /Applications (or drag it to Trash).
-If you want to completely uninstall all traces of Curve, additionally do the following:
+But if you want to completely uninstall all traces of Curve, additionally do the following:
 1. delete the file: ~/Library/Preferences/Curve.settings
-2. delete the folder: ~/Library/Application Support/Curve (note - this contains the presets folder, so back it up first if you might need it later)
-3. from terminal, run: tccutil reset Microphone com.thomasderham.curve (note - this will remove the grant of microphone permissions to Curve)
+2. delete the folder: ~/Library/Caches/Curve
+3. delete the folder: ~/Library/Caches/com.thomasderham.curve
+4. delete the folder: ~/Library/HTTPCaches/com.thomasderham.curve
+5. delete the folder: ~/Library/Application Support/Curve (note - this contains the presets folder, so back it up first if you might need it later)
+6. from terminal, run: tccutil reset Microphone com.thomasderham.curve (note - this will remove the grant of microphone permissions to Curve)
 
 ## Building from source code on macOS
 
