@@ -20,6 +20,11 @@ class GitHubUpdater  : public juce::URL::DownloadTask::Listener,
 public:
     GitHubUpdater() = default;
 
+    void doCheckNow()
+    {
+        performGitHubRequest();
+    }
+
     /** Starts the update monitoring. Call this in JUCEApplication::initialise(). */
     void start (const juce::String& githubUser, const juce::String& githubRepo, const juce::String& applicationName)
     {
@@ -28,7 +33,8 @@ public:
         appName = applicationName;
 
         // Perform the first check immediately on startup
-        checkIfTimeForUpdateCheck();
+        if (areAutomaticChecksEnabled())
+            checkIfTimeForUpdateCheck();
 
         // Timer callback runs every subsequent hour
         startTimer (60 * 60 * 1000); 
@@ -38,7 +44,15 @@ private:
     // --- Timer Logic ---
     void timerCallback() override 
     { 
-        checkIfTimeForUpdateCheck(); 
+        if (areAutomaticChecksEnabled())
+            checkIfTimeForUpdateCheck(); 
+    }
+
+    bool areAutomaticChecksEnabled() const
+    {
+        if (auto* settings = getAppProperties().getUserSettings())
+            return settings->getBoolValue ("automaticUpdateChecks", true);
+        return false;
     }
 
     void checkIfTimeForUpdateCheck()
@@ -47,20 +61,18 @@ private:
         if (isChecking || activeDownload != nullptr)
             return;
 
-        juce::PropertiesFile::Options options;
-        options.applicationName = appName;
-        options.filenameSuffix  = ".settings";
-
-        juce::PropertiesFile settings (options);
-        auto lastCheckStr = settings.getValue ("lastUpdateCheck", "0");
-        auto lastCheck = lastCheckStr.getLargeIntValue();
-        auto currentTime = juce::Time::getCurrentTime().toMilliseconds();
-
-        if (currentTime > (lastCheck + 86400000)) // check for updates if more than 24 hours past
+        if (auto* settings = getAppProperties().getUserSettings())
         {
-            settings.setValue ("lastUpdateCheck", currentTime);
-            settings.saveIfNeeded();
-            performGitHubRequest();
+            auto lastCheckStr = settings->getValue ("lastUpdateCheck", "0");
+            auto lastCheck = lastCheckStr.getLargeIntValue();
+            auto currentTime = juce::Time::getCurrentTime().toMilliseconds();
+
+            if (currentTime > (lastCheck + 86400000)) // check for updates if more than 24 hours past
+            {
+                settings->setValue ("lastUpdateCheck", currentTime);
+                settings->saveIfNeeded();
+                performGitHubRequest();
+            }
         }
     }
 
@@ -101,21 +113,24 @@ private:
             "Update Available",
             "A new version (" + releaseData->getProperty ("tag_name").toString() + ") of Curve is available. Would you like to download it?",
             nullptr,
-            juce::ModalCallbackFunction::create ([this, releaseData] (int result) {
+            juce::ModalCallbackFunction::create ([this, releaseDataVar = juce::var(releaseData)] (int result) {
                 if (result == 1) // OK
                 {
-                    auto* assets = releaseData->getProperty ("assets").getArray();
-                    if (assets != nullptr)
+                    if (auto* validReleaseData = releaseDataVar.getDynamicObject())
                     {
-                        for (auto& asset : *assets)
+                        auto* assets = validReleaseData->getProperty ("assets").getArray();
+                        if (assets != nullptr)
                         {
-                            juce::String name = asset.getProperty ("name", juce::var()).toString();
-                            
-                            if (name.endsWith (".dmg"))
+                            for (auto& asset : *assets)
                             {
-                                juce::String downloadUrl = asset.getProperty ("browser_download_url", juce::var()).toString();
-                                downloadUpdate (downloadUrl);
-                                return;
+                                juce::String name = asset.getProperty ("name", juce::var()).toString();
+                                
+                                if (name.endsWith (".dmg"))
+                                {
+                                    juce::String downloadUrl = asset.getProperty ("browser_download_url", juce::var()).toString();
+                                    downloadUpdate (downloadUrl);
+                                    return;
+                                }
                             }
                         }
                     }
@@ -143,7 +158,7 @@ private:
             
             juce::NativeMessageBox::showOkCancelBox (
                 juce::MessageBoxIconType::InfoIcon,
-                "Update download Complete",
+                "Download complete",
                 "The update for Curve has been downloaded. Would you like to quit Curve and open the installer now?",
                 nullptr,
                 juce::ModalCallbackFunction::create ([dmgFile] (int result) {

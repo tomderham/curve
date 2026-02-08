@@ -191,8 +191,12 @@ public:
         // hide editor window initially
         mainWindow->setVisible(false);
 
+        // initialize app Github updater
+        githubUpdater.reset(new GitHubUpdater());
+        githubUpdater->start("tomderham", "curve", options.applicationName);
+
         // initialize menu bar controller
-        trayIcon.reset(new TrayIconController(*mainWindow));
+        trayIcon.reset(new TrayIconController(*mainWindow, *githubUpdater));
 
         // initialize audio resilience manager
         auto& deviceManager = mainWindow->getDeviceManager();
@@ -206,11 +210,6 @@ public:
                     mainWindow->loadPreset (f);
             }
         }));
-
-        // initialize app Github updater
-        githubUpdater.reset(new GitHubUpdater());
-        githubUpdater->start("tomderham", "curve", options.applicationName);
-
 
         commandManager.registerAllCommandsForTarget (this);
         commandManager.registerAllCommandsForTarget (mainWindow.get());

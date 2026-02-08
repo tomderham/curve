@@ -13,6 +13,7 @@
 
 #include "MainHostWindow.h"
 #include "GraphEditorPanel.h"
+#include "GitHubUpdater.h"
 
 inline std::unique_ptr<InputStream> createAssetInputStream (const char* resourcePath)
 {
@@ -53,12 +54,15 @@ class TrayIconController : public juce::SystemTrayIconComponent, public juce::Ch
 {
 public:
     // Pass a reference to the window so we can control it
-    TrayIconController(MainHostWindow& windowToControl)
-        : mainWindow(windowToControl)
+    TrayIconController(MainHostWindow& windowToControl, GitHubUpdater& gitHubUpdaterToControl)
+        : mainWindow(windowToControl), gitHubUpdater(gitHubUpdaterToControl)
     {
         setIconImage (getImageFromAssets ("juce_icon.png"),
                       getImageFromAssets ("juce_icon_template.png"));
         setIconTooltip("Curve");
+
+        if (auto* settings = getAppProperties().getUserSettings())
+            isAutoAppUpdateCheckEnabled = settings->getBoolValue ("automaticUpdateChecks");
 
         if (auto* g = mainWindow.graphHolder->graph.get())
             g->addChangeListener (this);
@@ -71,12 +75,20 @@ public:
 
     void mouseDown(const juce::MouseEvent& event) override
     {
+
         if (event.mouseWasClicked()) {
             juce::Process::makeForegroundProcess();
             auto currentMousePos = juce::Desktop::getInstance().getMousePosition();
 
             juce::Timer::callAfterDelay(100, [this, currentMousePos]()
             {
+                juce::PopupMenu settingsmenu;
+                settingsmenu.addItem("Audio settings", [this] { mainWindow.showAudioSettings(); });
+                settingsmenu.addItem("Plugin manager", [this] { mainWindow.showPluginListWindow(); });
+                settingsmenu.addItem("Auto check for app updates", true, isAutoAppUpdateCheckEnabled, [this] { toggleAutoAppUpdateCheck(); });
+                settingsmenu.addItem("About", [this] { mainWindow.showAboutBox(); });
+                settingsmenu.addItem("Quit", [] { juce::JUCEApplication::getInstance()->systemRequestedQuit(); });
+
                 juce::PopupMenu menu;
                 
                 // Toggle Visibility
@@ -85,18 +97,13 @@ public:
                 else
                     menu.addItem("Show Editor", [this] { mainWindow.setVisible(true); mainWindow.toFront(true); });
 
+                menu.addItem("Save as preset", [this] { mainWindow.saveAsPreset(); });
                 menu.addSeparator();
                 menu.addSectionHeader("Presets");
                 addPresetsToMenu(menu);
-
                 menu.addSeparator();
-                menu.addItem("Save as preset", [this] { mainWindow.saveAsPreset(); });
-                menu.addItem("Audio settings", [this] { mainWindow.showAudioSettings(); });
-                menu.addItem("Plugin manager", [this] { mainWindow.showPluginListWindow(); });
 
-                menu.addSeparator();
-                menu.addItem("About", [this] { mainWindow.showAboutBox(); });
-                menu.addItem("Quit", [] { juce::JUCEApplication::getInstance()->systemRequestedQuit(); });
+                menu.addSubMenu("Settings", settingsmenu, true);
 
                 auto targetArea = juce::Rectangle<int>(currentMousePos.x, currentMousePos.y, 1, 1);
                 juce::PopupMenu::Options options;
@@ -123,7 +130,9 @@ public:
 
 private:
     MainHostWindow& mainWindow;
+    GitHubUpdater& gitHubUpdater;
     juce::File currentLoadedPreset;
+    bool isAutoAppUpdateCheckEnabled = false;
 
     void addPresetsToMenu(juce::PopupMenu& menu)
         {
@@ -145,4 +154,29 @@ private:
                      });
             }
         }
+
+    void toggleAutoAppUpdateCheck()
+    {
+        if(isAutoAppUpdateCheckEnabled) 
+        {
+            // auto update currently enabled, so toggle to disabled
+            isAutoAppUpdateCheckEnabled = false;
+            if (auto* settings = getAppProperties().getUserSettings())
+            {
+                settings->setValue ("automaticUpdateChecks", false);
+                settings->saveIfNeeded();
+            }
+        }
+        else
+        {
+            // auto update currently disabled, so toggle to enable and trigger update check now
+            isAutoAppUpdateCheckEnabled = true;
+            if (auto* settings = getAppProperties().getUserSettings())
+            {
+                settings->setValue ("automaticUpdateChecks", true);
+                settings->saveIfNeeded();
+            }
+            gitHubUpdater.doCheckNow();
+        }
+    }
 };

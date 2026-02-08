@@ -22,12 +22,12 @@ Simply copy the downloaded app to your Applications folder and open. If security
 
 When the app opens, its icon will be added to the macOS menu bar as shown below. (You will not see any open windows, or any task bar icon). On first use, the following steps are recommended:
 
-- Click on the menu bar icon, select 'Plugin manager'.
+- Click on the menu bar icon, select Settings -> 'Plugin manager'.
   - Click Options... button at bottom left of the dialog, and select 'Scan for new or updated AudioUnit plug-ins'. The scan process may take a while, and you might be asked to allow permission for Curve to access folders that the plugins being scanned are using.
   - Then, if you intend to also use VST3 plugins with Curve, repeat the process by clicking 'Scan for new or updated VST3 plug-ins'.
   - Once the scan is complete, the dialog should show a list of plugins installed on your device, including both macOS system plugins (e.g. AUNBandEQ that is often used for headphone/speaker EQ calibration) and third-party plugins.
   - Close the dialog box (red cross at top left).
-- Click on the menu bar icon again, select 'Audio settings'.
+- Click on the menu bar icon again, select Settings -> 'Audio settings'.
   - Select the Output and Input audio interfaces (see Loopback interfaces section below) and corresponding channels, and the desired sample rate and buffer latency.
   - On a modern Mac, 96000 Hz sample rate and 256 samples (2.7 ms latency) should work fine.
   - Close the dialog (red cross at top left).
@@ -40,6 +40,7 @@ When the app opens, its icon will be added to the macOS menu bar as shown below.
   - If you click on the menu bar icon again, you should now see the list of presets you have created - simply click on them to instantly switch between them. The currently selected preset has a check mark.
   - By switching between plugins, you can switch between different settings of the same plugin(s), or switch between completely different (combinations of) plugins, and/or switch between different audio interface channel routings. For example, you might have one preset that does EQ correction and sends audio to output channels connected to headphones, and another preset that does different EQ correction and sends audio to output channels connected to monitor speakers - see the screenshots below.
 - If you want the app to automatically load each time you log on, simply add it to your macOS login items under System Settings -> General -> Login Items & Extensions -> Open at Login (click the + icon and select Curve).
+- If you want the app to automatically check for updates, ensure Settings -> 'Auto check for app updates" is checked.
   
 <img width="216" height="338" alt="MainMenu" src="https://github.com/user-attachments/assets/50c915da-c8cc-412e-b178-23c2cbdefa8a" />
 <img width="282" height="338" alt="AudioSettings" src="https://github.com/user-attachments/assets/09f7eace-a963-40a3-9709-a286135bab95" />
