@@ -20,7 +20,11 @@ A primary use case for this app is to host equalizer (EQ) plugins for real-time 
 For most users, the easiest way to get started is to download the pre-built `Curve.app` from the latest [GitHub Release](https://github.com/tomderham/curve/releases).
 Simply copy the downloaded app to your Applications folder and open. If security warnings or other errors are displayed, see the troubleshooting notes below.
 
-When the app opens, its icon will be added to the macOS menu bar as shown below. (You will not see any open windows, or any task bar icon). On first use, the following steps are recommended:
+When the app opens, its icon will be added to the macOS menu bar as shown below. (You will not see any open windows, or any task bar icon).
+</br>
+<img width="37" height="29" alt="Screenshot 2026-02-08 at 12 03 19 AM" src="https://github.com/user-attachments/assets/4d7738ad-f9ca-4b98-9c4e-c98b868ae126" />
+
+On first use, the following steps are recommended:
 
 - Click on the menu bar icon, select Settings -> 'Plugin manager'.
   - Click Options... button at bottom left of the dialog, and select 'Scan for new or updated AudioUnit plug-ins'. The scan process may take a while, and you might be asked to allow permission for Curve to access folders that the plugins being scanned are using.
@@ -41,8 +45,8 @@ When the app opens, its icon will be added to the macOS menu bar as shown below.
   - By switching between plugins, you can switch between different settings of the same plugin(s), or switch between completely different (combinations of) plugins, and/or switch between different audio interface channel routings. For example, you might have one preset that does EQ correction and sends audio to output channels connected to headphones, and another preset that does different EQ correction and sends audio to output channels connected to monitor speakers - see the screenshots below.
 - If you want the app to automatically load each time you log on, simply add it to your macOS login items under System Settings -> General -> Login Items & Extensions -> Open at Login (click the + icon and select Curve).
 - If you want the app to automatically check for updates, ensure Settings -> 'Auto check for app updates" is checked.
-  
-<img width="216" height="338" alt="MainMenu" src="https://github.com/user-attachments/assets/50c915da-c8cc-412e-b178-23c2cbdefa8a" />
+
+<img width="282" height="338" alt="MainMenu" src="https://github.com/user-attachments/assets/899a10a6-071f-45e0-ab74-0988ea2d8695" />
 <img width="282" height="338" alt="AudioSettings" src="https://github.com/user-attachments/assets/09f7eace-a963-40a3-9709-a286135bab95" />
 <br>
 <img width="375" height="338" alt="Preset1" src="https://github.com/user-attachments/assets/812e36cc-6048-4d78-a5a0-c71b818b835f" />
