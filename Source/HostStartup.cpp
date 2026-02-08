@@ -49,6 +49,7 @@
 #include "Plugins/InternalPlugins.h"
 #include "UI/TrayIconController.h"
 #include "UI/AudioResilienceManager.h"
+#include "UI/GitHubUpdater.h"
 
 #if ! (JUCE_PLUGINHOST_VST || JUCE_PLUGINHOST_VST3 || JUCE_PLUGINHOST_AU)
  #error "If you're building the audio plugin host, you probably want to enable VST and/or AU support"
@@ -206,6 +207,11 @@ public:
             }
         }));
 
+        // initialize app Github updater
+        githubUpdater.reset(new GitHubUpdater());
+        githubUpdater->start("tomderham", "curve", options.applicationName);
+
+
         commandManager.registerAllCommandsForTarget (this);
         commandManager.registerAllCommandsForTarget (mainWindow.get());
 
@@ -299,6 +305,7 @@ private:
     std::unique_ptr<PluginScannerSubprocess> storedScannerSubprocess;
     std::unique_ptr<TrayIconController> trayIcon;
     std::unique_ptr<AudioResilienceManager> resilienceManager;
+    std::unique_ptr<GitHubUpdater> githubUpdater;
 };
 
 static PluginHostApp& getApp()                    { return *dynamic_cast<PluginHostApp*> (JUCEApplication::getInstance()); }
