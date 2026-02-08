@@ -263,6 +263,7 @@ public:
     {
         trayIcon = nullptr;
         resilienceManager = nullptr;
+        githubUpdater = nullptr;
         mainWindow = nullptr;
         appProperties = nullptr;
         LookAndFeel::setDefaultLookAndFeel (nullptr);
