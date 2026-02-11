@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 set(CMAKE_OSX_DEPLOYMENT_TARGET "14.0" CACHE STRING "Minimum macOS version")
-project(Curve VERSION 0.2.0)
+project(Curve VERSION 0.3.0)
 
 set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64")
 
@@ -14,6 +14,11 @@ juce_add_gui_app(Curve
     BACKGROUND_AUDIO_ENABLED        TRUE
     PLUGINHOST_AU                   TRUE
     PLIST_TO_MERGE "<plist><dict><key>LSUIElement</key><true/><key>NSAppSleepDisabled</key><true/></dict></plist>"
+    HARDENED_RUNTIME_ENABLED        TRUE
+    HARDENED_RUNTIME_ENTITLEMENTS
+	com.apple.security.device.audio-input
+	com.apple.security.cs.disable-library-validation
+	com.apple.security.cs.allow-jit
 )
 
 juce_generate_juce_header(Curve)
