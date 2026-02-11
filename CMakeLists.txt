@@ -15,10 +15,7 @@ juce_add_gui_app(Curve
     PLUGINHOST_AU                   TRUE
     PLIST_TO_MERGE "<plist><dict><key>LSUIElement</key><true/><key>NSAppSleepDisabled</key><true/></dict></plist>"
     HARDENED_RUNTIME_ENABLED        TRUE
-    HARDENED_RUNTIME_ENTITLEMENTS
-	com.apple.security.device.audio-input
-	com.apple.security.cs.disable-library-validation
-	com.apple.security.cs.allow-jit
+    HARDENED_RUNTIME_OPTIONS        com.apple.security.device.audio-input com.apple.security.cs.disable-library-validation com.apple.security.cs.allow-jit
 )
 
 juce_generate_juce_header(Curve)
