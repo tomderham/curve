@@ -11,15 +11,16 @@
 ==============================================================================
 */
 
+#define DONT_SET_USING_JUCE_NAMESPACE 1
+#include "SystemAudioCaptureNode.h"
+
 #if JUCE_MAC
 #import <Foundation/Foundation.h>
 #import <CoreAudio/CoreAudio.h>
 #import <CoreAudio/AudioHardwareTapping.h>
 #import <CoreAudio/CATapDescription.h>
+#include <unistd.h>
 #endif
-
-#define DONT_SET_USING_JUCE_NAMESPACE 1
-#include "SystemAudioCaptureNode.h"
 
 using namespace juce;
 
@@ -31,7 +32,7 @@ struct SystemAudioCaptureNode::TapWrapper {
     AudioDeviceIOProcID ioProcID = nullptr;
     AudioStreamBasicDescription asbd = {};
 };
-#endif // JUCE_MAC
+#endif
 
 //==============================================================================
 SystemAudioCaptureNode::SystemAudioCaptureNode()
@@ -65,7 +66,7 @@ void SystemAudioCaptureNode::prepareToPlay (double sampleRate, int samplesPerBlo
     isBuffering = true;
     resamplers[0].reset();
     resamplers[1].reset();
-    resampleBuffer.setSize(2, samplesPerBlock * 8); // Extra large cushion for high-ratio resampling
+    resampleBuffer.setSize(2, samplesPerBlock * 8);
     
 #if JUCE_MAC
     if (!isCapturing.exchange(true)) {
@@ -226,14 +227,13 @@ void SystemAudioCaptureNode::processBlock (juce::AudioBuffer<float>& buffer, juc
     buffer.clear();
     double captureRate = actualSampleRate.load();
     
-    // Dynamically tie latency to the user's chosen buffer size
+    // Latency depends on user's chosen buffer size
     // E.g. at 256 samples, latency is ~5.3ms at 96kHz
     int targetCushion = buffer.getNumSamples() * 2;
     int maxCushion    = buffer.getNumSamples() * 8;
     
     int currentReady = fifo.getNumReady();
     
-    // Hard reset only if we severely violate the 80ms ceiling (e.g. heavy system lag spike)
     if (currentReady > maxCushion)
     {
         int dropCount = currentReady - targetCushion;
