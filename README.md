@@ -1,6 +1,6 @@
 # Curve
 
-Curve is a free, lightweight, background audio plugin host for macOS, running natively on both Apple Silicon and Intel-based Macs.
+Curve is a free, lightweight, background audio plugin host for macOS (Sonoma 14.2 and above), running natively on both Apple Silicon and Intel-based Macs.
 It runs in the macOS system menu bar and provides a stable way to run a chain of audio plugins with a focus on a fast, preset-based workflow and audio device resilience.
 
 A primary use case for this app is to host equalizer (EQ) plugins for real-time headphone and speaker calibration, allowing you to apply system-wide audio correction without needing hardware-based solutions. See the examples below.
@@ -12,6 +12,7 @@ A primary use case for this app is to host equalizer (EQ) plugins for real-time 
 - Stable plugin hosting based on latest JUCE reference library.
 - Discrete menu bar app with quick preset change control
 - Automatic handling of preferred audio interfaces, recovery after audio interface disconnect/reconnect and device sleep, etc
+- Native support for using system-wide audio as an input
 - Create, save and quickly load presets comprising an arbitrary chain of plugins.
 - Full control over audio device settings, including channel selection on input and output interfaces, sample rate, and buffer latency.
 
@@ -36,9 +37,9 @@ On first use, the following steps are recommended:
   - On a modern Mac, 96000 Hz sample rate and 256 samples (2.7 ms latency) should work fine.
   - Close the dialog (red cross at top left).
 - You can now create a preset. Click on the menu bar icon again, select 'Show Editor'.
-  - You should see Audio Input and Audio Output blocks, each with some green dots that correspond to the channels you enabled in Audio settings.
-  - Right click the background of the Editor window - the list of installed plugins will show. Select a plugin you want to use, and a corresponding block will appear with inputs at the top and outputs at the bottom. If the number of inputs and outputs is not what you want, right click the block and select 'Configure Audio I/O' to correct it.
-  - Then, connect channel(s) on the audio input and output blocks to inputs and output on the plugin by clicking a green dot on one block and dragging a connecting line to a green dot on another block. A trivial example is shown below, where the two channels (L/R) of the audio input are sent to an AUNBandEQ block, and the two channels (L/R) of the EQ output are sent to the first two channels of the audio output. You can of course add additional plugin blocks and connect them together however you wish.
+  - By default, you should see the Audio Input and Audio Output nodes, each with some green dots that correspond to the channels you enabled in Audio settings. If you want to use the System Audio Input node (e.g. instead of the Audio Input node), right click on the background of the Editor window to add it. You can also right click on nodes to delete them if you are not using them. (If you're not using System Audio Input, then make sure its node is not present in the Editor to avoid unwanted side effects).
+  - Next, right click the background of the Editor window - the list of installed plugins will show. Select a plugin you want to use, and a corresponding node will appear with inputs at the top and outputs at the bottom. If the number of inputs and outputs is not what you want, right click the node and select 'Configure Audio I/O' to correct it.
+  - Then, connect channel(s) on the audio input (or system audio input) and audio output nodes to inputs and output on the plugin by clicking a green dot on one node and dragging a connecting line to a green dot on another node. A trivial example is shown below, where the two channels (L/R) of the audio input are sent to an AUNBandEQ node, and the two channels (L/R) of the EQ output are sent to the first two channels of the audio output. You can of course add additional plugin nodes and connect them together however you wish.
   - To open the editor of a plugin (e.g. to set the desired EQ in AUNBandEQ), simply double click on the plugin box. To save the preset, click the menu bar icon and select 'Save as preset'. It should default to the correct preset folder but it's good to double check (it should be ~/Library/Application Support/Curve/Presets/ where ~/Library is the user specific library at /Users/your_user_name/Library). Choose a suitable name and save the preset. The editor window can be hidden using red close (top left) or selecting 'Hide Editor' from the app menu.
   - If you want to modify a preset later, first load the preset, make the changes, 'Save as preset' and select the existing file name. Note that changes to presets are *not* saved unless you explicitly use 'Save as preset'. You can repeat the process to create multiple presets. You can rename presets by manually changing their filenames in the preset folder using Finder.
   - If you click on the menu bar icon again, you should now see the list of presets you have created - simply click on them to instantly switch between them. The currently selected preset has a check mark.
@@ -59,7 +60,9 @@ In some use cases, it is desirable to redirect the audio output of an app (e.g. 
 
 Some audio interface vendors (such as RME) provide a native loopback feature to enable this. For example, using RME Totalmix's Loopback function, you can redirect a pair of output channels to a spare pair of input channels. You would then configure Curve to use those input channels as its inputs, and configure (some of) the 'software playback' channels as Curve's output channels. Finally, in Totalmix you would assign the software playback channel(s) to the desired hardware outputs.
 
-For other audio interface vendors who do not provide such native functionality, you can use a software based loopback driver instead. A popular free option is [BlackHole](https://github.com/ExistentialAudio/BlackHole). For simplicity and efficiency, just install the 2Ch (2 channel) version unless you need more.
+Alternatively, you can use the native System Audio input node in Curve. Simply add the node to your Editor (typically, instead of the audio input node of your audio interface) and connect it to the input of your plugin chain. The "raw" system audio output will be muted while this is enabled, so that (if you wish) macOS audio output can be set to the same interface as Curve's output interface. If the macOS audio output is set to a different output interface, it is preferable to ensure the sample rate of that interface is the same as the sample rate of Curve's output interface (as configured in Curve settings) to avoid any audio artifacts caused by resampling.
+
+Another alternative is to use a software based loopback driver. A popular free option is [BlackHole](https://github.com/ExistentialAudio/BlackHole). For simplicity and efficiency, just install the 2Ch (2 channel) version unless you need more.
 Once Blackhole is installed, a new interface will appear in macOS audio settings. You can configure your DAW and/or macOS system audio to output to Blackhole, instead of the real hardware outputs. Then, in Curve, you set Blackhole as the input audio interface, and set the real hardware output as the output audio interface.
 
 
@@ -139,7 +142,7 @@ The project is built using CMake. It is not necessary to use Projucer or Xcode I
 2.  **Configure the project and compile with CMake:** Run CMake from the new build directory
     ```sh
     cd build
-    cmake .. -DCMAKE_BUILD_TYPE=Release && cmake Curve
+    cmake .. -DCMAKE_BUILD_TYPE=Release && cmake --build .
     ```
 3.  **Code sign the application:** Even if you are only running the newly built binary locally, explicit code signing is essential to avoid various issues with macOS privacy permissions (e.g. persistent microphone permissions dialogs). The minimal requirement for ad-hoc code signing is to run:
     ```sh

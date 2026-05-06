@@ -355,9 +355,6 @@ MainHostWindow::MainHostWindow()
     if (auto savedPluginList = getAppProperties().getUserSettings()->getXmlValue ("pluginList"))
         knownPluginList.recreateFromXml (*savedPluginList);
 
-    for (auto& t : internalTypes)
-        knownPluginList.addType (t);
-
     pluginSortMethod = (KnownPluginList::SortMethod) getAppProperties().getUserSettings()
                             ->getIntValue ("pluginSortMethod", KnownPluginList::sortByManufacturer);
 
@@ -697,7 +694,7 @@ void MainHostWindow::addPluginsToMenu (PopupMenu& m)
         int i = 0;
 
         for (auto& t : internalTypes)
-            m.addItem (++i, t.name + " (" + t.pluginFormatName + ")");
+            m.addItem (++i, t.name);
     }
 
     m.addSeparator();

@@ -1,8 +1,12 @@
 cmake_minimum_required(VERSION 3.22)
-set(CMAKE_OSX_DEPLOYMENT_TARGET "14.0" CACHE STRING "Minimum macOS version")
-project(Curve VERSION 0.3.0)
+project(Curve VERSION 0.4.0)
 
+set(CMAKE_OSX_DEPLOYMENT_TARGET "14.2" CACHE STRING "Minimum macOS version" FORCE)
+set(CMAKE_OSX_SYSROOT "macosx" CACHE STRING "Use the latest installed macOS SDK")
 set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64")
+
+add_compile_definitions(MAC_OS_X_VERSION_MIN_REQUIRED=140200)
+add_compile_options(-Wno-deprecated-declarations)
 
 add_subdirectory(JUCE)
 
@@ -13,7 +17,9 @@ juce_add_gui_app(Curve
     MICROPHONE_PERMISSION_ENABLED   TRUE
     BACKGROUND_AUDIO_ENABLED        TRUE
     PLUGINHOST_AU                   TRUE
-    PLIST_TO_MERGE "<plist><dict><key>LSUIElement</key><true/><key>NSAppSleepDisabled</key><true/></dict></plist>"
+    OSX_DEPLOYMENT_TARGET           14.2
+    OSX_SYSROOT                     macosx
+    PLIST_TO_MERGE "<plist><dict><key>LSMinimumSystemVersion</key><string>14.2</string><key>LSUIElement</key><true/><key>NSAppSleepDisabled</key><true/><key>NSAudioCaptureUsageDescription</key><string>Curve needs audio access to capture and process system audio.</string></dict></plist>"
     HARDENED_RUNTIME_ENABLED        TRUE
     HARDENED_RUNTIME_OPTIONS        com.apple.security.device.audio-input com.apple.security.cs.disable-library-validation com.apple.security.cs.allow-jit
 )
@@ -26,6 +32,7 @@ target_sources(Curve PRIVATE
     Source/Plugins/IOConfigurationWindow.cpp
     Source/Plugins/InternalPlugins.cpp
     Source/Plugins/PluginGraph.cpp
+    Source/Plugins/SystemAudioCaptureNode.mm
     Source/UI/GraphEditorPanel.cpp
     Source/UI/MainHostWindow.cpp)
 
@@ -58,6 +65,7 @@ target_link_libraries(Curve PRIVATE
     juce::juce_opengl
     juce::juce_recommended_config_flags
     juce::juce_recommended_lto_flags
-    juce::juce_recommended_warning_flags)
+    juce::juce_recommended_warning_flags
+    "-framework CoreAudio")
 
 juce_add_bundle_resources_directory(Curve  ${CMAKE_CURRENT_SOURCE_DIR}/Source/Assets/)

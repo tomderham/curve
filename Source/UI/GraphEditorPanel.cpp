@@ -379,7 +379,11 @@ struct GraphEditorPanel::PluginComponent final : public Component,
             h = 100;
 
         setSize (w, h);
-        setName (processor.getName() + formatSuffix);
+
+        String finalName = processor.getName();
+        if (formatSuffix != " (Internal)")
+            finalName += formatSuffix;
+        setName (finalName);
 
         {
             auto p = graph.getNodePosition (pluginID);
@@ -428,7 +432,7 @@ struct GraphEditorPanel::PluginComponent final : public Component,
     void showPopupMenu()
     {
         menu.reset (new PopupMenu);
-        menu->addItem ("Delete this filter", [this] { graph.graph.removeNode (pluginID); });
+        menu->addItem ("Delete this node", [this] { graph.graph.removeNode (pluginID); });
         menu->addItem ("Disconnect all pins", [this] { graph.graph.disconnectNode (pluginID); });
         menu->addItem ("Toggle Bypass", [this]
         {
@@ -442,10 +446,6 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         if (getProcessor()->hasEditor())
             menu->addItem ("Show plugin GUI", [this] { showWindow (PluginWindow::Type::normal); });
 
-        menu->addItem ("Show all programs", [this] { showWindow (PluginWindow::Type::programs); });
-        menu->addItem ("Show all parameters", [this] { showWindow (PluginWindow::Type::generic); });
-        menu->addItem ("Show debug log", [this] { showWindow (PluginWindow::Type::debug); });
-
        #if JUCE_PLUGINHOST_ARA && (JUCE_MAC || JUCE_WINDOWS || JUCE_LINUX)
         if (auto* instance = dynamic_cast<AudioPluginInstance*> (getProcessor()))
             if (instance->getPluginDescription().hasARAExtension && isNodeUsingARA())
@@ -457,7 +457,6 @@ struct GraphEditorPanel::PluginComponent final : public Component,
 
         menu->addSeparator();
         menu->addItem ("Configure Audio I/O", [this] { showWindow (PluginWindow::Type::audioIO); });
-        menu->addItem ("Test state save/load", [this] { testStateSaveLoad(); });
 
        #if ! JUCE_IOS && ! JUCE_ANDROID
         menu->addSeparator();
