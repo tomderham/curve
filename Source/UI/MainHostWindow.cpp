@@ -355,6 +355,16 @@ MainHostWindow::MainHostWindow()
     if (auto savedPluginList = getAppProperties().getUserSettings()->getXmlValue ("pluginList"))
         knownPluginList.recreateFromXml (*savedPluginList);
 
+    // Remove any cached known (internal) plugins from list
+    auto types = knownPluginList.getTypes();
+    for (auto& desc : types)
+        if (desc.pluginFormatName == InternalPluginFormat::getIdentifier())
+            knownPluginList.removeType (desc);
+
+    // Add current internal plugins to list
+    for (auto& t : internalTypes)
+        knownPluginList.addType (t);
+
     pluginSortMethod = (KnownPluginList::SortMethod) getAppProperties().getUserSettings()
                             ->getIntValue ("pluginSortMethod", KnownPluginList::sortByManufacturer);
 
