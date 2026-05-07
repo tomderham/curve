@@ -12,7 +12,7 @@ add_subdirectory(JUCE)
 
 juce_add_gui_app(Curve
     APP_CATEGORY                    public.app-category.music
-    BUNDLE_ID                       com.thomasderham.curves
+    BUNDLE_ID                       com.thomasderham.curve
     ICON_BIG                        "${CMAKE_CURRENT_SOURCE_DIR}/Source/JUCEAppIcon.png"
     MICROPHONE_PERMISSION_ENABLED   TRUE
     MICROPHONE_PERMISSION_TEXT      "Curve requires access to your audio interface to operate. If you don't select an external audio interface, the microphone might be selected."
