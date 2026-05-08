@@ -49,10 +49,11 @@ public:
 
     void fillInPluginDescription (juce::PluginDescription& description) const override;
 
+    void setTargetOutputDeviceName (const juce::String& name);
+
     // Pushes incoming samples from the Core Audio Delegate to the FIFO
     void pushAudio (const float* const* channelData, int numChannels, int numSamples);
     void pushAudioInterleaved (const float* interleavedData, int numChannels, int numSamples);
-    void setActualSampleRate (double sampleRate) { actualSampleRate.store (sampleRate); }
 
 private:
     // Lock-free ring buffer components
@@ -60,17 +61,14 @@ private:
     juce::AbstractFifo fifo { ringBufferCapacity };
     juce::AudioBuffer<float> ringBuffer;
     
-    std::atomic<double> actualSampleRate { 48000.0 };
-    double outputSampleRate = 48000.0;
-    juce::LagrangeInterpolator resamplers[2];
-    juce::AudioBuffer<float> resampleBuffer;
-
     // PIMPL idiom to hide Objective-C++ details from this header
     struct TapWrapper;
     std::unique_ptr<TapWrapper> tapWrapper;
     
     std::atomic<bool> isCapturing { false };
     bool isBuffering { true };
+
+    juce::String targetOutputDeviceName;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SystemAudioCaptureNode)
 };

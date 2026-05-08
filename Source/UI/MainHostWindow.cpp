@@ -47,6 +47,7 @@
 #include <JuceHeader.h>
 #include "MainHostWindow.h"
 #include "../Plugins/InternalPlugins.h"
+#include "../Plugins/SystemAudioCaptureNode.h"
 
 constexpr const char* scanModeKey = "pluginScanMode";
 
@@ -492,6 +493,16 @@ void MainHostWindow::changeListenerCallback (ChangeBroadcaster* changed)
     }
     else if (graphHolder != nullptr && changed == graphHolder->graph.get())
     {
+        // Propagate current device UID to newly added capture nodes
+        if (auto* device = deviceManager.getCurrentAudioDevice())
+        {
+            juce::String currentDeviceName = device->getName();
+            
+            for (auto* node : graphHolder->graph->graph.getNodes())
+                if (auto* captureNode = dynamic_cast<SystemAudioCaptureNode*> (node->getProcessor()))
+                    captureNode->setTargetOutputDeviceName (currentDeviceName);
+        }
+
         auto title = JUCEApplication::getInstance()->getApplicationName();
         auto f = graphHolder->graph->getFile();
 

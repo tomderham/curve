@@ -48,6 +48,7 @@
 #include "GraphEditorPanel.h"
 #include "../Plugins/InternalPlugins.h"
 #include "MainHostWindow.h"
+#include "../Plugins/SystemAudioCaptureNode.h"
 
 //==============================================================================
 #if JUCE_IOS
@@ -1408,6 +1409,15 @@ bool GraphDocumentComponent::closeAnyOpenPluginWindows()
 void GraphDocumentComponent::changeListenerCallback (ChangeBroadcaster*)
 {
     updateMidiOutput();
+
+    if (auto* device = deviceManager.getCurrentAudioDevice())
+    {
+        juce::String currentDeviceName = device->getName();
+        
+        for (auto* node : graph->graph.getNodes())
+            if (auto* captureNode = dynamic_cast<SystemAudioCaptureNode*> (node->getProcessor()))
+                captureNode->setTargetOutputDeviceName (currentDeviceName);
+    }
 }
 
 void GraphDocumentComponent::updateMidiOutput()
