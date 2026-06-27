@@ -85,22 +85,27 @@ private:
         auto options = juce::URL::InputStreamOptions (juce::URL::ParameterHandling::inAddress)
                         .withExtraHeaders ("User-Agent: " + appName + "-Updater\nAccept: application/vnd.github+json");
 
-        juce::Thread::launch ([this, url, options]
+        juce::WeakReference<GitHubUpdater> weakSelf (this);
+
+        juce::Thread::launch ([weakSelf, url, options]
         {
             juce::String response;
             if (auto stream = url.createInputStream (options))
                 response = stream->readEntireStreamAsString();
             
-            juce::MessageManager::callAsync ([this, response] 
+            juce::MessageManager::callAsync ([weakSelf, response] 
             {
-                isChecking = false;
-                auto json = juce::JSON::parse (response);
-                
-                if (auto* obj = json.getDynamicObject())
+                if (auto* self = weakSelf.get())
                 {
-                    auto latestTag = obj->getProperty ("tag_name").toString();
-                    if (latestTag.isNotEmpty() && latestTag != juce::String (ProjectInfo::versionString))
-                        handleUpdateFound (obj);
+                    self->isChecking = false;
+                    auto json = juce::JSON::parse (response);
+                    
+                    if (auto* obj = json.getDynamicObject())
+                    {
+                        auto latestTag = obj->getProperty ("tag_name").toString();
+                        if (latestTag.isNotEmpty() && latestTag != juce::String (ProjectInfo::versionString))
+                            self->handleUpdateFound (obj);
+                    }
                 }
             });
         });
@@ -108,28 +113,32 @@ private:
 
     void handleUpdateFound (juce::DynamicObject* releaseData)
     {
+        juce::WeakReference<GitHubUpdater> weakSelf (this);
         juce::NativeMessageBox::showOkCancelBox (
             juce::MessageBoxIconType::InfoIcon,
             "Update Available",
             "A new version (" + releaseData->getProperty ("tag_name").toString() + ") of Curve is available. Would you like to download it?",
             nullptr,
-            juce::ModalCallbackFunction::create ([this, releaseDataVar = juce::var(releaseData)] (int result) {
+            juce::ModalCallbackFunction::create ([weakSelf, releaseDataVar = juce::var(releaseData)] (int result) {
                 if (result == 1) // OK
                 {
-                    if (auto* validReleaseData = releaseDataVar.getDynamicObject())
+                    if (auto* self = weakSelf.get())
                     {
-                        auto* assets = validReleaseData->getProperty ("assets").getArray();
-                        if (assets != nullptr)
+                        if (auto* validReleaseData = releaseDataVar.getDynamicObject())
                         {
-                            for (auto& asset : *assets)
+                            auto* assets = validReleaseData->getProperty ("assets").getArray();
+                            if (assets != nullptr)
                             {
-                                juce::String name = asset.getProperty ("name", juce::var()).toString();
-                                
-                                if (name.endsWith (".dmg"))
+                                for (auto& asset : *assets)
                                 {
-                                    juce::String downloadUrl = asset.getProperty ("browser_download_url", juce::var()).toString();
-                                    downloadUpdate (downloadUrl);
-                                    return;
+                                    juce::String name = asset.getProperty ("name", juce::var()).toString();
+                                    
+                                    if (name.endsWith (".dmg"))
+                                    {
+                                        juce::String downloadUrl = asset.getProperty ("browser_download_url", juce::var()).toString();
+                                        self->downloadUpdate (downloadUrl);
+                                        return;
+                                    }
                                 }
                             }
                         }
@@ -152,38 +161,42 @@ private:
     // --- Download Listener ---
     void finished (juce::URL::DownloadTask* task, bool success) override
     {
-        if (success)
-        {
-            auto dmgFile = task->getTargetLocation();
-            
-            juce::NativeMessageBox::showOkCancelBox (
-                juce::MessageBoxIconType::InfoIcon,
-                "Download complete",
-                "The update for Curve has been downloaded. Would you like to quit Curve and open the installer now?",
-                nullptr,
-                juce::ModalCallbackFunction::create ([dmgFile] (int result) {
-                    if (result == 1) // User clicked "OK"
-                    {
-                        // 1. Open the DMG visually
-                        dmgFile.startAsProcess();
+        auto dmgFile = task->getTargetLocation();
+        juce::WeakReference<GitHubUpdater> weakSelf (this);
 
-                        // 2. Quit the current application to free up the binary
-                        juce::JUCEApplication::getInstance()->systemRequestedQuit();
-                    }
-                })
-            );
-        }
-        else
+        juce::MessageManager::callAsync ([weakSelf, success, dmgFile]
         {
-            activeDownload.reset();
-        }
-        
-        activeDownload.reset();
+            if (auto* self = weakSelf.get())
+            {
+                self->activeDownload.reset();
+
+                if (success)
+                {
+                    juce::NativeMessageBox::showOkCancelBox (
+                        juce::MessageBoxIconType::InfoIcon,
+                        "Download complete",
+                        "The update for Curve has been downloaded. Would you like to quit Curve and open the installer now?",
+                        nullptr,
+                        juce::ModalCallbackFunction::create ([dmgFile] (int result) {
+                            if (result == 1) // User clicked "OK"
+                            {
+                                // 1. Open the DMG visually
+                                dmgFile.startAsProcess();
+
+                                // 2. Quit the current application to free up the binary
+                                juce::JUCEApplication::getInstance()->systemRequestedQuit();
+                            }
+                        })
+                    );
+                }
+            }
+        });
     }
 
     juce::String user, repo, appName;
     bool isChecking = false;
     std::unique_ptr<juce::URL::DownloadTask> activeDownload;
 
+    JUCE_DECLARE_WEAK_REFERENCEABLE (GitHubUpdater)
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GitHubUpdater)
 };
