@@ -62,7 +62,7 @@ public:
         setIconTooltip("Curve");
 
         if (auto* settings = getAppProperties().getUserSettings())
-            isAutoAppUpdateCheckEnabled = settings->getBoolValue ("automaticUpdateChecks");
+            isAutoAppUpdateCheckEnabled = settings->getBoolValue ("automaticUpdateChecks", true);
 
         if (auto* g = mainWindow.graphHolder->graph.get())
             g->addChangeListener (this);
