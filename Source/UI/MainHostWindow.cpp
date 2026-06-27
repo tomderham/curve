@@ -968,14 +968,17 @@ void MainHostWindow::showAudioSettings()
                          ModalCallbackFunction::create
                          ([safeThis] (int)
                          {
-                             auto audioState = safeThis->deviceManager.createStateXml();
+                             if (safeThis != nullptr)
+                             {
+                                 auto audioState = safeThis->deviceManager.createStateXml();
 
-                             getAppProperties().getUserSettings()->setValue ("audioDeviceState", audioState.get());
-                             getAppProperties().getUserSettings()->saveIfNeeded();
+                                 getAppProperties().getUserSettings()->setValue ("audioDeviceState", audioState.get());
+                                 getAppProperties().getUserSettings()->saveIfNeeded();
 
-                             if (safeThis->graphHolder != nullptr)
-                                 if (safeThis->graphHolder->graph != nullptr)
-                                     safeThis->graphHolder->graph->graph.removeIllegalConnections();
+                                 if (safeThis->graphHolder != nullptr)
+                                     if (safeThis->graphHolder->graph != nullptr)
+                                         safeThis->graphHolder->graph->graph.removeIllegalConnections();
+                             }
                          }), true);
 }
 
