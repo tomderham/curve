@@ -46,6 +46,7 @@
 
 #include <JuceHeader.h>
 #include "MainHostWindow.h"
+#include "AudioResilienceManager.h"
 #include "../Plugins/InternalPlugins.h"
 #include "../Plugins/SystemAudioCaptureNode.h"
 
@@ -1064,6 +1065,11 @@ void MainHostWindow::updateAutoScaleMenuItem (ApplicationCommandInfo& info)
 
 void MainHostWindow::loadPreset(juce::File file)
 {
+    if (auto* rm = getResilienceManager())
+    {
+        rm->setSuspended (true);
+    }
+
     if (graphHolder != nullptr)
     {
         graphHolder->setPlaybackActive(false);
@@ -1072,6 +1078,11 @@ void MainHostWindow::loadPreset(juce::File file)
     if (graphHolder != nullptr)
     {
         graphHolder->setPlaybackActive(true);
+    }
+
+    if (auto* rm = getResilienceManager())
+    {
+        rm->setSuspended (false);
     }
 }
 

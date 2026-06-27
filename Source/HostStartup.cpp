@@ -300,6 +300,8 @@ public:
     ApplicationCommandManager commandManager;
     std::unique_ptr<ApplicationProperties> appProperties;
 
+    AudioResilienceManager* getResilienceManager() const { return resilienceManager.get(); }
+
 private:
     std::unique_ptr<MainHostWindow> mainWindow;
     std::unique_ptr<PluginScannerSubprocess> storedScannerSubprocess;
@@ -312,6 +314,13 @@ static PluginHostApp& getApp()                    { return *dynamic_cast<PluginH
 
 ApplicationProperties& getAppProperties()         { return *getApp().appProperties; }
 ApplicationCommandManager& getCommandManager()    { return getApp().commandManager; }
+
+AudioResilienceManager* getResilienceManager()
+{
+    if (auto* app = dynamic_cast<PluginHostApp*> (JUCEApplication::getInstance()))
+        return app->getResilienceManager();
+    return nullptr;
+}
 
 bool isOnTouchDevice()
 {

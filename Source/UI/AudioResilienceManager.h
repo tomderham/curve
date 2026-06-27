@@ -42,10 +42,17 @@ public:
         deviceManager.removeChangeListener(this);
     }
 
+    void setSuspended (bool suspend)
+    {
+        isSuspended = suspend;
+        if (!isSuspended)
+            lastTimeCheck = juce::Time::getMillisecondCounter();
+    }
+
     // callback when an audio config change occurs
     void changeListenerCallback(juce::ChangeBroadcaster*) override
     {
-        if (!isWarmedUp || isRestarting) return;
+        if (!isWarmedUp || isRestarting || isSuspended) return;
 
         // call doResilience
         doResilience();
@@ -68,6 +75,7 @@ public:
     // callback every 1 sec (except during initial 5 sec warmup)
     void timerCallback() override
     {
+        if (isSuspended) return;
         if (!isWarmedUp)
         {
             isWarmedUp = true;
@@ -81,6 +89,9 @@ public:
 
     void doResilience()
     {
+        if (isSuspended)
+            return;
+
         // Skip resilience checks while a modal component is active (e.g. to allow user to change target device in audio settings)
         if (juce::Component::getCurrentlyModalComponent() != nullptr)
             return;
@@ -132,6 +143,7 @@ private:
     uint32 lastTimeCheck;
     bool isRestarting = false;
     bool isWarmedUp = false;
+    bool isSuspended = false;
     juce::String lastDeviceName;
     juce::BigInteger lastInputChannels;
     juce::BigInteger lastOutputChannels;
@@ -170,3 +182,5 @@ private:
 
     ConfigRestoredCallback onConfigRestored;
 };
+
+AudioResilienceManager* getResilienceManager();
