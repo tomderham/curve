@@ -222,6 +222,8 @@ public:
 
     ~PluginWindow() override
     {
+        if (node != nullptr)
+            node->properties.set (getOpenProp (type), false);
         clearContentComponent();
     }
 
@@ -233,7 +235,6 @@ public:
 
     void closeButtonPressed() override
     {
-        node->properties.set (getOpenProp (type), false);
         activeWindowList.removeObject (this);
     }
 
