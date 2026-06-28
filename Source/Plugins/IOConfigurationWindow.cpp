@@ -445,6 +445,20 @@ IOConfigurationWindow::IOConfigurationWindow (AudioProcessor& p)
     title.setFont (title.getFont().withStyle (Font::bold));
     addAndMakeVisible (title);
 
+    if (auto* graph = getGraph())
+    {
+        ScopedLock renderLock (graph->getCallbackLock());
+        
+        graph->suspendProcessing (true);
+        graph->releaseResources();
+
+        p.suspendProcessing (true);
+        p.releaseResources();
+
+        graph->prepareToPlay (graph->getSampleRate(), graph->getBlockSize());
+        graph->suspendProcessing (false);
+    }
+    else
     {
         ScopedLock renderLock (p.getCallbackLock());
         p.suspendProcessing (true);
