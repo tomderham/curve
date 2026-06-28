@@ -178,6 +178,10 @@ public:
         appProperties.reset (new ApplicationProperties());
         appProperties->setStorageParameters (options);
 
+        lastShutdownClean = appProperties->getUserSettings()->getBoolValue ("lastShutdownClean", true);
+        appProperties->getUserSettings()->setValue ("lastShutdownClean", false);
+        appProperties->getUserSettings()->saveIfNeeded();
+
         // create presets folder if it doesn't exist
         auto appDataDir = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory).getChildFile ("Application Support").getChildFile(JUCEApplication::getInstance()->getApplicationName());
         auto presetsDir = appDataDir.getChildFile("Presets");
@@ -253,13 +257,41 @@ public:
         }
 
         if (fileToOpen.existsAsFile())
-            if (auto* graph = mainWindow->graphHolder.get())
-                if (auto* ioGraph = graph->graph.get())
-                    ioGraph->loadFrom (fileToOpen, true);
+        {
+            if (! lastShutdownClean)
+            {
+                juce::NativeMessageBox::showOkCancelBox (
+                    juce::MessageBoxIconType::WarningIcon,
+                    "Curve Startup Recovery",
+                    "It looks like Curve didn't shut down cleanly last time. Would you like to load your last active preset (" + fileToOpen.getFileNameWithoutExtension() + ") anyway?",
+                    nullptr,
+                    juce::ModalCallbackFunction::create ([this, fileToOpen] (int result) {
+                        if (result == 1) // OK / Load
+                        {
+                            loadPresetAtStartup (fileToOpen);
+                        }
+                    })
+                );
+            }
+            else
+            {
+                loadPresetAtStartup (fileToOpen);
+            }
+        }
+    }
+
+    void loadPresetAtStartup (const File& fileToOpen)
+    {
+        if (auto* graph = mainWindow->graphHolder.get())
+            if (auto* ioGraph = graph->graph.get())
+                ioGraph->loadFrom (fileToOpen, true);
     }
 
     void shutdown() override
     {
+        getAppProperties().getUserSettings()->setValue ("lastShutdownClean", true);
+        getAppProperties().getUserSettings()->saveIfNeeded();
+
         trayIcon = nullptr;
         resilienceManager = nullptr;
         githubUpdater = nullptr;
@@ -308,6 +340,7 @@ private:
     std::unique_ptr<TrayIconController> trayIcon;
     std::unique_ptr<AudioResilienceManager> resilienceManager;
     std::unique_ptr<GitHubUpdater> githubUpdater;
+    bool lastShutdownClean = true;
 };
 
 static PluginHostApp& getApp()                    { return *dynamic_cast<PluginHostApp*> (JUCEApplication::getInstance()); }
