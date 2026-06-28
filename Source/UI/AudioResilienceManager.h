@@ -35,6 +35,7 @@ public:
 
         lastTimeCheckMonotonic = juce::Time::getMillisecondCounter();
         lastTimeCheckWallClock = juce::Time::getCurrentTime().toMilliseconds();
+        updateTargetSettings();
         startTimer(5000);
     }
 
@@ -57,6 +58,9 @@ public:
     void changeListenerCallback(juce::ChangeBroadcaster*) override
     {
         if (!isWarmedUp || isRestarting || isSuspended) return;
+
+        // update the cached target device names
+        updateTargetSettings();
 
         // call doResilience
         doResilience();
@@ -111,14 +115,9 @@ public:
 
         bool wokeFromSleep = (elapsedWallClock > (juce::int64) elapsedMonotonic + 4000);
 
-        // try to get saved Xml state; bail if there is no saved state or saved state doesn't specify target device
-        auto savedState = getAppProperties().getUserSettings()->getXmlValue ("audioDeviceState");
-        if (savedState == nullptr)
-            return;
-        juce::String savedInputDeviceName = savedState->getStringAttribute("audioInputDeviceName");
-        juce::String savedOutputDeviceName = savedState->getStringAttribute("audioOutputDeviceName");
-        bool isTargetDeviceSaved = savedInputDeviceName != "" && savedOutputDeviceName != "";
-        if (!isTargetDeviceSaved)
+        // Use cached settings to avoid parsing properties file XML on every tick
+        bool isTargetDeviceSaved = targetInputDeviceName.isNotEmpty() && targetOutputDeviceName.isNotEmpty();
+        if (!isTargetDeviceSaved || cachedAudioState == nullptr)
             return;
 
         // Fast-path early exit: if the target device is already active and playing normally (and we didn't just wake up from sleep),
@@ -126,8 +125,8 @@ public:
         auto* currentDevice = deviceManager.getCurrentAudioDevice();
         juce::AudioDeviceManager::AudioDeviceSetup currentSetup;
         deviceManager.getAudioDeviceSetup(currentSetup);
-        bool isTargetSelected = (currentSetup.inputDeviceName == savedInputDeviceName) &&
-                                (currentSetup.outputDeviceName == savedOutputDeviceName);
+        bool isTargetSelected = (currentSetup.inputDeviceName == targetInputDeviceName) &&
+                                (currentSetup.outputDeviceName == targetOutputDeviceName);
         bool isOperatingNormally = isTargetSelected && (currentDevice != nullptr && currentDevice->isPlaying());
 
         if (isOperatingNormally && !wokeFromSleep)
@@ -137,7 +136,7 @@ public:
         // We force a scan here because we are in an abnormal state (disconnected or stopped) or waking from sleep,
         // and we need to check the hardware list accurately to execute recovery.
         scanDevices();
-        bool isTargetPhysicallyPresent = isDeviceAvailable(savedInputDeviceName, false) && isDeviceAvailable(savedOutputDeviceName, false);
+        bool isTargetPhysicallyPresent = isDeviceAvailable(targetInputDeviceName, false) && isDeviceAvailable(targetOutputDeviceName, false);
         if (!isTargetPhysicallyPresent)
         {
             if (currentDevice != nullptr)
@@ -148,14 +147,14 @@ public:
         // if we just woke from sleep (and target device is physically present), enforce config then bail
         if (wokeFromSleep)
         {
-            enforceConfiguration(savedState.get());
+            enforceConfiguration(cachedAudioState.get());
             return;
         }
 
         // if target device is physically present but not selected in currentSetup, or if it is selected but not playing, enforce config
         if (!isTargetSelected || (currentDevice != nullptr && !currentDevice->isPlaying()))
         {
-                enforceConfiguration(savedState.get());
+            enforceConfiguration(cachedAudioState.get());
         }
     }
 
@@ -169,6 +168,27 @@ private:
     juce::String lastDeviceName;
     juce::BigInteger lastInputChannels;
     juce::BigInteger lastOutputChannels;
+
+    juce::String targetInputDeviceName;
+    juce::String targetOutputDeviceName;
+    std::unique_ptr<juce::XmlElement> cachedAudioState;
+
+    void updateTargetSettings()
+    {
+        auto savedState = getAppProperties().getUserSettings()->getXmlValue ("audioDeviceState");
+        if (savedState != nullptr)
+        {
+            targetInputDeviceName = savedState->getStringAttribute("audioInputDeviceName");
+            targetOutputDeviceName = savedState->getStringAttribute("audioOutputDeviceName");
+            cachedAudioState = std::move(savedState);
+        }
+        else
+        {
+            targetInputDeviceName = "";
+            targetOutputDeviceName = "";
+            cachedAudioState = nullptr;
+        }
+    }
 
     void scanDevices()
     {
