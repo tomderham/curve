@@ -1014,7 +1014,7 @@ void MainHostWindow::filesDropped (const StringArray& files, int x, int y)
         {
             if (auto* g = graphHolder->graph.get())
             {
-                SafePointer<MainHostWindow> parent;
+                SafePointer<MainHostWindow> parent { this };
                 g->saveIfNeededAndUserAgreesAsync ([parent, g, firstFile] (FileBasedDocument::SaveResult r)
                 {
                     if (parent == nullptr)

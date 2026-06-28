@@ -1428,6 +1428,9 @@ void GraphDocumentComponent::updateMidiOutput()
 
     if (midiOutput != defaultMidiOutput)
     {
+        if (midiOutput != nullptr)
+            midiOutput->stopBackgroundThread();
+
         midiOutput = defaultMidiOutput;
 
         if (midiOutput != nullptr)

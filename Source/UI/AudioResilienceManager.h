@@ -125,7 +125,8 @@ public:
         // if target device is not physically present, null currentDevice and bail.
         // We force a scan here because we are in an abnormal state (disconnected or stopped) or waking from sleep,
         // and we need to check the hardware list accurately to execute recovery.
-        bool isTargetPhysicallyPresent = isDeviceAvailable(savedInputDeviceName, true) && isDeviceAvailable(savedOutputDeviceName, true);
+        scanDevices();
+        bool isTargetPhysicallyPresent = isDeviceAvailable(savedInputDeviceName, false) && isDeviceAvailable(savedOutputDeviceName, false);
         if (!isTargetPhysicallyPresent)
         {
             if (currentDevice != nullptr)
@@ -156,6 +157,12 @@ private:
     juce::String lastDeviceName;
     juce::BigInteger lastInputChannels;
     juce::BigInteger lastOutputChannels;
+
+    void scanDevices()
+    {
+        for (auto* type : deviceManager.getAvailableDeviceTypes())
+            type->scanForDevices();
+    }
 
     bool isDeviceAvailable(const juce::String& name, bool forceScan)
     {

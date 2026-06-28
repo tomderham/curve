@@ -82,36 +82,40 @@ public:
             juce::Process::makeForegroundProcess();
             auto currentMousePos = juce::Desktop::getInstance().getMousePosition();
 
-            juce::Timer::callAfterDelay(100, [this, currentMousePos]()
+            juce::Component::SafePointer<TrayIconController> safeSelf (this);
+            juce::Timer::callAfterDelay(100, [safeSelf, currentMousePos]()
             {
-                juce::PopupMenu settingsmenu;
-                settingsmenu.addItem("Audio settings", [this] { mainWindow.showAudioSettings(); });
-                settingsmenu.addItem("Plugin manager", [this] { mainWindow.showPluginListWindow(); });
-                settingsmenu.addItem("Auto check for app updates", true, isAutoAppUpdateCheckEnabled, [this] { toggleAutoAppUpdateCheck(); });
-                settingsmenu.addItem("About", [this] { mainWindow.showAboutBox(); });
-                settingsmenu.addItem("Quit", [] { juce::JUCEApplication::getInstance()->systemRequestedQuit(); });
+                if (auto* self = safeSelf.getComponent())
+                {
+                    juce::PopupMenu settingsmenu;
+                    settingsmenu.addItem("Audio settings", [self] { self->mainWindow.showAudioSettings(); });
+                    settingsmenu.addItem("Plugin manager", [self] { self->mainWindow.showPluginListWindow(); });
+                    settingsmenu.addItem("Auto check for app updates", true, self->isAutoAppUpdateCheckEnabled, [self] { self->toggleAutoAppUpdateCheck(); });
+                    settingsmenu.addItem("About", [self] { self->mainWindow.showAboutBox(); });
+                    settingsmenu.addItem("Quit", [] { juce::JUCEApplication::getInstance()->systemRequestedQuit(); });
 
-                juce::PopupMenu menu;
-                
-                // Toggle Visibility
-                if (mainWindow.isOnDesktop() && mainWindow.isVisible())
-                    menu.addItem("Hide Editor", [this] { mainWindow.hideWindow(); });
-                else
-                    menu.addItem("Show Editor", [this] { mainWindow.showWindow(); });
+                    juce::PopupMenu menu;
+                    
+                    // Toggle Visibility
+                    if (self->mainWindow.isOnDesktop() && self->mainWindow.isVisible())
+                        menu.addItem("Hide Editor", [self] { self->mainWindow.hideWindow(); });
+                    else
+                        menu.addItem("Show Editor", [self] { self->mainWindow.showWindow(); });
 
-                menu.addItem("Save as preset", [this] { mainWindow.saveAsPreset(); });
-                menu.addSeparator();
-                menu.addSectionHeader("Presets");
-                addPresetsToMenu(menu);
-                menu.addSeparator();
+                    menu.addItem("Save as preset", [self] { self->mainWindow.saveAsPreset(); });
+                    menu.addSeparator();
+                    menu.addSectionHeader("Presets");
+                    self->addPresetsToMenu(menu);
+                    menu.addSeparator();
 
-                menu.addSubMenu("Settings", settingsmenu, true);
+                    menu.addSubMenu("Settings", settingsmenu, true);
 
-                auto targetArea = juce::Rectangle<int>(currentMousePos.x, currentMousePos.y, 1, 1);
-                juce::PopupMenu::Options options;
-                options = options.withParentComponent(nullptr)
-                    .withTargetScreenArea(targetArea);
-                menu.showMenuAsync(options);
+                    auto targetArea = juce::Rectangle<int>(currentMousePos.x, currentMousePos.y, 1, 1);
+                    juce::PopupMenu::Options options;
+                    options = options.withParentComponent(nullptr)
+                        .withTargetScreenArea(targetArea);
+                    menu.showMenuAsync(options);
+                }
             });
         }
     }

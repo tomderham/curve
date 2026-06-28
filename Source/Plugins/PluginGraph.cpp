@@ -92,13 +92,15 @@ AudioProcessorGraph::Node::Ptr PluginGraph::getNodeForName (const String& name) 
 void PluginGraph::addPlugin (const PluginDescriptionAndPreference& desc, Point<double> pos)
 {
     std::shared_ptr<ScopedDPIAwarenessDisabler> dpiDisabler = makeDPIAwarenessDisablerForPlugin (desc.pluginDescription);
+    juce::WeakReference<PluginGraph> weakSelf (this);
 
     formatManager.createPluginInstanceAsync (desc.pluginDescription,
                                              graph.getSampleRate(),
                                              graph.getBlockSize(),
-                                             [this, pos, dpiDisabler, useARA = desc.useARA] (std::unique_ptr<AudioPluginInstance> instance, const String& error)
+                                             [weakSelf, pos, dpiDisabler, useARA = desc.useARA] (std::unique_ptr<AudioPluginInstance> instance, const String& error)
                                              {
-                                                 addPluginCallback (std::move (instance), error, pos, useARA);
+                                                 if (auto* self = weakSelf.get())
+                                                     self->addPluginCallback (std::move (instance), error, pos, useARA);
                                              });
 }
 
@@ -225,10 +227,14 @@ void PluginGraph::newDocument()
     addPlugin (PluginDescriptionAndPreference { internalFormat.getAllTypes()[1] }, { 0.5,  0.1 }); // Audio Input
     addPlugin (PluginDescriptionAndPreference { internalFormat.getAllTypes()[3] }, { 0.5,  0.9 }); // Audio Output
 
-    MessageManager::callAsync ([this]
+    juce::WeakReference<PluginGraph> weakSelf (this);
+    MessageManager::callAsync ([weakSelf]
     {
-        setChangedFlag (false);
-        graph.addChangeListener (this);
+        if (auto* self = weakSelf.get())
+        {
+            self->setChangedFlag (false);
+            self->graph.addChangeListener (self);
+        }
     });
 }
 
@@ -239,10 +245,14 @@ Result PluginGraph::loadDocument (const File& file)
         graph.removeChangeListener (this);
         restoreFromXml (*xml);
 
-        MessageManager::callAsync ([this]
+        juce::WeakReference<PluginGraph> weakSelf (this);
+        MessageManager::callAsync ([weakSelf]
         {
-            setChangedFlag (false);
-            graph.addChangeListener (this);
+            if (auto* self = weakSelf.get())
+            {
+                self->setChangedFlag (false);
+                self->graph.addChangeListener (self);
+            }
         });
 
         return Result::ok();

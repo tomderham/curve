@@ -120,7 +120,10 @@ private:
         auto* textButton = dynamic_cast<TextButton*> (existingComponentToUpdate);
 
         if (textButton == nullptr)
+        {
             textButton = new TextButton();
+            textButton->addListener (this);
+        }
 
         textButton->setButtonText (getButtonName (columnId));
         textButton->setConnectedEdges (Button::ConnectedOnLeft | Button::ConnectedOnRight |
@@ -141,8 +144,6 @@ private:
             textButton->setColour (TextButton::buttonColourId, busColour);
             textButton->setColour (TextButton::buttonOnColourId, busColour.withMultipliedBrightness (2.0f));
         }
-
-        textButton->addListener (this);
 
         return textButton;
     }
