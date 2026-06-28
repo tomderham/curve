@@ -22,7 +22,7 @@ juce_add_gui_app(Curve
     OSX_SYSROOT                     macosx
     PLIST_TO_MERGE "<plist><dict><key>LSMinimumSystemVersion</key><string>14.2</string><key>LSUIElement</key><true/><key>NSAppSleepDisabled</key><true/><key>NSAudioCaptureUsageDescription</key><string>Curve needs audio access to capture and process system audio.</string></dict></plist>"
     HARDENED_RUNTIME_ENABLED        TRUE
-    HARDENED_RUNTIME_OPTIONS        com.apple.security.device.audio-input com.apple.security.cs.disable-library-validation com.apple.security.cs.allow-jit
+    HARDENED_RUNTIME_OPTIONS        com.apple.security.device.audio-input com.apple.security.cs.disable-library-validation com.apple.security.cs.allow-jit com.apple.security.cs.allow-unsigned-executable-memory
 )
 
 juce_generate_juce_header(Curve)
