@@ -18,7 +18,16 @@ class GitHubUpdater  : public juce::URL::DownloadTask::Listener,
                        private juce::Timer
 {
 public:
-    GitHubUpdater() = default;
+    GitHubUpdater()
+    {
+        threadState = std::make_shared<std::atomic<GitHubUpdater*>> (this);
+    }
+
+    ~GitHubUpdater() override
+    {
+        if (threadState != nullptr)
+            threadState->store (nullptr);
+    }
 
     void doCheckNow()
     {
@@ -85,17 +94,17 @@ private:
         auto options = juce::URL::InputStreamOptions (juce::URL::ParameterHandling::inAddress)
                         .withExtraHeaders ("User-Agent: " + appName + "-Updater\nAccept: application/vnd.github+json");
 
-        juce::WeakReference<GitHubUpdater> weakSelf (this);
+        auto state = threadState;
 
-        juce::Thread::launch ([weakSelf, url, options]
+        juce::Thread::launch ([state, url, options]
         {
             juce::String response;
             if (auto stream = url.createInputStream (options))
                 response = stream->readEntireStreamAsString();
             
-            juce::MessageManager::callAsync ([weakSelf, response] 
+            juce::MessageManager::callAsync ([state, response] 
             {
-                if (auto* self = weakSelf.get())
+                if (auto* self = state->load())
                 {
                     self->isChecking = false;
                     auto json = juce::JSON::parse (response);
@@ -162,11 +171,11 @@ private:
     void finished (juce::URL::DownloadTask* task, bool success) override
     {
         auto dmgFile = task->getTargetLocation();
-        juce::WeakReference<GitHubUpdater> weakSelf (this);
+        auto state = threadState;
 
-        juce::MessageManager::callAsync ([weakSelf, success, dmgFile]
+        juce::MessageManager::callAsync ([state, success, dmgFile]
         {
-            if (auto* self = weakSelf.get())
+            if (auto* self = state->load())
             {
                 self->activeDownload.reset();
 
@@ -193,6 +202,7 @@ private:
         });
     }
 
+    std::shared_ptr<std::atomic<GitHubUpdater*>> threadState;
     juce::String user, repo, appName;
     bool isChecking = false;
     std::unique_ptr<juce::URL::DownloadTask> activeDownload;
