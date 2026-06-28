@@ -340,6 +340,7 @@ void SystemAudioCaptureNode::processBlock (juce::AudioBuffer<float>& buffer, juc
 
     if (currentReady < numSamplesNeeded) {
         // A transient underrun. Output silence for this block and wait for the fifo to fill up again.
+        isBuffering = true;
         return;
     }
     

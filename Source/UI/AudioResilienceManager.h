@@ -33,7 +33,8 @@ public:
             lastOutputChannels = device->getActiveOutputChannels();
         }
 
-        lastTimeCheck = juce::Time::getMillisecondCounter();
+        lastTimeCheckMonotonic = juce::Time::getMillisecondCounter();
+        lastTimeCheckWallClock = juce::Time::getCurrentTime().toMilliseconds();
         startTimer(5000);
     }
 
@@ -46,7 +47,10 @@ public:
     {
         isSuspended = suspend;
         if (!isSuspended)
-            lastTimeCheck = juce::Time::getMillisecondCounter();
+        {
+            lastTimeCheckMonotonic = juce::Time::getMillisecondCounter();
+            lastTimeCheckWallClock = juce::Time::getCurrentTime().toMilliseconds();
+        }
     }
 
     // callback when an audio config change occurs
@@ -96,9 +100,16 @@ public:
         if (juce::Component::getCurrentlyModalComponent() != nullptr)
             return;
 
-        uint32 now = juce::Time::getMillisecondCounter();
-        bool wokeFromSleep = (now > lastTimeCheck + 4000);
-        lastTimeCheck = now;
+        uint32 nowMonotonic = juce::Time::getMillisecondCounter();
+        juce::int64 nowWallClock = juce::Time::getCurrentTime().toMilliseconds();
+
+        uint32 elapsedMonotonic = nowMonotonic - lastTimeCheckMonotonic;
+        juce::int64 elapsedWallClock = nowWallClock - lastTimeCheckWallClock;
+
+        lastTimeCheckMonotonic = nowMonotonic;
+        lastTimeCheckWallClock = nowWallClock;
+
+        bool wokeFromSleep = (elapsedWallClock > (juce::int64) elapsedMonotonic + 4000);
 
         // try to get saved Xml state; bail if there is no saved state or saved state doesn't specify target device
         auto savedState = getAppProperties().getUserSettings()->getXmlValue ("audioDeviceState");
@@ -150,7 +161,8 @@ public:
 
 private:
     juce::AudioDeviceManager& deviceManager;
-    uint32 lastTimeCheck;
+    uint32 lastTimeCheckMonotonic;
+    juce::int64 lastTimeCheckWallClock;
     bool isRestarting = false;
     bool isWarmedUp = false;
     bool isSuspended = false;
