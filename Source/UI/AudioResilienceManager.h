@@ -110,9 +110,22 @@ public:
         if (!isTargetDeviceSaved)
             return;
 
-        // if target device is not physically present, null currentDevice and bail
-        bool isTargetPhysicallyPresent = isDeviceAvailable(savedInputDeviceName) && isDeviceAvailable(savedOutputDeviceName);
+        // Fast-path early exit: if the target device is already active and playing normally (and we didn't just wake up from sleep),
+        // we can assume the device is physically present and operating correctly. This avoids querying CoreAudio, which reduces system calls.
         auto* currentDevice = deviceManager.getCurrentAudioDevice();
+        juce::AudioDeviceManager::AudioDeviceSetup currentSetup;
+        deviceManager.getAudioDeviceSetup(currentSetup);
+        bool isTargetSelected = (currentSetup.inputDeviceName == savedInputDeviceName) &&
+                                (currentSetup.outputDeviceName == savedOutputDeviceName);
+        bool isOperatingNormally = isTargetSelected && (currentDevice != nullptr && currentDevice->isPlaying());
+
+        if (isOperatingNormally && !wokeFromSleep)
+            return;
+
+        // if target device is not physically present, null currentDevice and bail.
+        // We force a scan here because we are in an abnormal state (disconnected or stopped) or waking from sleep,
+        // and we need to check the hardware list accurately to execute recovery.
+        bool isTargetPhysicallyPresent = isDeviceAvailable(savedInputDeviceName, true) && isDeviceAvailable(savedOutputDeviceName, true);
         if (!isTargetPhysicallyPresent)
         {
             if (currentDevice != nullptr)
@@ -128,10 +141,6 @@ public:
         }
 
         // if target device is physically present but not selected in currentSetup, or if it is selected but not playing, enforce config
-        juce::AudioDeviceManager::AudioDeviceSetup currentSetup;
-        deviceManager.getAudioDeviceSetup(currentSetup);
-        bool isTargetSelected = (currentSetup.inputDeviceName == savedInputDeviceName) &&
-                                (currentSetup.outputDeviceName == savedOutputDeviceName);
         if (!isTargetSelected || (currentDevice != nullptr && !currentDevice->isPlaying()))
         {
                 enforceConfiguration(savedState.get());
@@ -148,11 +157,13 @@ private:
     juce::BigInteger lastInputChannels;
     juce::BigInteger lastOutputChannels;
 
-    bool isDeviceAvailable(const juce::String& name)
+    bool isDeviceAvailable(const juce::String& name, bool forceScan)
     {
         for (auto* type : deviceManager.getAvailableDeviceTypes())
         {
-            type->scanForDevices();
+            if (forceScan)
+                type->scanForDevices();
+
             if (type->getDeviceNames(true).contains(name)) return true;
             if (type->getDeviceNames(false).contains(name)) return true;
         }

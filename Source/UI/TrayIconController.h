@@ -66,6 +66,8 @@ public:
 
         if (auto* g = mainWindow.graphHolder->graph.get())
             g->addChangeListener (this);
+
+        removeFromDesktop();
     }
 
     void mouseUp(const juce::MouseEvent&) override
@@ -92,10 +94,10 @@ public:
                 juce::PopupMenu menu;
                 
                 // Toggle Visibility
-                if (mainWindow.isVisible())
-                    menu.addItem("Hide Editor", [this] { mainWindow.setVisible(false); });
+                if (mainWindow.isOnDesktop() && mainWindow.isVisible())
+                    menu.addItem("Hide Editor", [this] { mainWindow.hideWindow(); });
                 else
-                    menu.addItem("Show Editor", [this] { mainWindow.setVisible(true); mainWindow.toFront(true); });
+                    menu.addItem("Show Editor", [this] { mainWindow.showWindow(); });
 
                 menu.addItem("Save as preset", [this] { mainWindow.saveAsPreset(); });
                 menu.addSeparator();

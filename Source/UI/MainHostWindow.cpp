@@ -420,7 +420,7 @@ MainHostWindow::~MainHostWindow()
 void MainHostWindow::closeButtonPressed()
 {
     // hide main window when close button pressed
-    setVisible(false);
+    hideWindow();
 }
 
 struct AsyncQuitRetrier final : private Timer
@@ -1116,4 +1116,26 @@ void MainHostWindow::showAboutBox()
         + "VST is a registered trademark of Steinberg Media Technologies GmbH.";
 
     juce::NativeMessageBox::showMessageBoxAsync (juce::AlertWindow::InfoIcon, "About " + juce::JUCEApplication::getInstance()->getApplicationName(), msg);
+}
+
+void MainHostWindow::showWindow()
+{
+    if (! isOnDesktop())
+    {
+        addToDesktop (getDesktopWindowStyleFlags());
+        restoreWindowStateFromString (getAppProperties().getUserSettings()->getValue ("mainWindowPos"));
+    }
+    setVisible (true);
+    toFront (true);
+}
+
+void MainHostWindow::hideWindow()
+{
+    if (isOnDesktop())
+    {
+        getAppProperties().getUserSettings()->setValue ("mainWindowPos", getWindowStateAsString());
+        getAppProperties().getUserSettings()->saveIfNeeded();
+        setVisible (false);
+        removeFromDesktop();
+    }
 }

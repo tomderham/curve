@@ -193,7 +193,7 @@ public:
         mainWindow.reset (new MainHostWindow());
 
         // hide editor window initially
-        mainWindow->setVisible(false);
+        mainWindow->hideWindow();
 
         // initialize app Github updater
         githubUpdater.reset(new GitHubUpdater());

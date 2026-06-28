@@ -135,6 +135,8 @@ public:
 
     std::unique_ptr<GraphDocumentComponent> graphHolder;
 
+    void showWindow();
+    void hideWindow();
     void showAudioSettings();
     void saveAsPreset();
     void showPluginListWindow();
