@@ -313,17 +313,20 @@ MainHostWindow::MainHostWindow()
     RuntimePermissions::request (RuntimePermissions::recordAudio,
                                  [safeThis] (bool granted) mutable
                                  {
-                                    auto savedState = getAppProperties().getUserSettings()->getXmlValue ("audioDeviceState");
-                                    if(savedState != nullptr && savedState->getStringAttribute("audioInputDeviceName") != "" &&
-                                                savedState->getStringAttribute("audioOutputDeviceName") != "") 
+                                    if (safeThis != nullptr)
                                     {
-                                        safeThis->deviceManager.initialise (granted ? 256 : 0, 256, savedState.get(), false);
-                                    }
-                                    else
-                                    {
-                                        // close device and clear previous state by using default-constructed setup
-                                        juce::AudioDeviceManager::AudioDeviceSetup setup;
-                                        safeThis->deviceManager.setAudioDeviceSetup(setup, false);
+                                        auto savedState = getAppProperties().getUserSettings()->getXmlValue ("audioDeviceState");
+                                        if (savedState != nullptr && savedState->getStringAttribute("audioInputDeviceName") != "" &&
+                                            savedState->getStringAttribute("audioOutputDeviceName") != "") 
+                                        {
+                                            safeThis->deviceManager.initialise (granted ? 256 : 0, 256, savedState.get(), false);
+                                        }
+                                        else
+                                        {
+                                            // close device and clear previous state by using default-constructed setup
+                                            juce::AudioDeviceManager::AudioDeviceSetup setup;
+                                            safeThis->deviceManager.setAudioDeviceSetup(setup, false);
+                                        }
                                     }
                                  });
 
@@ -1073,10 +1076,8 @@ void MainHostWindow::loadPreset(juce::File file)
     if (graphHolder != nullptr)
     {
         graphHolder->setPlaybackActive(false);
-    }
-    graphHolder->graph->loadFrom (file, true);
-    if (graphHolder != nullptr)
-    {
+        if (graphHolder->graph != nullptr)
+            graphHolder->graph->loadFrom (file, true);
         graphHolder->setPlaybackActive(true);
     }
 

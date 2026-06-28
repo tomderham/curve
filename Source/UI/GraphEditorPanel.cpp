@@ -1277,6 +1277,8 @@ void GraphDocumentComponent::init()
 
 GraphDocumentComponent::~GraphDocumentComponent()
 {
+    deviceManager.removeChangeListener (this);
+
     if (midiOutput != nullptr)
         midiOutput->stopBackgroundThread();
 
