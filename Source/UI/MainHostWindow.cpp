@@ -549,7 +549,7 @@ PopupMenu MainHostWindow::getMenuForIndex (int topLevelMenuIndex, const String& 
 
         PopupMenu recentFilesMenu;
         recentFiles.createPopupMenuItems (recentFilesMenu, 100, true, true);
-        menu.addSubMenu ("Open recent file", recentFilesMenu);
+        menu.addSubMenu ("Open Recent File", recentFilesMenu);
 
        #if ! (JUCE_IOS || JUCE_ANDROID)
         menu.addCommandItem (&getCommandManager(), CommandIDs::save);
@@ -584,7 +584,6 @@ PopupMenu MainHostWindow::getMenuForIndex (int topLevelMenuIndex, const String& 
 
         menu.addSeparator();
         menu.addCommandItem (&getCommandManager(), CommandIDs::showAudioSettings);
-        menu.addCommandItem (&getCommandManager(), CommandIDs::toggleDoublePrecision);
 
         if (autoScaleOptionAvailable)
             menu.addCommandItem (&getCommandManager(), CommandIDs::autoScalePluginWindows);
@@ -774,7 +773,6 @@ void MainHostWindow::getAllCommands (Array<CommandID>& commands)
                              #endif
                               CommandIDs::showPluginListEditor,
                               CommandIDs::showAudioSettings,
-                              CommandIDs::toggleDoublePrecision,
                               CommandIDs::aboutBox,
                               CommandIDs::allWindowsForward,
                               CommandIDs::autoScalePluginWindows
@@ -821,10 +819,6 @@ void MainHostWindow::getCommandInfo (const CommandID commandID, ApplicationComma
     case CommandIDs::showAudioSettings:
         result.setInfo ("Change the Audio Device Settings", {}, category, 0);
         result.addDefaultKeypress ('a', ModifierKeys::commandModifier);
-        break;
-
-    case CommandIDs::toggleDoublePrecision:
-        updatePrecisionMenuItem (result);
         break;
 
     case CommandIDs::aboutBox:
@@ -900,21 +894,6 @@ bool MainHostWindow::perform (const InvocationInfo& info)
 
     case CommandIDs::showAudioSettings:
         showAudioSettings();
-        break;
-
-    case CommandIDs::toggleDoublePrecision:
-        if (auto* props = getAppProperties().getUserSettings())
-        {
-            auto newIsDoublePrecision = ! isDoublePrecisionProcessingEnabled();
-            props->setValue ("doublePrecisionProcessing", var (newIsDoublePrecision));
-
-            ApplicationCommandInfo cmdInfo (info.commandID);
-            updatePrecisionMenuItem (cmdInfo);
-            menuItemsChanged();
-
-            if (graphHolder != nullptr)
-                graphHolder->setDoublePrecision (newIsDoublePrecision);
-        }
         break;
 
     case CommandIDs::autoScalePluginWindows:
@@ -1044,24 +1023,10 @@ void MainHostWindow::filesDropped (const StringArray& files, int x, int y)
     }
 }
 
-bool MainHostWindow::isDoublePrecisionProcessingEnabled()
-{
-    if (auto* props = getAppProperties().getUserSettings())
-        return props->getBoolValue ("doublePrecisionProcessing", false);
-
-    return false;
-}
-
 bool MainHostWindow::isAutoScalePluginWindowsEnabled()
 {
     // always auto-scale plugin windows
     return true;
-}
-
-void MainHostWindow::updatePrecisionMenuItem (ApplicationCommandInfo& info)
-{
-    info.setInfo ("Double Floating-Point Precision Rendering", {}, "General", 0);
-    info.setTicked (isDoublePrecisionProcessingEnabled());
 }
 
 void MainHostWindow::updateAutoScaleMenuItem (ApplicationCommandInfo& info)
@@ -1094,15 +1059,7 @@ void MainHostWindow::loadPreset(juce::File file)
 void MainHostWindow::saveAsPreset()
 {
     if (graphHolder != nullptr && graphHolder->graph != nullptr)
-    {
-        auto appDataDir = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
-                            .getChildFile ("Application Support")
-                            .getChildFile (juce::JUCEApplication::getInstance()->getApplicationName());
-        auto presetsDir = appDataDir.getChildFile ("Presets");
-        auto defaultFile = presetsDir.getChildFile (graphHolder->graph->getDocumentTitle() + PluginGraph::getFilenameSuffix());
-
-        graphHolder->graph->saveAsAsync (defaultFile, true, true, true, nullptr);
-    }
+        graphHolder->graph->saveAsInteractiveAsync (true, nullptr);
 }
 
 void MainHostWindow::showPluginListWindow()

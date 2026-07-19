@@ -108,6 +108,7 @@ public:
     Result saveDocument (const File& file) override;
     File getLastDocumentOpened() override;
     void setLastDocumentOpened (const File& file) override;
+    File getSuggestedSaveAsFile (const File& defaultFile) override;
 
     static File getDefaultGraphDocumentOnMobile();
 

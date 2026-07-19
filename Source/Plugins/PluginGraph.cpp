@@ -215,6 +215,16 @@ String PluginGraph::getDocumentTitle()
     return getFile().getFileNameWithoutExtension();
 }
 
+File PluginGraph::getSuggestedSaveAsFile (const File& defaultFile)
+{
+    auto appDataDir = File::getSpecialLocation (File::userApplicationDataDirectory)
+                        .getChildFile ("Application Support")
+                        .getChildFile (JUCEApplication::getInstance()->getApplicationName());
+    auto presetsDir = appDataDir.getChildFile ("Presets");
+
+    return FileBasedDocument::getSuggestedSaveAsFile (presetsDir.getChildFile (defaultFile.getFileName()));
+}
+
 void PluginGraph::newDocument()
 {
     clear();
