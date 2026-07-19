@@ -54,11 +54,8 @@ void SystemAudioCaptureNode::setTargetOutputDeviceName (const juce::String& name
 {
     if (targetOutputDeviceName != name)
     {
-        // Lock audio processing while swapping the target device clock
-        juce::ScopedLock lock (getCallbackLock());
-        
         targetOutputDeviceName = name;
-        
+
         // If the tap is already running, gracefully hot-swap the aggregate device
         if (isCapturing.load())
         {
@@ -80,10 +77,15 @@ bool SystemAudioCaptureNode::isBusesLayoutSupported (const BusesLayout& layouts)
 
 void SystemAudioCaptureNode::prepareToPlay (double sampleRate, int /*samplesPerBlock*/)
 {
-    fifo.reset();
-    ringBuffer.clear();
-    isBuffering = true;
-    
+    {
+        // Locked only around this reset, not the Core Audio setup below, so hot-swapping
+        // the tap doesn't block the audio thread's processBlock() call for the setup's duration.
+        juce::ScopedLock lock (getCallbackLock());
+        fifo.reset();
+        ringBuffer.clear();
+        isBuffering = true;
+    }
+
 #if JUCE_MAC
     if (!isCapturing.exchange(true)) {
         if (@available(macOS 14.2, *)) {

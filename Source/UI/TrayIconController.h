@@ -91,6 +91,7 @@ public:
                     settingsmenu.addItem("Audio settings", [self] { self->mainWindow.showAudioSettings(); });
                     settingsmenu.addItem("Plugin manager", [self] { self->mainWindow.showPluginListWindow(); });
                     settingsmenu.addItem("Auto check for app updates", true, self->isAutoAppUpdateCheckEnabled, [self] { self->toggleAutoAppUpdateCheck(); });
+                    settingsmenu.addCommandItem(&getCommandManager(), CommandIDs::toggleDoublePrecision);
                     settingsmenu.addItem("About", [self] { self->mainWindow.showAboutBox(); });
                     settingsmenu.addItem("Quit", [] { juce::JUCEApplication::getInstance()->systemRequestedQuit(); });
 

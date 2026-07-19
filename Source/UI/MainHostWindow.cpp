@@ -342,10 +342,6 @@ MainHostWindow::MainHostWindow()
 
     graphHolder.reset (new GraphDocumentComponent (formatManager, deviceManager, knownPluginList));
 
-    // always use double-precision processing
-    if (graphHolder != nullptr)
-        graphHolder->setDoublePrecision (true);
-
     setContentNonOwned (graphHolder.get(), false);
 
     setUsingNativeTitleBar (true);
