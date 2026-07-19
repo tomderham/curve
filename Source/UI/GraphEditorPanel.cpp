@@ -433,8 +433,8 @@ struct GraphEditorPanel::PluginComponent final : public Component,
     void showPopupMenu (Point<int> localPos)
     {
         menu.reset (new PopupMenu);
-        menu->addItem ("Delete this node", [this] { graph.graph.removeNode (pluginID); });
-        menu->addItem ("Disconnect all pins", [this] { graph.graph.disconnectNode (pluginID); });
+        menu->addItem ("Delete This Node", [this] { graph.graph.removeNode (pluginID); });
+        menu->addItem ("Disconnect All Pins", [this] { graph.graph.disconnectNode (pluginID); });
         menu->addItem ("Toggle Bypass", [this]
         {
             if (auto* node = graph.graph.getNodeForId (pluginID))
@@ -445,12 +445,12 @@ struct GraphEditorPanel::PluginComponent final : public Component,
 
         menu->addSeparator();
         if (getProcessor()->hasEditor())
-            menu->addItem ("Show plugin GUI", [this] { showWindow (PluginWindow::Type::normal); });
+            menu->addItem ("Show Plug-in GUI", [this] { showWindow (PluginWindow::Type::normal); });
 
        #if JUCE_PLUGINHOST_ARA && (JUCE_MAC || JUCE_WINDOWS || JUCE_LINUX)
         if (auto* instance = dynamic_cast<AudioPluginInstance*> (getProcessor()))
             if (instance->getPluginDescription().hasARAExtension && isNodeUsingARA())
-                menu->addItem ("Show ARA host controls", [this] { showWindow (PluginWindow::Type::araHost); });
+                menu->addItem ("Show ARA Host Controls", [this] { showWindow (PluginWindow::Type::araHost); });
        #endif
 
         if (autoScaleOptionAvailable)
@@ -461,8 +461,8 @@ struct GraphEditorPanel::PluginComponent final : public Component,
 
        #if ! JUCE_IOS && ! JUCE_ANDROID
         menu->addSeparator();
-        menu->addItem ("Save plugin state", [this] { savePluginState(); });
-        menu->addItem ("Load plugin state", [this] { loadPluginState(); });
+        menu->addItem ("Save Plug-in State", [this] { savePluginState(); });
+        menu->addItem ("Load Plug-in State", [this] { loadPluginState(); });
        #endif
 
         menu->showMenuAsync (PopupMenu::Options{}.withTargetScreenArea (Rectangle<int>{}.withPosition (localPointToGlobal (localPos))));
@@ -1224,7 +1224,7 @@ GraphDocumentComponent::GraphDocumentComponent (AudioPluginFormatManager& fm,
     : graph (new PluginGraph (fm, kpl)),
       deviceManager (dm),
       pluginList (kpl),
-      graphPlayer (getAppProperties().getUserSettings()->getBoolValue ("doublePrecisionProcessing", false))
+      graphPlayer (true)
 {
     init();
 
@@ -1391,11 +1391,6 @@ void GraphDocumentComponent::checkAvailableWidth()
         if (getWidth() - (mobileSettingsSidePanel.getWidth() + pluginListSidePanel.getWidth()) < 150)
             hideLastSidePanel();
     }
-}
-
-void GraphDocumentComponent::setDoublePrecision (bool doublePrecision)
-{
-    graphPlayer.setDoublePrecisionProcessing (doublePrecision);
 }
 
 bool GraphDocumentComponent::closeAnyOpenPluginWindows()

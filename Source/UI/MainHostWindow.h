@@ -63,7 +63,6 @@ namespace CommandIDs
     static const int showAudioSettings      = 0x30200;
     static const int aboutBox               = 0x30300;
     static const int allWindowsForward      = 0x30400;
-    static const int toggleDoublePrecision  = 0x30500;
     static const int autoScalePluginWindows = 0x30600;
 }
 
@@ -145,10 +144,8 @@ public:
 
 private:
     //==============================================================================
-    static bool isDoublePrecisionProcessingEnabled();
     static bool isAutoScalePluginWindowsEnabled();
 
-    static void updatePrecisionMenuItem (ApplicationCommandInfo& info);
     static void updateAutoScaleMenuItem (ApplicationCommandInfo& info);
 
     //==============================================================================

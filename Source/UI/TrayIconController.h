@@ -88,22 +88,23 @@ public:
                 if (auto* self = safeSelf.getComponent())
                 {
                     juce::PopupMenu settingsmenu;
-                    settingsmenu.addItem("Audio settings", [self] { self->mainWindow.showAudioSettings(); });
-                    settingsmenu.addItem("Plugin manager", [self] { self->mainWindow.showPluginListWindow(); });
-                    settingsmenu.addItem("Auto check for app updates", true, self->isAutoAppUpdateCheckEnabled, [self] { self->toggleAutoAppUpdateCheck(); });
-                    settingsmenu.addCommandItem(&getCommandManager(), CommandIDs::toggleDoublePrecision);
-                    settingsmenu.addItem("About", [self] { self->mainWindow.showAboutBox(); });
+                    settingsmenu.addItem("Audio Settings", [self] { self->mainWindow.showAudioSettings(); });
+                    settingsmenu.addItem("Plug-in Manager", [self] { self->mainWindow.showPluginListWindow(); });
+                    settingsmenu.addSeparator();
+                    settingsmenu.addItem("Auto-Check for App Updates", true, self->isAutoAppUpdateCheckEnabled, [self] { self->toggleAutoAppUpdateCheck(); });
+                    settingsmenu.addItem("About...", [self] { self->mainWindow.showAboutBox(); });
+                    settingsmenu.addSeparator();
                     settingsmenu.addItem("Quit", [] { juce::JUCEApplication::getInstance()->systemRequestedQuit(); });
 
                     juce::PopupMenu menu;
-                    
+
                     // Toggle Visibility
                     if (self->mainWindow.isOnDesktop() && self->mainWindow.isVisible())
                         menu.addItem("Hide Editor", [self] { self->mainWindow.hideWindow(); });
                     else
                         menu.addItem("Show Editor", [self] { self->mainWindow.showWindow(); });
 
-                    menu.addItem("Save as preset", [self] { self->mainWindow.saveAsPreset(); });
+                    menu.addItem("Save As Preset...", [self] { self->mainWindow.saveAsPreset(); });
                     menu.addSeparator();
                     menu.addSectionHeader("Presets");
                     self->addPresetsToMenu(menu);

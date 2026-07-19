@@ -133,7 +133,6 @@ public:
 
     //==============================================================================
     void createNewPlugin (const PluginDescriptionAndPreference&, Point<int> position);
-    void setDoublePrecision (bool doublePrecision);
     bool closeAnyOpenPluginWindows();
 
     //==============================================================================
