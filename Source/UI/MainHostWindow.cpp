@@ -1086,7 +1086,15 @@ void MainHostWindow::loadPreset(juce::File file)
 void MainHostWindow::saveAsPreset()
 {
     if (graphHolder != nullptr && graphHolder->graph != nullptr)
-        graphHolder->graph->saveAsAsync ({}, true, true, true, nullptr);
+    {
+        auto appDataDir = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
+                            .getChildFile ("Application Support")
+                            .getChildFile (juce::JUCEApplication::getInstance()->getApplicationName());
+        auto presetsDir = appDataDir.getChildFile ("Presets");
+        auto defaultFile = presetsDir.getChildFile (graphHolder->graph->getDocumentTitle() + PluginGraph::getFilenameSuffix());
+
+        graphHolder->graph->saveAsAsync (defaultFile, true, true, true, nullptr);
+    }
 }
 
 void MainHostWindow::showPluginListWindow()
