@@ -70,7 +70,6 @@ namespace CommandIDs
 //==============================================================================
 ApplicationCommandManager& getCommandManager();
 ApplicationProperties& getAppProperties();
-bool isOnTouchDevice();
 
 //==============================================================================
 enum class AutoScale

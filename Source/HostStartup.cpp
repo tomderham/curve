@@ -355,12 +355,6 @@ AudioResilienceManager* getResilienceManager()
     return nullptr;
 }
 
-bool isOnTouchDevice()
-{
-    static bool isTouch = Desktop::getInstance().getMainMouseSource().isTouch();
-    return isTouch;
-}
-
 //==============================================================================
 static AutoScale autoScaleFromString (StringRef str)
 {

@@ -235,20 +235,20 @@ struct GraphEditorPanel::PluginComponent final : public Component,
 
         toFront (true);
 
-        if (isOnTouchDevice())
+        if (e.source.isTouch())
         {
+            originalTouchPos = e.position.toInt();
             startTimer (750);
         }
-        else
+        else if (e.mods.isPopupMenu())
         {
-            if (e.mods.isPopupMenu())
-                showPopupMenu();
+            showPopupMenu (e.position.toInt());
         }
     }
 
     void mouseDrag (const MouseEvent& e) override
     {
-        if (isOnTouchDevice() && e.getDistanceFromDragStart() > 5)
+        if (e.source.isTouch() && e.getDistanceFromDragStart() > 5)
             stopTimer();
 
         if (! e.mods.isPopupMenu())
@@ -270,7 +270,7 @@ struct GraphEditorPanel::PluginComponent final : public Component,
 
     void mouseUp (const MouseEvent& e) override
     {
-        if (isOnTouchDevice())
+        if (e.source.isTouch())
         {
             stopTimer();
             callAfterDelay (250, []() { PopupMenu::dismissAllActiveMenus(); });
@@ -430,7 +430,7 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         return false;
     }
 
-    void showPopupMenu()
+    void showPopupMenu (Point<int> localPos)
     {
         menu.reset (new PopupMenu);
         menu->addItem ("Delete this node", [this] { graph.graph.removeNode (pluginID); });
@@ -465,7 +465,7 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         menu->addItem ("Load plugin state", [this] { loadPluginState(); });
        #endif
 
-        menu->showMenuAsync ({});
+        menu->showMenuAsync (PopupMenu::Options{}.withTargetScreenArea (Rectangle<int>{}.withPosition (localPointToGlobal (localPos))));
     }
 
     void testStateSaveLoad()
@@ -487,11 +487,8 @@ struct GraphEditorPanel::PluginComponent final : public Component,
 
     void timerCallback() override
     {
-        // this should only be called on touch devices
-        jassert (isOnTouchDevice());
-
         stopTimer();
-        showPopupMenu();
+        showPopupMenu (originalTouchPos);
     }
 
     void parameterValueChanged (int, float) override
@@ -564,7 +561,7 @@ struct GraphEditorPanel::PluginComponent final : public Component,
     OwnedArray<PinComponent> pins;
     int numInputs = 0, numOutputs = 0;
     int pinSize = 16;
-    Point<int> originalPos;
+    Point<int> originalPos, originalTouchPos;
     Font font = FontOptions { 13.0f, Font::bold };
     int numIns = 0, numOuts = 0;
     DropShadowEffect shadow;
@@ -792,19 +789,20 @@ void GraphEditorPanel::paint (Graphics& g)
 
 void GraphEditorPanel::mouseDown (const MouseEvent& e)
 {
-    if (isOnTouchDevice())
+    if (e.source.isTouch())
     {
         originalTouchPos = e.position.toInt();
         startTimer (750);
     }
-
-    if (e.mods.isPopupMenu())
+    else if (e.mods.isPopupMenu())
+    {
         showPopupMenu (e.position.toInt());
+    }
 }
 
-void GraphEditorPanel::mouseUp (const MouseEvent&)
+void GraphEditorPanel::mouseUp (const MouseEvent& e)
 {
-    if (isOnTouchDevice())
+    if (e.source.isTouch())
     {
         stopTimer();
         callAfterDelay (250, []() { PopupMenu::dismissAllActiveMenus(); });
@@ -813,7 +811,7 @@ void GraphEditorPanel::mouseUp (const MouseEvent&)
 
 void GraphEditorPanel::mouseDrag (const MouseEvent& e)
 {
-    if (isOnTouchDevice() && e.getDistanceFromDragStart() > 5)
+    if (e.source.isTouch() && e.getDistanceFromDragStart() > 5)
         stopTimer();
 }
 
@@ -904,7 +902,7 @@ void GraphEditorPanel::updateComponents()
     }
 }
 
-void GraphEditorPanel::showPopupMenu (Point<int> mousePos)
+void GraphEditorPanel::showPopupMenu (Point<int> localMousePos)
 {
     menu.reset (new PopupMenu);
 
@@ -912,12 +910,12 @@ void GraphEditorPanel::showPopupMenu (Point<int> mousePos)
     {
         mainWindow->addPluginsToMenu (*menu);
 
-        menu->showMenuAsync ({},
-                             ModalCallbackFunction::create ([this, mousePos] (int r)
+        menu->showMenuAsync (PopupMenu::Options{}.withTargetScreenArea (Rectangle<int>{}.withPosition (localPointToGlobal (localMousePos))),
+                             ModalCallbackFunction::create ([this, localMousePos] (int r)
                                                             {
                                                                 if (auto* mainWin = findParentComponentOfClass<MainHostWindow>())
                                                                     if (const auto chosen = mainWin->getChosenType (r))
-                                                                        createNewPlugin (*chosen, mousePos);
+                                                                        createNewPlugin (*chosen, localMousePos);
                                                             }));
     }
 }
@@ -1014,9 +1012,6 @@ void GraphEditorPanel::endDraggingConnector (const MouseEvent& e)
 
 void GraphEditorPanel::timerCallback()
 {
-    // this should only be called on touch devices
-    jassert (isOnTouchDevice());
-
     stopTimer();
     showPopupMenu (originalTouchPos);
 }
@@ -1254,7 +1249,7 @@ void GraphDocumentComponent::init()
 
     graphPanel->updateComponents();
 
-    if (isOnTouchDevice())
+    if (Desktop::getInstance().getMainMouseSource().isTouch())
     {
         titleBarComponent.reset (new TitleBarComponent (*this));
         addAndMakeVisible (titleBarComponent.get());
@@ -1302,7 +1297,7 @@ void GraphDocumentComponent::resized()
     const int titleBarHeight = 40;
     const int statusHeight = 20;
 
-    if (isOnTouchDevice())
+    if (Desktop::getInstance().getMainMouseSource().isTouch())
         titleBarComponent->setBounds (r.removeFromTop (titleBarHeight));
 
     statusBar->setBounds (r.removeFromBottom (statusHeight));
