@@ -268,23 +268,16 @@ public:
                     juce::ModalCallbackFunction::create ([this, fileToOpen] (int result) {
                         if (result == 1) // OK / Load
                         {
-                            loadPresetAtStartup (fileToOpen);
+                            mainWindow->loadPreset (fileToOpen);
                         }
                     })
                 );
             }
             else
             {
-                loadPresetAtStartup (fileToOpen);
+                mainWindow->loadPreset (fileToOpen);
             }
         }
-    }
-
-    void loadPresetAtStartup (const File& fileToOpen)
-    {
-        if (auto* graph = mainWindow->graphHolder.get())
-            if (auto* ioGraph = graph->graph.get())
-                ioGraph->loadFrom (fileToOpen, true);
     }
 
     void shutdown() override
