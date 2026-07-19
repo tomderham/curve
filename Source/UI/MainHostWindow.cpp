@@ -382,8 +382,6 @@ MainHostWindow::MainHostWindow()
 
     addKeyListener (getCommandManager().getKeyMappings());
 
-    Process::setPriority (Process::HighPriority);
-
   #if JUCE_IOS || JUCE_ANDROID
     graphHolder->burgerMenu.setModel (this);
   #else
@@ -499,14 +497,18 @@ void MainHostWindow::changeListenerCallback (ChangeBroadcaster* changed)
     }
     else if (graphHolder != nullptr && changed == graphHolder->graph.get())
     {
-        // Propagate current device UID to newly added capture nodes
+        // Propagate current device UID and audio workgroup to newly added capture nodes
         if (auto* device = deviceManager.getCurrentAudioDevice())
         {
             juce::String currentDeviceName = device->getName();
-            
+            auto workgroup = deviceManager.getDeviceAudioWorkgroup();
+
             for (auto* node : graphHolder->graph->graph.getNodes())
                 if (auto* captureNode = dynamic_cast<SystemAudioCaptureNode*> (node->getProcessor()))
+                {
                     captureNode->setTargetOutputDeviceName (currentDeviceName);
+                    captureNode->setAudioWorkgroup (workgroup);
+                }
         }
 
         auto title = JUCEApplication::getInstance()->getApplicationName();

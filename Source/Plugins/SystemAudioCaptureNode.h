@@ -51,6 +51,10 @@ public:
 
     void setTargetOutputDeviceName (const juce::String& name);
 
+    // Lets the tap's own real-time thread join the same audio workgroup as the main
+    // output device's IO thread, so the OS scheduler treats them as one deadline chain.
+    void setAudioWorkgroup (const juce::AudioWorkgroup& workgroup);
+
     // Pushes incoming samples from the Core Audio Delegate to the FIFO
     void pushAudio (const float* const* channelData, int numChannels, int numSamples);
     void pushAudioInterleaved (const float* interleavedData, int numChannels, int numSamples);
@@ -60,15 +64,16 @@ private:
     static constexpr int ringBufferCapacity = 192000 * 2; // ~2 seconds of buffer at max sample rate
     juce::AbstractFifo fifo { ringBufferCapacity };
     juce::AudioBuffer<float> ringBuffer;
-    
+
     // PIMPL idiom to hide Objective-C++ details from this header
     struct TapWrapper;
     std::unique_ptr<TapWrapper> tapWrapper;
-    
+
     std::atomic<bool> isCapturing { false };
     bool isBuffering { true };
 
     juce::String targetOutputDeviceName;
+    juce::AudioWorkgroup currentWorkgroup; // guarded by getCallbackLock(), read on the tap's IO thread
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SystemAudioCaptureNode)
 };

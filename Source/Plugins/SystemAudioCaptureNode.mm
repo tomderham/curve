@@ -70,6 +70,12 @@ void SystemAudioCaptureNode::setTargetOutputDeviceName (const juce::String& name
     }
 }
 
+void SystemAudioCaptureNode::setAudioWorkgroup (const juce::AudioWorkgroup& workgroup)
+{
+    juce::ScopedLock lock (getCallbackLock());
+    currentWorkgroup = workgroup;
+}
+
 bool SystemAudioCaptureNode::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
     return (layouts.getMainInputChannels() == 0 && layouts.getMainOutputChannels() <= 2);
@@ -193,6 +199,21 @@ void SystemAudioCaptureNode::prepareToPlay (double sampleRate, int /*samplesPerB
                 AudioDeviceIOBlock ioBlock = ^(const AudioTimeStamp *inNow, const AudioBufferList *inInputData, const AudioTimeStamp *inInputTime, AudioBufferList *outOutputData, const AudioTimeStamp *inOutputTime) {
                     juce::ignoreUnused(inNow, inInputTime, outOutputData, inOutputTime);
                     if (!node) return;
+
+                    // Join this tap thread to the same audio workgroup as the main output
+                    // device's IO thread, so the OS scheduler knows they share a deadline.
+                    // thread_local guarantees the token is destroyed on this exact thread
+                    // when it exits, regardless of when/how Core Audio tears it down -- we
+                    // never get an explicit "thread is ending" hook to do that ourselves.
+                    {
+                        thread_local juce::WorkgroupToken workgroupToken;
+                        juce::AudioWorkgroup workgroup;
+                        {
+                            juce::ScopedLock lock (node->getCallbackLock());
+                            workgroup = node->currentWorkgroup;
+                        }
+                        workgroup.join (workgroupToken);
+                    }
 
                     UInt32 numBuffers = inInputData->mNumberBuffers;
                     if (numBuffers == 0) return;
