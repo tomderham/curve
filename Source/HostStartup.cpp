@@ -282,8 +282,14 @@ public:
 
     void shutdown() override
     {
-        getAppProperties().getUserSettings()->setValue ("lastShutdownClean", true);
-        getAppProperties().getUserSettings()->saveIfNeeded();
+        // appProperties is never set for a scanner subprocess (initialise() returns
+        // early for those, before this is assigned), so this must be guarded rather
+        // than going through getAppProperties(), which assumes a non-null pointer.
+        if (appProperties != nullptr)
+        {
+            appProperties->getUserSettings()->setValue ("lastShutdownClean", true);
+            appProperties->getUserSettings()->saveIfNeeded();
+        }
 
         trayIcon = nullptr;
         resilienceManager = nullptr;
