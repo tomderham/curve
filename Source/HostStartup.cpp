@@ -110,10 +110,6 @@ private:
         const auto formatName = stream.readString();
         const auto identifier = stream.readString();
 
-        PluginDescription pd;
-        pd.fileOrIdentifier = identifier;
-        pd.uniqueId = pd.deprecatedUid = 0;
-
         const auto matchingFormat = [&]() -> AudioPluginFormat*
         {
             for (auto* format : formatManager.getFormats())
@@ -125,12 +121,16 @@ private:
 
         OwnedArray<PluginDescription> results;
 
-        if (matchingFormat != nullptr
-            && (MessageManager::getInstance()->isThisTheMessageThread()
-                || matchingFormat->requiresUnblockedMessageThreadDuringCreation (pd)))
-        {
+        // Always scan from whichever thread this is called on, rather than deferring
+        // to the message thread when the format doesn't explicitly require it free.
+        // If this isn't the message thread, AudioPluginFormat::createInstanceFromDescription()
+        // already posts the real instantiation there and blocks this (background) thread
+        // instead -- keeping the message thread free to pump its run loop, which some
+        // plugins depend on during their own construction. Scanning directly on the
+        // message thread would block it on that same wait, with nothing left to service
+        // the run loop, risking a deadlock for exactly those plugins.
+        if (matchingFormat != nullptr)
             matchingFormat->findAllTypesForFile (results, identifier);
-        }
 
         return results;
     }
