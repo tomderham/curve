@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(Curve VERSION 0.7.0)
+project(Curve VERSION 0.7.1)
 
 set(CMAKE_OSX_DEPLOYMENT_TARGET "14.2" CACHE STRING "Minimum macOS version" FORCE)
 set(CMAKE_OSX_SYSROOT "macosx" CACHE STRING "Use the latest installed macOS SDK")
