@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(Curve VERSION 0.7.1)
+project(Curve VERSION 0.8.0)
 
 set(CMAKE_OSX_DEPLOYMENT_TARGET "14.2" CACHE STRING "Minimum macOS version" FORCE)
 set(CMAKE_OSX_SYSROOT "macosx" CACHE STRING "Use the latest installed macOS SDK")
@@ -22,14 +22,13 @@ juce_add_gui_app(Curve
     OSX_SYSROOT                     macosx
     PLIST_TO_MERGE "<plist><dict><key>LSMinimumSystemVersion</key><string>14.2</string><key>LSUIElement</key><true/><key>NSAppSleepDisabled</key><true/><key>NSAudioCaptureUsageDescription</key><string>Curve needs audio access to capture and process system audio.</string></dict></plist>"
     HARDENED_RUNTIME_ENABLED        TRUE
-    HARDENED_RUNTIME_OPTIONS        com.apple.security.device.audio-input com.apple.security.cs.disable-library-validation com.apple.security.cs.allow-jit com.apple.security.cs.allow-unsigned-executable-memory
+    HARDENED_RUNTIME_OPTIONS        com.apple.security.device.audio-input com.apple.security.network.client com.apple.security.cs.disable-library-validation com.apple.security.cs.disable-executable-page-protection com.apple.security.cs.allow-jit com.apple.security.cs.allow-unsigned-executable-memory com.apple.security.cs.allow-dyld-environment-variables
 )
 
 juce_generate_juce_header(Curve)
 
 target_sources(Curve PRIVATE
     Source/HostStartup.cpp
-    Source/Plugins/ARAPlugin.cpp
     Source/Plugins/IOConfigurationWindow.cpp
     Source/Plugins/InternalPlugins.cpp
     Source/Plugins/PluginGraph.cpp
@@ -38,12 +37,9 @@ target_sources(Curve PRIVATE
     Source/UI/MainHostWindow.cpp)
 
 target_compile_definitions(Curve PRIVATE
-    JUCE_ALSA=1
     JUCE_CONTENT_SHARING=1
-    JUCE_DIRECTSOUND=1
     JUCE_DISABLE_CAUTIOUS_PARAMETER_ID_CHECKING=1
     JUCE_GLOBAL_MODULE_SETTINGS_INCLUDED=1
-    JUCE_PLUGINHOST_LADSPA=1
     JUCE_PLUGINHOST_LV2=1
     JUCE_PLUGINHOST_VST3=1
     JUCE_PLUGINHOST_VST=0
@@ -55,18 +51,22 @@ target_compile_definitions(Curve PRIVATE
     JUCE_USE_FLAC=0
     JUCE_USE_OGGVORBIS=1
     JUCE_VST3_HOST_CROSS_PLATFORM_UID=1
-    JUCE_WASAPI=1
     JUCE_WEB_BROWSER=0
     JUCE_SILENCE_XCODE_15_LINKER_WARNING=1)
 
 target_link_libraries(Curve PRIVATE
     juce::juce_audio_utils
-    juce::juce_cryptography
     juce::juce_dsp
-    juce::juce_opengl
     juce::juce_recommended_config_flags
     juce::juce_recommended_lto_flags
     juce::juce_recommended_warning_flags
     "-framework CoreAudio")
 
 juce_add_bundle_resources_directory(Curve  ${CMAKE_CURRENT_SOURCE_DIR}/Source/Assets/)
+
+if(APPLE)
+    add_custom_command(TARGET Curve POST_BUILD
+        COMMAND codesign --deep --force --options runtime --entitlements "${CMAKE_CURRENT_BINARY_DIR}/Curve_artefacts/JuceLibraryCode/Curve.entitlements" -s - "$<TARGET_BUNDLE_DIR:Curve>"
+        COMMENT "Signing Curve.app with Hardened Runtime and plugin hosting entitlements"
+    )
+endif()

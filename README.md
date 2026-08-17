@@ -149,7 +149,7 @@ The project is built using CMake. It is not necessary to use Projucer or Xcode I
     ```
 3.  **Code sign the application:** Even if you are only running the newly built binary locally, explicit code signing is essential to avoid various issues with macOS privacy permissions (e.g. persistent microphone permissions dialogs). The minimal requirement for ad-hoc code signing is to run:
     ```sh
-    sudo codesign -fs - ./Curve_artefacts/Release/curve.app
+    sudo codesign -fs - ./Curve_artefacts/Release/Curve.app
     ```
 4.  **Run the application:** You can run the app directly, but it is better to copy/move it to your computer's `/Applications` folder.
 
