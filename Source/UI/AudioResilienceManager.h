@@ -15,6 +15,16 @@
 #include <JuceHeader.h>
 #include <functional>
 
+juce::PropertiesFile* getUserSettings();
+
+#if JUCE_MAC
+struct MacOSSleepWakeNotifierBase
+{
+    virtual ~MacOSSleepWakeNotifierBase() = default;
+};
+std::unique_ptr<MacOSSleepWakeNotifierBase> createMacOSSleepWakeNotifier (std::function<void(bool)> callback);
+#endif
+
 class AudioResilienceManager : private juce::Timer,
                                private juce::ChangeListener
 {
@@ -31,11 +41,31 @@ public:
             lastDeviceName = device->getName();
             lastInputChannels = device->getActiveInputChannels();
             lastOutputChannels = device->getActiveOutputChannels();
+            lastSampleRate = device->getCurrentSampleRate();
+            lastBufferSize = device->getCurrentBufferSizeSamples();
         }
 
         lastTimeCheckMonotonic = juce::Time::getMillisecondCounter();
         lastTimeCheckWallClock = juce::Time::getCurrentTime().toMilliseconds();
         updateTargetSettings();
+
+       #if JUCE_MAC
+        sleepWakeNotifier = createMacOSSleepWakeNotifier ([this] (bool isWake)
+        {
+            if (isWake)
+            {
+                consecutiveEnforceFailures = 0;
+                wokeFromSleepFlag = true;
+                setSuspended (false);
+                doResilience();
+            }
+            else
+            {
+                setSuspended (true);
+            }
+        });
+       #endif
+
         startTimer(5000);
     }
 
@@ -54,44 +84,107 @@ public:
         }
     }
 
+    void updateTargetSettings()
+    {
+        auto* settings = getUserSettings();
+        auto savedState = (settings != nullptr) ? settings->getXmlValue ("audioDeviceState") : nullptr;
+        if (savedState != nullptr)
+        {
+            targetInputDeviceName = savedState->getStringAttribute ("audioInputDeviceName");
+            targetOutputDeviceName = savedState->getStringAttribute ("audioOutputDeviceName");
+            targetSampleRate = savedState->getDoubleAttribute ("audioDeviceRate", savedState->getDoubleAttribute ("sampleRate", 0.0));
+            targetBufferSize = savedState->getIntAttribute ("audioDeviceBufferSize", savedState->getIntAttribute ("bufferSize", 0));
+            cachedAudioState = std::move (savedState);
+        }
+        else
+        {
+            // Preserve the configured target device when an audio interface is disconnected.
+            if (targetOutputDeviceName.isEmpty())
+            {
+                if (auto* currentDevice = deviceManager.getCurrentAudioDevice())
+                {
+                    targetOutputDeviceName = currentDevice->getName();
+                    targetInputDeviceName = {};
+                    targetSampleRate = currentDevice->getCurrentSampleRate();
+                    targetBufferSize = currentDevice->getCurrentBufferSizeSamples();
+                    cachedAudioState = deviceManager.createStateXml();
+                }
+                else
+                {
+                    targetInputDeviceName = "";
+                    targetOutputDeviceName = "";
+                    targetSampleRate = 0.0;
+                    targetBufferSize = 0;
+                    cachedAudioState = nullptr;
+                }
+            }
+        }
+    }
+
     // callback when an audio config change occurs
     void changeListenerCallback(juce::ChangeBroadcaster*) override
     {
-        if (!isWarmedUp || isRestarting || isSuspended) return;
+        if (isRestarting || isSuspended) return;
 
-        // update the cached target device names
-        updateTargetSettings();
-
-        // call doResilience
-        doResilience();
-
-        // if device name or channels changed, call the lambda function to reload the current preset
+        // Update baseline device properties immediately
         auto* currentDevice = deviceManager.getCurrentAudioDevice();
         juce::String currentName = (currentDevice != nullptr) ? currentDevice->getName() : juce::String();
         juce::BigInteger currentInputChannels = (currentDevice != nullptr) ? currentDevice->getActiveInputChannels() : juce::BigInteger();
         juce::BigInteger currentOutputChannels = (currentDevice != nullptr) ? currentDevice->getActiveOutputChannels() : juce::BigInteger();
-        if (currentName != lastDeviceName || currentInputChannels != lastInputChannels || currentOutputChannels != lastOutputChannels)
+        double currentSampleRate = (currentDevice != nullptr) ? currentDevice->getCurrentSampleRate() : 0.0;
+        int currentBufferSize = (currentDevice != nullptr) ? currentDevice->getCurrentBufferSizeSamples() : 0;
+
+        bool isDeviceActive = (currentDevice != nullptr && currentDevice->isPlaying() && currentName.isNotEmpty());
+        bool devicePropertiesChanged = (currentName != lastDeviceName 
+                                        || currentInputChannels != lastInputChannels 
+                                        || currentOutputChannels != lastOutputChannels
+                                        || std::abs (currentSampleRate - lastSampleRate) > 0.001
+                                        || currentBufferSize != lastBufferSize);
+
+        if (devicePropertiesChanged)
         {
             lastDeviceName = currentName;
             lastInputChannels = currentInputChannels;
             lastOutputChannels = currentOutputChannels;
-            if (onConfigRestored != nullptr)
-                onConfigRestored();
+            lastSampleRate = currentSampleRate;
+            lastBufferSize = currentBufferSize;
+        }
+
+        if (!isWarmedUp) return;
+
+        // Hardware topology changed (e.g. USB plug/unplug): reset backoff so we immediately attempt configuration
+        consecutiveEnforceFailures = 0;
+
+        // update the cached target device names
+        updateTargetSettings();
+
+        // Scan for newly added/removed hardware devices
+        scanDevices();
+
+        // call doResilience
+        doResilience();
+
+        // Notify listeners asynchronously when device properties change
+        if (devicePropertiesChanged && isDeviceActive && onConfigRestored != nullptr)
+        {
+            juce::MessageManager::callAsync ([callback = onConfigRestored] {
+                if (callback)
+                    callback();
+            });
         }
     }
 
-    // callback every 1 sec (except during initial 5 sec warmup)
+    // Timer callback runs every 5s for periodic health checks
     void timerCallback() override
     {
         if (isSuspended) return;
         if (!isWarmedUp)
         {
             isWarmedUp = true;
-            startTimer(1000);
+            startTimer (5000);
             return;
         }
 
-        // call doResilience
         doResilience();
     }
 
@@ -100,95 +193,132 @@ public:
         if (isSuspended)
             return;
 
-        // Skip resilience checks while a modal component is active (e.g. to allow user to change target device in audio settings)
+        // Skip resilience checks while modal components are active
         if (juce::Component::getCurrentlyModalComponent() != nullptr)
             return;
 
-        uint32 nowMonotonic = juce::Time::getMillisecondCounter();
+        juce::uint32 nowMonotonic = juce::Time::getMillisecondCounter();
         juce::int64 nowWallClock = juce::Time::getCurrentTime().toMilliseconds();
 
-        uint32 elapsedMonotonic = nowMonotonic - lastTimeCheckMonotonic;
+        bool wokeFromSleep = wokeFromSleepFlag;
+        wokeFromSleepFlag = false;
+
+       #if ! JUCE_MAC
+        juce::uint32 elapsedMonotonic = nowMonotonic - lastTimeCheckMonotonic;
         juce::int64 elapsedWallClock = nowWallClock - lastTimeCheckWallClock;
+        if (! wokeFromSleep)
+            wokeFromSleep = (elapsedWallClock > (juce::int64) elapsedMonotonic + 4000);
+       #endif
 
         lastTimeCheckMonotonic = nowMonotonic;
         lastTimeCheckWallClock = nowWallClock;
 
-        bool wokeFromSleep = (elapsedWallClock > (juce::int64) elapsedMonotonic + 4000);
+        if (wokeFromSleep)
+            consecutiveEnforceFailures = 0;
 
-        // Use cached settings to avoid parsing properties file XML on every tick
-        bool isTargetDeviceSaved = targetInputDeviceName.isNotEmpty() && targetOutputDeviceName.isNotEmpty();
+        // Use cached settings to avoid parsing XML on every tick
+        bool isTargetDeviceSaved = targetOutputDeviceName.isNotEmpty();
         if (!isTargetDeviceSaved || cachedAudioState == nullptr)
             return;
 
-        // Fast-path early exit: if the target device is already active and playing normally (and we didn't just wake up from sleep),
-        // we can assume the device is physically present and operating correctly. This avoids querying CoreAudio, which reduces system calls.
+        // Fast path: bypass checks when target device is already active, playing, and matching configured parameters
         auto* currentDevice = deviceManager.getCurrentAudioDevice();
-        juce::AudioDeviceManager::AudioDeviceSetup currentSetup;
-        deviceManager.getAudioDeviceSetup(currentSetup);
-        bool isTargetSelected = (currentSetup.inputDeviceName == targetInputDeviceName) &&
-                                (currentSetup.outputDeviceName == targetOutputDeviceName);
-        bool isOperatingNormally = isTargetSelected && (currentDevice != nullptr && currentDevice->isPlaying());
+        if (currentDevice != nullptr && currentDevice->isPlaying() && !wokeFromSleep)
+        {
+            juce::AudioDeviceManager::AudioDeviceSetup currentSetup;
+            deviceManager.getAudioDeviceSetup (currentSetup);
 
-        if (isOperatingNormally && !wokeFromSleep)
-            return;
+            bool isOutputMatching = (currentSetup.outputDeviceName == targetOutputDeviceName);
+            bool isInputMatching  = (targetInputDeviceName.isEmpty() || currentSetup.inputDeviceName == targetInputDeviceName);
+            bool isRateMatching   = (targetSampleRate <= 0.0 || std::abs (currentDevice->getCurrentSampleRate() - targetSampleRate) < 1.0);
+            bool isBufferMatching = (targetBufferSize <= 0 || currentDevice->getCurrentBufferSizeSamples() == targetBufferSize);
 
-        // if target device is not physically present, null currentDevice and bail.
-        // We force a scan here because we are in an abnormal state (disconnected or stopped) or waking from sleep,
-        // and we need to check the hardware list accurately to execute recovery.
+            if (isOutputMatching && isInputMatching && isRateMatching && isBufferMatching)
+            {
+                disconnectedCheckCount = 0;
+                consecutiveEnforceFailures = 0;
+                return;
+            }
+        }
+
+        // Rescan hardware devices to discover newly connected interfaces
         scanDevices();
-        bool isTargetPhysicallyPresent = isDeviceAvailable(targetInputDeviceName, false) && isDeviceAvailable(targetOutputDeviceName, false);
+
+        bool isTargetPhysicallyPresent = isDeviceAvailable(targetOutputDeviceName, false, false)
+                                      && isDeviceAvailable(targetInputDeviceName, true, false);
         if (!isTargetPhysicallyPresent)
         {
+            // Allow USB/Thunderbolt interfaces time to enumerate immediately on system wake
+            if (wokeFromSleep)
+                return;
+
             if (currentDevice != nullptr)
                 forceNullDevice();
             return;
         }
 
-        // if we just woke from sleep (and target device is physically present), enforce config then bail
+        disconnectedCheckCount = 0;
+
+        // Exponential backoff between configuration retries to prevent CPU spinning if device is unavailable
+        if (consecutiveEnforceFailures > 0 && !wokeFromSleep)
+        {
+            juce::uint32 backoffMs = juce::jmin (30000u, 1000u * (1u << juce::jmin (5, consecutiveEnforceFailures)));
+            if (nowMonotonic - lastEnforceFailureTime < backoffMs)
+                return;
+        }
+
+        // Apply configuration immediately on wake
         if (wokeFromSleep)
         {
             enforceConfiguration(cachedAudioState.get());
             return;
         }
 
-        // if target device is physically present but not selected in currentSetup, or if it is selected but not playing, enforce config
-        if (!isTargetSelected || (currentDevice != nullptr && !currentDevice->isPlaying()))
+        // Apply target configuration if not currently selected or playing
+        if (currentDevice == nullptr || !currentDevice->isPlaying())
         {
-            enforceConfiguration(cachedAudioState.get());
+            enforceConfiguration (cachedAudioState.get());
+        }
+        else
+        {
+            juce::AudioDeviceManager::AudioDeviceSetup currentSetup;
+            deviceManager.getAudioDeviceSetup (currentSetup);
+
+            bool isOutputMatching = (currentSetup.outputDeviceName == targetOutputDeviceName);
+            bool isInputMatching  = (targetInputDeviceName.isEmpty() || currentSetup.inputDeviceName == targetInputDeviceName);
+            bool isRateMatching   = (targetSampleRate <= 0.0 || std::abs (currentDevice->getCurrentSampleRate() - targetSampleRate) < 1.0);
+            bool isBufferMatching = (targetBufferSize <= 0 || currentDevice->getCurrentBufferSizeSamples() == targetBufferSize);
+
+            if (!isOutputMatching || !isInputMatching || !isRateMatching || !isBufferMatching)
+                enforceConfiguration (cachedAudioState.get());
         }
     }
 
 private:
     juce::AudioDeviceManager& deviceManager;
-    uint32 lastTimeCheckMonotonic;
+    juce::uint32 lastTimeCheckMonotonic;
     juce::int64 lastTimeCheckWallClock;
     bool isRestarting = false;
     bool isWarmedUp = false;
     bool isSuspended = false;
+    bool wokeFromSleepFlag = false;
+   #if JUCE_MAC
+    std::unique_ptr<MacOSSleepWakeNotifierBase> sleepWakeNotifier;
+   #endif
+    int disconnectedCheckCount = 0;
+    int consecutiveEnforceFailures = 0;
+    juce::uint32 lastEnforceFailureTime = 0;
     juce::String lastDeviceName;
     juce::BigInteger lastInputChannels;
     juce::BigInteger lastOutputChannels;
+    double lastSampleRate = 0.0;
+    int lastBufferSize = 0;
 
     juce::String targetInputDeviceName;
     juce::String targetOutputDeviceName;
+    double targetSampleRate = 0.0;
+    int targetBufferSize = 0;
     std::unique_ptr<juce::XmlElement> cachedAudioState;
-
-    void updateTargetSettings()
-    {
-        auto savedState = getAppProperties().getUserSettings()->getXmlValue ("audioDeviceState");
-        if (savedState != nullptr)
-        {
-            targetInputDeviceName = savedState->getStringAttribute("audioInputDeviceName");
-            targetOutputDeviceName = savedState->getStringAttribute("audioOutputDeviceName");
-            cachedAudioState = std::move(savedState);
-        }
-        else
-        {
-            targetInputDeviceName = "";
-            targetOutputDeviceName = "";
-            cachedAudioState = nullptr;
-        }
-    }
 
     void scanDevices()
     {
@@ -196,37 +326,76 @@ private:
             type->scanForDevices();
     }
 
-    bool isDeviceAvailable(const juce::String& name, bool forceScan)
+    bool isDeviceAvailable(const juce::String& name, bool isInput, bool forceScan)
     {
+        if (name.isEmpty())
+            return true; // No device required/specified for input
+
         for (auto* type : deviceManager.getAvailableDeviceTypes())
         {
             if (forceScan)
                 type->scanForDevices();
 
-            if (type->getDeviceNames(true).contains(name)) return true;
-            if (type->getDeviceNames(false).contains(name)) return true;
+            if (type->getDeviceNames(isInput).contains(name)) return true;
         }
         return false;
     }
 
-    void enforceConfiguration(XmlElement* savedState)
+    void enforceConfiguration(juce::XmlElement* savedState)
     {
         if (isRestarting) return;
         isRestarting = true;
-        // close and re-initialize device using saved state (without fallback to default device is target is not available)
+        // Re-initialize device using saved configuration without default fallback
         deviceManager.closeAudioDevice();
-        bool granted = RuntimePermissions::isGranted (RuntimePermissions::recordAudio);
-        deviceManager.initialise (granted ? 256 : 0, 256, savedState, false);
+        int numInputs = targetInputDeviceName.isNotEmpty() ? 256 : 0;
+
+        if (savedState != nullptr)
+        {
+            if (targetSampleRate > 0.0)
+                savedState->setAttribute ("audioDeviceRate", targetSampleRate);
+            if (targetBufferSize > 0)
+                savedState->setAttribute ("audioDeviceBufferSize", targetBufferSize);
+        }
+
+        auto error = deviceManager.initialise (numInputs, 256, savedState, false);
         isRestarting = false;
+
+        auto* currentDevice = deviceManager.getCurrentAudioDevice();
+        if (currentDevice != nullptr && currentDevice->isPlaying() && error.isEmpty())
+        {
+            consecutiveEnforceFailures = 0;
+            lastDeviceName = currentDevice->getName();
+            lastInputChannels = currentDevice->getActiveInputChannels();
+            lastOutputChannels = currentDevice->getActiveOutputChannels();
+            lastSampleRate = currentDevice->getCurrentSampleRate();
+            lastBufferSize = currentDevice->getCurrentBufferSizeSamples();
+
+            // Adapt targets to actual hardware capabilities to prevent repeated enforcement cycles
+            targetSampleRate = lastSampleRate;
+            targetBufferSize = lastBufferSize;
+
+            if (onConfigRestored != nullptr)
+            {
+                // Defer asynchronously to ensure CoreAudio device stop/restart notifications complete first
+                juce::MessageManager::callAsync ([callback = onConfigRestored] {
+                    if (callback)
+                        callback();
+                });
+            }
+        }
+        else
+        {
+            consecutiveEnforceFailures++;
+            lastEnforceFailureTime = juce::Time::getMillisecondCounter();
+        }
     }
 
     void forceNullDevice()
     {
         if (isRestarting) return;
         isRestarting = true;
-        // close device and clear previous state by using default-constructed setup
-        juce::AudioDeviceManager::AudioDeviceSetup setup;
-        deviceManager.setAudioDeviceSetup(setup, false);
+        // Close audio device to maintain silence when target hardware is disconnected
+        deviceManager.closeAudioDevice();
         isRestarting = false;
     }
 

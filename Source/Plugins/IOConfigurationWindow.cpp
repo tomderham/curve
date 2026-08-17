@@ -89,7 +89,7 @@ struct NumberedBoxes final : public TableListBox,
             canAddColumn = canCurrentlyAdd;
 
             if (auto* button = dynamic_cast<TextButton*> (getCellComponent (plusButtonColumnId, 0)))
-                button->setEnabled (true);
+                button->setEnabled (canAddColumn);
         }
     }
 
@@ -100,7 +100,7 @@ struct NumberedBoxes final : public TableListBox,
             canRemoveColumn = canCurrentlyRemove;
 
             if (auto* button = dynamic_cast<TextButton*> (getCellComponent (minusButtonColumnId, 0)))
-                button->setEnabled (true);
+                button->setEnabled (canRemoveColumn);
         }
     }
 
@@ -445,26 +445,6 @@ IOConfigurationWindow::IOConfigurationWindow (AudioProcessor& p)
     title.setFont (title.getFont().withStyle (Font::bold));
     addAndMakeVisible (title);
 
-    if (auto* graph = getGraph())
-    {
-        ScopedLock renderLock (graph->getCallbackLock());
-        
-        graph->suspendProcessing (true);
-        graph->releaseResources();
-
-        p.suspendProcessing (true);
-        p.releaseResources();
-
-        graph->prepareToPlay (graph->getSampleRate(), graph->getBlockSize());
-        graph->suspendProcessing (false);
-    }
-    else
-    {
-        ScopedLock renderLock (p.getCallbackLock());
-        p.suspendProcessing (true);
-        p.releaseResources();
-    }
-
     if (p.getBusCount (true)  > 0 || p.canAddBus (true))
     {
         inConfig.reset (new InputOutputConfig (*this, true));
@@ -481,25 +461,7 @@ IOConfigurationWindow::IOConfigurationWindow (AudioProcessor& p)
     setSize (400, (inConfig != nullptr && outConfig != nullptr ? 160 : 0) + 200);
 }
 
-IOConfigurationWindow::~IOConfigurationWindow()
-{
-    if (auto* graph = getGraph())
-    {
-        if (auto* p = getAudioProcessor())
-        {
-            ScopedLock renderLock (graph->getCallbackLock());
-
-            graph->suspendProcessing (true);
-            graph->releaseResources();
-
-            p->prepareToPlay (graph->getSampleRate(), graph->getBlockSize());
-            p->suspendProcessing (false);
-
-            graph->prepareToPlay (graph->getSampleRate(), graph->getBlockSize());
-            graph->suspendProcessing (false);
-        }
-    }
-}
+IOConfigurationWindow::~IOConfigurationWindow() = default;
 
 void IOConfigurationWindow::paint (Graphics& g)
 {
@@ -522,11 +484,8 @@ void IOConfigurationWindow::resized()
 
 void IOConfigurationWindow::update()
 {
-    auto nodeID = getNodeID();
-
     if (auto* graph = getGraph())
-        if (nodeID != AudioProcessorGraph::NodeID())
-            graph->disconnectNode (nodeID);
+        graph->removeIllegalConnections();
 
     if (auto* graphEditor = getGraphEditor())
         if (auto* panel = graphEditor->graphPanel.get())
