@@ -45,6 +45,10 @@
 */
 
 #include <JuceHeader.h>
+#include <thread>
+#include <atomic>
+#include <condition_variable>
+#include <chrono>
 #include "UI/MainHostWindow.h"
 #include "Plugins/InternalPlugins.h"
 #include "UI/TrayIconController.h"
@@ -62,11 +66,64 @@ public:
     PluginScannerSubprocess()
     {
         addDefaultFormatsToManager (formatManager);
+
+        watchdogThread = std::thread ([this]
+        {
+            while (! shouldStopWatchdog.load (std::memory_order_relaxed))
+            {
+                std::unique_lock<std::mutex> lock (watchdogMutex);
+                watchdogCv.wait_for (lock, std::chrono::milliseconds (500), [this]
+                {
+                    return shouldStopWatchdog.load (std::memory_order_relaxed)
+                        || watchdogArmed.load (std::memory_order_relaxed);
+                });
+
+                if (shouldStopWatchdog.load (std::memory_order_relaxed))
+                    break;
+
+                if (watchdogArmed.load (std::memory_order_relaxed))
+                {
+                    auto now = juce::Time::getMillisecondCounter();
+                    if (now >= watchdogDeadline.load (std::memory_order_relaxed))
+                    {
+                        // Plugin hung or timed out for >15s; terminate immediately to prevent zombie
+                        std::_Exit (1);
+                    }
+                }
+            }
+        });
+    }
+
+    ~PluginScannerSubprocess() override
+    {
+        shouldStopWatchdog.store (true, std::memory_order_relaxed);
+        watchdogCv.notify_all();
+        if (watchdogThread.joinable())
+            watchdogThread.join();
     }
 
     using ChildProcessWorker::initialiseFromCommandLine;
 
 private:
+    struct ScopedWatchdogArmer
+    {
+        ScopedWatchdogArmer (std::atomic<bool>& armed, std::atomic<juce::uint32>& deadline, std::condition_variable& cv, juce::uint32 timeoutMs = 15000)
+            : isArmed (armed), cvRef (cv)
+        {
+            deadline.store (juce::Time::getMillisecondCounter() + timeoutMs, std::memory_order_relaxed);
+            armed.store (true, std::memory_order_release);
+            cvRef.notify_all();
+        }
+
+        ~ScopedWatchdogArmer()
+        {
+            isArmed.store (false, std::memory_order_release);
+        }
+
+        std::atomic<bool>& isArmed;
+        std::condition_variable& cvRef;
+    };
+
     void handleMessageFromCoordinator (const MemoryBlock& mb) override
     {
         if (mb.isEmpty())
@@ -87,7 +144,8 @@ private:
 
     void handleConnectionLost() override
     {
-        JUCEApplicationBase::quit();
+        // Unconditional kernel-level exit so background threads spawned by plugins cannot keep the child process alive
+        std::_Exit (0);
     }
 
     void handleAsyncUpdate() override
@@ -127,7 +185,10 @@ private:
         OwnedArray<PluginDescription> results;
 
         if (matchingFormat != nullptr)
+        {
+            ScopedWatchdogArmer armer (watchdogArmed, watchdogDeadline, watchdogCv, 15000);
             matchingFormat->findAllTypesForFile (results, identifier);
+        }
 
         return results;
     }
@@ -146,6 +207,13 @@ private:
     std::mutex mutex;
     std::queue<MemoryBlock> pendingBlocks;
     AudioPluginFormatManager formatManager;
+
+    std::thread watchdogThread;
+    std::mutex watchdogMutex;
+    std::condition_variable watchdogCv;
+    std::atomic<bool> shouldStopWatchdog { false };
+    std::atomic<bool> watchdogArmed { false };
+    std::atomic<juce::uint32> watchdogDeadline { 0 };
 };
 
 //==============================================================================

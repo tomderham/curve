@@ -61,6 +61,11 @@ public:
         launchWorkerProcess (File::getSpecialLocation (File::currentExecutableFile), processUID, 0, 0);
     }
 
+    ~Superprocess() override
+    {
+        killWorkerProcess();
+    }
+
     enum class State
     {
         timeout,
@@ -139,7 +144,9 @@ public:
                              OwnedArray<PluginDescription>& result,
                              const String& fileOrIdentifier) override
     {
-        if (scanInProcess)
+        const std::lock_guard<std::mutex> lock (scanMutex);
+
+        if (scanInProcess.load (std::memory_order_relaxed))
         {
             superprocess = nullptr;
             format.findAllTypesForFile (result, fileOrIdentifier);
@@ -155,6 +162,7 @@ public:
 
     void scanFinished() override
     {
+        const std::lock_guard<std::mutex> lock (scanMutex);
         superprocess = nullptr;
     }
 
@@ -180,8 +188,11 @@ private:
 
         if (! superprocess->sendMessageToWorker (block))
         {
+            superprocess = nullptr;
             return false;
         }
+
+        auto startTime = Time::getMillisecondCounter();
 
         for (;;)
         {
@@ -191,7 +202,15 @@ private:
             const auto response = superprocess->getResponse();
 
             if (response.state == Superprocess::State::timeout)
+            {
+                if (Time::getMillisecondCounter() - startTime > 20000)
+                {
+                    // 20s per-plugin timeout exceeded; kill worker and abort this plugin scan
+                    superprocess = nullptr;
+                    return false;
+                }
                 continue;
+            }
 
             if (response.xml != nullptr)
             {
@@ -219,6 +238,7 @@ private:
         handleChange();
     }
 
+    std::mutex scanMutex;
     std::unique_ptr<Superprocess> superprocess;
 
     std::atomic<bool> scanInProcess { true };
