@@ -17,8 +17,8 @@
 
 //==============================================================================
 /**
-    A custom internal JUCE AudioProcessor that natively taps the macOS System Audio
-    using Core Audio Taps, completely bypassing the need for a virtual loopback driver.
+    An internal AudioProcessor that captures macOS system audio
+    natively via CoreAudio process taps.
 */
 class SystemAudioCaptureNode : public juce::AudioPluginInstance
 {
@@ -61,7 +61,7 @@ public:
 
 private:
     // Lock-free ring buffer components
-    static constexpr int ringBufferCapacity = 192000 * 2; // ~2 seconds of buffer at max sample rate
+    static constexpr int ringBufferCapacity = 32768; // 2^15 samples: power-of-two alignment & fits inside L2/L3 cache
     juce::AbstractFifo fifo { ringBufferCapacity };
     juce::AudioBuffer<float> ringBuffer;
 
@@ -70,10 +70,13 @@ private:
     std::unique_ptr<TapWrapper> tapWrapper;
 
     std::atomic<bool> isCapturing { false };
-    bool isBuffering { true };
+    std::atomic<bool> isBuffering { true };
+    std::atomic<bool> hadUnderrunLastBlock { true };
 
     juce::String targetOutputDeviceName;
-    juce::AudioWorkgroup currentWorkgroup; // guarded by getCallbackLock(), read on the tap's IO thread
+    juce::SpinLock workgroupLock;
+    juce::AudioWorkgroup pendingWorkgroup;
+    std::atomic<bool> workgroupNeedsUpdate { false };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SystemAudioCaptureNode)
 };

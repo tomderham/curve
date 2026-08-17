@@ -55,17 +55,38 @@
 //==============================================================================
 
 
+static const std::vector<PluginDescription>& getStaticInternalDescriptions()
+{
+    static const std::vector<PluginDescription> descriptions = []
+    {
+        std::vector<PluginDescription> result;
+
+        PluginDescription satp;
+        satp.name = "System Audio Input";
+        satp.descriptiveName = "System Audio Input";
+        satp.pluginFormatName = "Internal";
+        satp.category = "I/O";
+        satp.fileOrIdentifier = "SystemAudio";
+        satp.uniqueId = 0x53415450; // "SATP"
+        satp.isInstrument = false;
+        satp.numInputChannels = 0;
+        satp.numOutputChannels = 2;
+        result.push_back (satp);
+
+        result.push_back (AudioProcessorGraph::AudioGraphIOProcessor (AudioProcessorGraph::AudioGraphIOProcessor::audioInputNode).getPluginDescription());
+        result.push_back (AudioProcessorGraph::AudioGraphIOProcessor (AudioProcessorGraph::AudioGraphIOProcessor::midiInputNode).getPluginDescription());
+        result.push_back (AudioProcessorGraph::AudioGraphIOProcessor (AudioProcessorGraph::AudioGraphIOProcessor::audioOutputNode).getPluginDescription());
+        result.push_back (AudioProcessorGraph::AudioGraphIOProcessor (AudioProcessorGraph::AudioGraphIOProcessor::midiOutputNode).getPluginDescription());
+
+        return result;
+    }();
+
+    return descriptions;
+}
+
 InternalPluginFormat::InternalPluginFactory::InternalPluginFactory (const std::initializer_list<Constructor>& constructorsIn)
     : constructors (constructorsIn),
-      descriptions ([&]
-      {
-          std::vector<PluginDescription> result;
-
-          for (const auto& constructor : constructors)
-              result.push_back (constructor()->getPluginDescription());
-
-          return result;
-      }())
+      descriptions (getStaticInternalDescriptions())
 {}
 
 std::unique_ptr<AudioPluginInstance> InternalPluginFormat::InternalPluginFactory::createInstance (const String& name) const
