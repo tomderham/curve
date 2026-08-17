@@ -468,16 +468,6 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         menu->showMenuAsync (PopupMenu::Options{}.withTargetScreenArea (Rectangle<int>{}.withPosition (localPointToGlobal (localPos))));
     }
 
-    void testStateSaveLoad()
-    {
-        if (auto* processor = getProcessor())
-        {
-            MemoryBlock state;
-            processor->getStateInformation (state);
-            processor->setStateInformation (state.getData(), (int) state.getSize());
-        }
-    }
-
     void showWindow (PluginWindow::Type type)
     {
         if (auto node = graph.graph.getNodeForId (pluginID))
@@ -688,17 +678,18 @@ struct GraphEditorPanel::ConnectorComponent final : public Component,
         {
             dragging = true;
 
-            graph.graph.removeConnection (connection);
-
+            auto conn = connection;
             double distanceFromStart, distanceFromEnd;
             getDistancesFromEnds (getPosition().toFloat() + e.position, distanceFromStart, distanceFromEnd);
             const bool isNearerSource = (distanceFromStart < distanceFromEnd);
 
             AudioProcessorGraph::NodeAndChannel dummy { {}, 0 };
 
-            panel.beginConnectorDrag (isNearerSource ? dummy : connection.source,
-                                      isNearerSource ? connection.destination : dummy,
+            panel.beginConnectorDrag (isNearerSource ? dummy : conn.source,
+                                      isNearerSource ? conn.destination : dummy,
                                       e);
+
+            graph.graph.removeConnection (conn);
         }
     }
 
@@ -817,7 +808,10 @@ void GraphEditorPanel::mouseDrag (const MouseEvent& e)
 
 void GraphEditorPanel::createNewPlugin (const PluginDescriptionAndPreference& desc, Point<int> position)
 {
-    graph.addPlugin (desc, position.toDouble() / Point<double> ((double) getWidth(), (double) getHeight()));
+    const double w = getWidth() > 0 ? (double) getWidth() : 800.0;
+    const double h = getHeight() > 0 ? (double) getHeight() : 600.0;
+    graph.addPlugin (desc, { jlimit (0.0, 1.0, (double) position.x / w),
+                             jlimit (0.0, 1.0, (double) position.y / h) });
 }
 
 GraphEditorPanel::PluginComponent* GraphEditorPanel::getComponentForPlugin (AudioProcessorGraph::NodeID nodeID) const
@@ -842,8 +836,6 @@ GraphEditorPanel::PinComponent* GraphEditorPanel::findPinAt (Point<float> pos) c
 {
     for (auto* fc : nodes)
     {
-        // NB: A Visual Studio optimiser error means we have to put this Component* in a local
-        // variable before trying to cast it, or it gets mysteriously optimised away..
         auto* comp = fc->getComponentAt (pos.toInt() - fc->getPosition());
 
         if (auto* pin = dynamic_cast<PinComponent*> (comp))
@@ -1020,9 +1012,19 @@ void GraphEditorPanel::timerCallback()
 struct GraphDocumentComponent::TooltipBar final : public Component,
                                                   private Timer
 {
-    TooltipBar()
+    TooltipBar() = default;
+
+    void visibilityChanged() override
     {
-        startTimer (100);
+        if (isShowing())
+            startTimer (100);
+        else
+            stopTimer();
+    }
+
+    void parentHierarchyChanged() override
+    {
+        visibilityChanged();
     }
 
     void paint (Graphics& g) override
@@ -1188,7 +1190,7 @@ struct GraphDocumentComponent::PluginListBoxModel final : public ListBoxModel,
 
     var getDragSourceDescription (const SparseSet<int>& selectedRows) override
     {
-        if (! isOverSelectedRow)
+        if (! isOverSelectedRow || selectedRows.isEmpty())
             return var();
 
         return String ("PLUGIN: " + String (selectedRows[0]));
@@ -1223,8 +1225,7 @@ GraphDocumentComponent::GraphDocumentComponent (AudioPluginFormatManager& fm,
                                                 KnownPluginList& kpl)
     : graph (new PluginGraph (fm, kpl)),
       deviceManager (dm),
-      pluginList (kpl),
-      graphPlayer (true)
+      pluginList (kpl)
 {
     init();
 
@@ -1328,13 +1329,22 @@ void GraphDocumentComponent::releaseGraph()
     graph = nullptr;
 }
 
-void GraphDocumentComponent::setPlaybackActive(bool isActive)
+void GraphDocumentComponent::propagateDeviceSettingsToNodes()
 {
-    if(isActive) {
-        graphPlayer.setProcessor(&graph->graph);
-    }
-    else {
-        graphPlayer.setProcessor(nullptr);
+    if (graph != nullptr)
+    {
+        if (auto* device = deviceManager.getCurrentAudioDevice())
+        {
+            juce::String currentDeviceName = device->getName();
+            auto workgroup = deviceManager.getDeviceAudioWorkgroup();
+
+            for (auto* node : graph->graph.getNodes())
+                if (auto* captureNode = dynamic_cast<SystemAudioCaptureNode*> (node->getProcessor()))
+                {
+                    captureNode->setTargetOutputDeviceName (currentDeviceName);
+                    captureNode->setAudioWorkgroup (workgroup);
+                }
+        }
     }
 }
 
@@ -1401,15 +1411,7 @@ bool GraphDocumentComponent::closeAnyOpenPluginWindows()
 void GraphDocumentComponent::changeListenerCallback (ChangeBroadcaster*)
 {
     updateMidiOutput();
-
-    if (auto* device = deviceManager.getCurrentAudioDevice())
-    {
-        juce::String currentDeviceName = device->getName();
-        
-        for (auto* node : graph->graph.getNodes())
-            if (auto* captureNode = dynamic_cast<SystemAudioCaptureNode*> (node->getProcessor()))
-                captureNode->setTargetOutputDeviceName (currentDeviceName);
-    }
+    propagateDeviceSettingsToNodes();
 }
 
 void GraphDocumentComponent::updateMidiOutput()

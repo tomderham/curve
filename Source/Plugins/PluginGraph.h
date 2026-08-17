@@ -87,7 +87,6 @@ public:
     void clear();
 
     PluginWindow* getOrCreateWindowFor (AudioProcessorGraph::Node*, PluginWindow::Type);
-    void closeCurrentlyOpenWindowsFor (AudioProcessorGraph::NodeID);
     bool closeAnyOpenPluginWindows();
 
     //==============================================================================
@@ -96,7 +95,10 @@ public:
 
     //==============================================================================
     std::unique_ptr<XmlElement> createXml() const;
-    void restoreFromXml (const XmlElement&);
+    void restoreFromXml (const XmlElement&, bool restorePluginWindows = false);
+
+    void setRestorePluginWindowsOnLoad (bool shouldRestore) { restorePluginWindowsOnLoad = shouldRestore; }
+    bool getRestorePluginWindowsOnLoad() const             { return restorePluginWindowsOnLoad; }
 
     static const char* getFilenameSuffix()      { return ".filtergraph"; }
     static const char* getFilenameWildcard()    { return "*.filtergraph"; }
@@ -121,11 +123,9 @@ private:
     KnownPluginList& knownPlugins;
     OwnedArray<PluginWindow> activePluginWindows;
     ScopedMessageBox messageBox;
+    bool restorePluginWindowsOnLoad = false;
 
-    NodeID lastUID;
-    NodeID getNextUID() noexcept;
-
-    void createNodeFromXml (const XmlElement&);
+    void createNodeFromXml (const XmlElement&, bool restorePluginWindows = false);
     void addPluginCallback (std::unique_ptr<AudioPluginInstance>,
                             const String& error,
                             Point<double>,

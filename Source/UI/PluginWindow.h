@@ -211,8 +211,17 @@ public:
 
         setTopLeftPosition (20, 20);
        #else
-        setTopLeftPosition (node->properties.getWithDefault (getLastXProp (type), Random::getSystemRandom().nextInt (500)),
-                            node->properties.getWithDefault (getLastYProp (type), Random::getSystemRandom().nextInt (500)));
+        auto savedX = (int) node->properties.getWithDefault (getLastXProp (type), Random::getSystemRandom().nextInt (500));
+        auto savedY = (int) node->properties.getWithDefault (getLastYProp (type), Random::getSystemRandom().nextInt (500));
+
+        auto totalBounds = Desktop::getInstance().getDisplays().getTotalBounds (true);
+        if (! totalBounds.isEmpty())
+        {
+            savedX = jlimit (totalBounds.getX(), jmax (totalBounds.getX(), totalBounds.getRight() - getWidth()), savedX);
+            savedY = jlimit (totalBounds.getY(), jmax (totalBounds.getY(), totalBounds.getBottom() - getHeight()), savedY);
+        }
+
+        setTopLeftPosition (savedX, savedY);
        #endif
 
         node->properties.set (getOpenProp (type), true);
@@ -231,8 +240,11 @@ public:
 
     void moved() override
     {
-        node->properties.set (getLastXProp (type), getX());
-        node->properties.set (getLastYProp (type), getY());
+        if (node != nullptr)
+        {
+            node->properties.set (getLastXProp (type), getX());
+            node->properties.set (getLastYProp (type), getY());
+        }
     }
 
     void closeButtonPressed() override

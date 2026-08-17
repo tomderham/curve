@@ -53,15 +53,8 @@
 //==============================================================================
 namespace CommandIDs
 {
-   #if ! (JUCE_IOS || JUCE_ANDROID)
-    static const int open                   = 0x30000;
-    static const int save                   = 0x30001;
-    static const int saveAs                 = 0x30002;
-    static const int newFile                = 0x30003;
-   #endif
     static const int showPluginListEditor   = 0x30100;
     static const int showAudioSettings      = 0x30200;
-    static const int aboutBox               = 0x30300;
     static const int allWindowsForward      = 0x30400;
     static const int autoScalePluginWindows = 0x30600;
 }
@@ -69,6 +62,7 @@ namespace CommandIDs
 //==============================================================================
 ApplicationCommandManager& getCommandManager();
 ApplicationProperties& getAppProperties();
+PropertiesFile* getUserSettings();
 
 //==============================================================================
 enum class AutoScale
@@ -94,7 +88,6 @@ constexpr const char* processUID = "juceaudiopluginhost";
 
 //==============================================================================
 class MainHostWindow final : public DocumentWindow,
-                             public MenuBarModel,
                              public ApplicationCommandTarget,
                              public ChangeListener,
                              public FileDragAndDropTarget
@@ -114,11 +107,6 @@ public:
     void fileDragExit (const StringArray& files) override;
     void filesDropped (const StringArray& files, int, int) override;
 
-    void menuBarActivated (bool isActive) override;
-
-    StringArray getMenuBarNames() override;
-    PopupMenu getMenuForIndex (int topLevelMenuIndex, const String& menuName) override;
-    void menuItemSelected (int menuItemID, int topLevelMenuIndex) override;
     ApplicationCommandTarget* getNextCommandTarget() override;
     void getAllCommands (Array<CommandID>&) override;
     void getCommandInfo (CommandID, ApplicationCommandInfo&) override;

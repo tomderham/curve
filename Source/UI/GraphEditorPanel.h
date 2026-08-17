@@ -114,6 +114,114 @@ private:
 
 
 //==============================================================================
+class FadingAudioProcessorPlayer final : public AudioIODeviceCallback
+{
+public:
+    FadingAudioProcessorPlayer() : player (true) {}
+
+    void setProcessor (AudioProcessor* proc)
+    {
+        player.setProcessor (proc);
+    }
+
+    AudioProcessor* getCurrentProcessor() const
+    {
+        return player.getCurrentProcessor();
+    }
+
+    MidiMessageCollector& getMidiMessageCollector()
+    {
+        return player.getMidiMessageCollector();
+    }
+
+    void setMidiOutput (MidiOutput* midiOutputToUse)
+    {
+        player.setMidiOutput (midiOutputToUse);
+    }
+
+    void audioDeviceAboutToStart (AudioIODevice* device) override
+    {
+        player.audioDeviceAboutToStart (device);
+        double sr = (device != nullptr) ? device->getCurrentSampleRate() : 44100.0;
+        fadeGain.reset (sr, 0.02);
+        fadeGain.setCurrentAndTargetValue (1.0f);
+        targetGain.store (1.0f, std::memory_order_relaxed);
+        isFadedOut.store (false, std::memory_order_release);
+    }
+
+    void audioDeviceStopped() override
+    {
+        player.audioDeviceStopped();
+    }
+
+    void startFadeOut()
+    {
+        targetGain.store (0.0f, std::memory_order_release);
+        isFadedOut.store (false, std::memory_order_release);
+    }
+
+    void startFadeIn()
+    {
+        targetGain.store (1.0f, std::memory_order_release);
+        isFadedOut.store (false, std::memory_order_release);
+    }
+
+    bool isFullyFadedOut() const
+    {
+        return isFadedOut.load (std::memory_order_acquire);
+    }
+
+    void audioDeviceIOCallbackWithContext (const float* const* inputChannelData,
+                                           int numInputChannels,
+                                           float* const* outputChannelData,
+                                           int numOutputChannels,
+                                           int numSamples,
+                                           const AudioIODeviceCallbackContext& context) override
+    {
+        player.audioDeviceIOCallbackWithContext (inputChannelData, numInputChannels,
+                                                 outputChannelData, numOutputChannels,
+                                                 numSamples, context);
+
+        float target = targetGain.load (std::memory_order_acquire);
+        if (std::abs (fadeGain.getTargetValue() - target) > 0.0001f)
+            fadeGain.setTargetValue (target);
+
+        if (fadeGain.isSmoothing())
+        {
+            for (int s = 0; s < numSamples; ++s)
+            {
+                float g = fadeGain.getNextValue();
+                for (int ch = 0; ch < numOutputChannels; ++ch)
+                {
+                    if (outputChannelData[ch] != nullptr)
+                        outputChannelData[ch][s] *= g;
+                }
+            }
+
+            if (! fadeGain.isSmoothing() && fadeGain.getCurrentValue() <= 0.0001f)
+                isFadedOut.store (true, std::memory_order_release);
+        }
+        else if (fadeGain.getCurrentValue() <= 0.0001f)
+        {
+            for (int ch = 0; ch < numOutputChannels; ++ch)
+            {
+                if (outputChannelData[ch] != nullptr)
+                    juce::FloatVectorOperations::clear (outputChannelData[ch], numSamples);
+            }
+            isFadedOut.store (true, std::memory_order_release);
+        }
+    }
+
+private:
+    AudioProcessorPlayer player;
+    juce::LinearSmoothedValue<float> fadeGain { 1.0f };
+    std::atomic<float> targetGain { 1.0f };
+    std::atomic<bool> isFadedOut { false };
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FadingAudioProcessorPlayer)
+};
+
+//==============================================================================
 /**
     A panel that embeds a GraphEditorPanel with a midi keyboard at the bottom.
 
@@ -154,14 +262,18 @@ public:
 
     BurgerMenuComponent burgerMenu;
 
-    void setPlaybackActive(bool isActive);
+    void propagateDeviceSettingsToNodes();
+
+    void startPresetTransition() { graphPlayer.startFadeOut(); }
+    void endPresetTransition()   { graphPlayer.startFadeIn(); }
+    bool isTransitionFadedOut() const { return graphPlayer.isFullyFadedOut(); }
 
 private:
     //==============================================================================
     AudioDeviceManager& deviceManager;
     KnownPluginList& pluginList;
 
-    AudioProcessorPlayer graphPlayer;
+    FadingAudioProcessorPlayer graphPlayer;
     MidiKeyboardState keyState;
     MidiOutput* midiOutput = nullptr;
 

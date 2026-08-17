@@ -94,13 +94,18 @@ private:
     {
         for (;;)
         {
-            const std::lock_guard<std::mutex> lock (mutex);
+            MemoryBlock block;
+            {
+                const std::lock_guard<std::mutex> lock (mutex);
 
-            if (pendingBlocks.empty())
-                return;
+                if (pendingBlocks.empty())
+                    return;
 
-            sendResults (doScan (pendingBlocks.front()));
-            pendingBlocks.pop();
+                block = pendingBlocks.front();
+                pendingBlocks.pop();
+            }
+
+            sendResults (doScan (block));
         }
     }
 
@@ -121,14 +126,6 @@ private:
 
         OwnedArray<PluginDescription> results;
 
-        // Always scan from whichever thread this is called on, rather than deferring
-        // to the message thread when the format doesn't explicitly require it free.
-        // If this isn't the message thread, AudioPluginFormat::createInstanceFromDescription()
-        // already posts the real instantiation there and blocks this (background) thread
-        // instead -- keeping the message thread free to pump its run loop, which some
-        // plugins depend on during their own construction. Scanning directly on the
-        // message thread would block it on that same wait, with nothing left to service
-        // the run loop, risking a deadlock for exactly those plugins.
         if (matchingFormat != nullptr)
             matchingFormat->findAllTypesForFile (results, identifier);
 
@@ -204,30 +201,22 @@ public:
 
         // initialize audio resilience manager
         auto& deviceManager = mainWindow->getDeviceManager();
-        resilienceManager.reset(new AudioResilienceManager(deviceManager, [this]
+        resilienceManager.reset(new AudioResilienceManager(deviceManager, []
         {
-            // lambda function to reload the current preset (used by resilienceManager)
-            if (mainWindow != nullptr && mainWindow->graphHolder != nullptr && mainWindow->graphHolder->graph != nullptr)
+            if (auto* app = dynamic_cast<PluginHostApp*> (juce::JUCEApplication::getInstance()))
             {
-                auto f = mainWindow->graphHolder->graph->getFile();
-                if (f.existsAsFile())
-                    mainWindow->loadPreset (f);
+                if (app->mainWindow != nullptr && app->mainWindow->graphHolder != nullptr)
+                {
+                    app->mainWindow->graphHolder->propagateDeviceSettingsToNodes();
+                }
             }
         }));
 
         commandManager.registerAllCommandsForTarget (this);
         commandManager.registerAllCommandsForTarget (mainWindow.get());
 
-        mainWindow->menuItemsChanged();
-
-        // Important note! We're going to use an async update here so that if we need
-        // to re-open a file and instantiate some plugins, it will happen AFTER this
-        // initialisation method has returned.
-        // On Windows this probably won't make a difference, but on OSX there's a subtle event loop
-        // issue that can happen if a plugin runs one of those irritating modal dialogs while it's
-        // being loaded. If that happens inside this method, the OSX event loop seems to be in some
-        // kind of special "initialisation" mode and things get confused. But if we load the plugin
-        // later when the normal event loop is running, everything's fine.
+        // Defer plugin loading to an async update so instantiation happens once the
+        // application event loop is fully initialized.
         triggerAsyncUpdate();
     }
 
@@ -282,9 +271,7 @@ public:
 
     void shutdown() override
     {
-        // appProperties is never set for a scanner subprocess (initialise() returns
-        // early for those, before this is assigned), so this must be guarded rather
-        // than going through getAppProperties(), which assumes a non-null pointer.
+        // Scanner subprocesses exit early without initializing appProperties
         if (appProperties != nullptr)
         {
             appProperties->getUserSettings()->setValue ("lastShutdownClean", true);
@@ -310,6 +297,12 @@ public:
 
     void systemRequestedQuit() override
     {
+        if (appProperties != nullptr)
+        {
+            appProperties->getUserSettings()->setValue ("lastShutdownClean", true);
+            appProperties->getUserSettings()->saveIfNeeded();
+        }
+
         if (mainWindow != nullptr)
             mainWindow->tryToQuitApplication();
         else
@@ -326,7 +319,10 @@ public:
 
     const String getApplicationName() override       { return ProjectInfo::projectName; }
     const String getApplicationVersion() override    { return ProjectInfo::versionString; }
-    bool moreThanOneInstanceAllowed() override       { return true; }
+    bool moreThanOneInstanceAllowed() override
+    {
+        return getCommandLineParameters().contains (processUID);
+    }
 
     ApplicationCommandManager commandManager;
     std::unique_ptr<ApplicationProperties> appProperties;
@@ -345,6 +341,13 @@ private:
 static PluginHostApp& getApp()                    { return *dynamic_cast<PluginHostApp*> (JUCEApplication::getInstance()); }
 
 ApplicationProperties& getAppProperties()         { return *getApp().appProperties; }
+PropertiesFile* getUserSettings()
+{
+    if (auto* app = dynamic_cast<PluginHostApp*> (JUCEApplication::getInstance()))
+        if (app->appProperties != nullptr)
+            return app->appProperties->getUserSettings();
+    return nullptr;
+}
 ApplicationCommandManager& getCommandManager()    { return getApp().commandManager; }
 
 AudioResilienceManager* getResilienceManager()
@@ -377,15 +380,18 @@ AutoScale getAutoScaleValueForPlugin (const String& identifier)
 {
     if (identifier.isNotEmpty())
     {
-        auto plugins = StringArray::fromLines (getAppProperties().getUserSettings()->getValue ("autoScalePlugins"));
-        plugins.removeEmptyStrings();
-
-        for (auto& plugin : plugins)
+        if (auto* settings = getUserSettings())
         {
-            auto fromIdentifier = plugin.fromFirstOccurrenceOf (identifier, false, false);
+            auto plugins = StringArray::fromLines (settings->getValue ("autoScalePlugins"));
+            plugins.removeEmptyStrings();
 
-            if (fromIdentifier.isNotEmpty())
-                return autoScaleFromString (fromIdentifier.fromFirstOccurrenceOf (":", false, false));
+            for (auto& plugin : plugins)
+            {
+                auto fromIdentifier = plugin.fromFirstOccurrenceOf (identifier, false, false);
+
+                if (fromIdentifier.isNotEmpty())
+                    return autoScaleFromString (fromIdentifier.fromFirstOccurrenceOf (":", false, false));
+            }
         }
     }
 
@@ -394,7 +400,11 @@ AutoScale getAutoScaleValueForPlugin (const String& identifier)
 
 void setAutoScaleValueForPlugin (const String& identifier, AutoScale s)
 {
-    auto plugins = StringArray::fromLines (getAppProperties().getUserSettings()->getValue ("autoScalePlugins"));
+    auto* settings = getUserSettings();
+    if (settings == nullptr)
+        return;
+
+    auto plugins = StringArray::fromLines (settings->getValue ("autoScalePlugins"));
     plugins.removeEmptyStrings();
 
     auto index = [identifier, plugins]
@@ -419,7 +429,8 @@ void setAutoScaleValueForPlugin (const String& identifier, AutoScale s)
             plugins.add (str);
     }
 
-    getAppProperties().getUserSettings()->setValue ("autoScalePlugins", plugins.joinIntoString ("\n"));
+    settings->setValue ("autoScalePlugins", plugins.joinIntoString ("\n"));
+    settings->saveIfNeeded();
 }
 
 static bool isAutoScaleAvailableForPlugin (const PluginDescription& description)
@@ -435,10 +446,11 @@ bool shouldAutoScalePlugin (const PluginDescription& description)
         return false;
 
     const auto scaleValue = getAutoScaleValueForPlugin (description.fileOrIdentifier);
+    auto* settings = getUserSettings();
 
     return (scaleValue == AutoScale::scaled
               || (scaleValue == AutoScale::useDefault
-                    && getAppProperties().getUserSettings()->getBoolValue ("autoScalePluginWindows")));
+                    && settings != nullptr && settings->getBoolValue ("autoScalePluginWindows")));
 }
 
 void addPluginAutoScaleOptionsSubMenu (AudioPluginInstance* pluginInstance,
@@ -474,5 +486,5 @@ void addPluginAutoScaleOptionsSubMenu (AudioPluginInstance* pluginInstance,
     menu.addSubMenu ("Auto-scale window", autoScaleMenu);
 }
 
-// This kicks the whole thing off..
+// Application entry point
 START_JUCE_APPLICATION (PluginHostApp)

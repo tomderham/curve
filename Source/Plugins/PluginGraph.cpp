@@ -64,11 +64,6 @@ PluginGraph::~PluginGraph()
     graph.clear();
 }
 
-PluginGraph::NodeID PluginGraph::getNextUID() noexcept
-{
-    return PluginGraph::NodeID (++(lastUID.uid));
-}
-
 //==============================================================================
 void PluginGraph::changeListenerCallback (ChangeBroadcaster*)
 {
@@ -233,22 +228,27 @@ void PluginGraph::newDocument()
     graph.removeChangeListener (this);
 
     InternalPluginFormat internalFormat;
+    String errorMessage;
 
-    jassert (internalFormat.getAllTypes().size() > 3);
-
-    // Only spawn the standard Audio Input and Audio Output nodes by default
-    addPlugin (PluginDescriptionAndPreference { internalFormat.getAllTypes()[1] }, { 0.5,  0.1 }); // Audio Input
-    addPlugin (PluginDescriptionAndPreference { internalFormat.getAllTypes()[3] }, { 0.5,  0.9 }); // Audio Output
-
-    juce::WeakReference<PluginGraph> weakSelf (this);
-    MessageManager::callAsync ([weakSelf]
+    for (const auto& desc : internalFormat.getAllTypes())
     {
-        if (auto* self = weakSelf.get())
+        if (desc.name == "Audio Input" || desc.name == "Audio Output")
         {
-            self->setChangedFlag (false);
-            self->graph.addChangeListener (self);
+            if (auto instance = formatManager.createPluginInstance (desc, graph.getSampleRate(), graph.getBlockSize(), errorMessage))
+            {
+                instance->enableAllBuses();
+                if (auto node = graph.addNode (std::move (instance)))
+                {
+                    node->properties.set ("x", 0.5);
+                    node->properties.set ("y", desc.name == "Audio Input" ? 0.1 : 0.9);
+                    node->properties.set ("useARA", false);
+                }
+            }
         }
-    });
+    }
+
+    setChangedFlag (false);
+    graph.addChangeListener (this);
 }
 
 Result PluginGraph::loadDocument (const File& file)
@@ -256,7 +256,7 @@ Result PluginGraph::loadDocument (const File& file)
     if (auto xml = parseXMLIfTagMatches (file, "FILTERGRAPH"))
     {
         graph.removeChangeListener (this);
-        restoreFromXml (*xml);
+        restoreFromXml (*xml, restorePluginWindowsOnLoad);
 
         juce::WeakReference<PluginGraph> weakSelf (this);
         MessageManager::callAsync ([weakSelf]
@@ -303,6 +303,7 @@ void PluginGraph::setLastDocumentOpened (const File& file)
 
     getAppProperties().getUserSettings()
         ->setValue ("recentFilterGraphFiles", recentFiles.toString());
+    getAppProperties().getUserSettings()->saveIfNeeded();
 }
 
 //==============================================================================
@@ -414,7 +415,7 @@ static XmlElement* createNodeXml (AudioProcessorGraph::Node* const node) noexcep
     return nullptr;
 }
 
-void PluginGraph::createNodeFromXml (const XmlElement& xml)
+void PluginGraph::createNodeFromXml (const XmlElement& xml, bool restorePluginWindows)
 {
     PluginDescriptionAndPreference pd;
     const auto nodeUsesARA = xml.getBoolAttribute ("useARA");
@@ -496,8 +497,10 @@ void PluginGraph::createNodeFromXml (const XmlElement& xml)
                 node->getProcessor()->setStateInformation (m.getData(), (int) m.getSize());
             }
 
-            node->properties.set ("x", xml.getDoubleAttribute ("x"));
-            node->properties.set ("y", xml.getDoubleAttribute ("y"));
+            const double posX = xml.hasAttribute ("x") ? xml.getDoubleAttribute ("x") : 0.5;
+            const double posY = xml.hasAttribute ("y") ? xml.getDoubleAttribute ("y") : 0.5;
+            node->properties.set ("x", jlimit (0.0, 1.0, posX));
+            node->properties.set ("y", jlimit (0.0, 1.0, posY));
             node->properties.set ("useARA", xml.getBoolAttribute ("useARA"));
 
             for (int i = 0; i < (int) PluginWindow::Type::numTypes; ++i)
@@ -510,7 +513,7 @@ void PluginGraph::createNodeFromXml (const XmlElement& xml)
                     node->properties.set (PluginWindow::getLastYProp (type), xml.getIntAttribute (PluginWindow::getLastYProp (type)));
                     node->properties.set (PluginWindow::getOpenProp  (type), xml.getIntAttribute (PluginWindow::getOpenProp (type)));
 
-                    if (node->properties[PluginWindow::getOpenProp (type)])
+                    if (restorePluginWindows && node->properties[PluginWindow::getOpenProp (type)])
                     {
                         jassert (node->getProcessor() != nullptr);
 
@@ -543,15 +546,12 @@ std::unique_ptr<XmlElement> PluginGraph::createXml() const
     return xml;
 }
 
-void PluginGraph::restoreFromXml (const XmlElement& xml)
+void PluginGraph::restoreFromXml (const XmlElement& xml, bool restorePluginWindows)
 {
     clear();
 
     for (auto* e : xml.getChildWithTagNameIterator ("FILTER"))
-    {
-        createNodeFromXml (*e);
-        changed();
-    }
+        createNodeFromXml (*e, restorePluginWindows);
 
     for (auto* e : xml.getChildWithTagNameIterator ("CONNECTION"))
     {
@@ -560,6 +560,7 @@ void PluginGraph::restoreFromXml (const XmlElement& xml)
     }
 
     graph.removeIllegalConnections();
+    changed();
 }
 
 File PluginGraph::getDefaultGraphDocumentOnMobile()

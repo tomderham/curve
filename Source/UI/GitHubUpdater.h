@@ -25,8 +25,10 @@ public:
 
     ~GitHubUpdater() override
     {
+        stopTimer();
         if (threadState != nullptr)
             threadState->store (nullptr);
+        activeDownload.reset();
     }
 
     void doCheckNow()
@@ -78,11 +80,98 @@ private:
 
             if (currentTime > (lastCheck + 86400000)) // check for updates if more than 24 hours past
             {
-                settings->setValue ("lastUpdateCheck", currentTime);
-                settings->saveIfNeeded();
                 performGitHubRequest();
             }
         }
+    }
+
+    static bool isNewerVersion (const juce::String& latestTag, const juce::String& currentVersion)
+    {
+        auto cleanVersion = [] (juce::String v) -> juce::String
+        {
+            v = v.trim();
+            if (v.startsWithIgnoreCase ("v"))
+                v = v.substring (1).trim();
+            return v;
+        };
+
+        auto cleanLatest = cleanVersion (latestTag);
+        auto cleanCurrent = cleanVersion (currentVersion);
+
+        if (cleanLatest.isEmpty() || cleanCurrent.isEmpty() || cleanLatest == cleanCurrent)
+            return false;
+
+        auto latestCore = cleanLatest.upToFirstOccurrenceOf ("-", false, false);
+        auto latestPre = cleanLatest.fromFirstOccurrenceOf ("-", false, false);
+
+        auto currentCore = cleanCurrent.upToFirstOccurrenceOf ("-", false, false);
+        auto currentPre = cleanCurrent.fromFirstOccurrenceOf ("-", false, false);
+
+        juce::StringArray latestCoreParts;
+        latestCoreParts.addTokens (latestCore, ".", "");
+
+        juce::StringArray currentCoreParts;
+        currentCoreParts.addTokens (currentCore, ".", "");
+
+        int maxCoreParts = juce::jmax (latestCoreParts.size(), currentCoreParts.size());
+        for (int i = 0; i < maxCoreParts; ++i)
+        {
+            int latestNum = i < latestCoreParts.size() ? latestCoreParts[i].getIntValue() : 0;
+            int currentNum = i < currentCoreParts.size() ? currentCoreParts[i].getIntValue() : 0;
+
+            if (latestNum > currentNum)
+                return true;
+            if (latestNum < currentNum)
+                return false;
+        }
+
+        // Core numbers are identical: compare pre-release metadata (SemVer precedence)
+        // A standard release has higher precedence than a pre-release of the same core version.
+        if (latestPre.isEmpty() && currentPre.isNotEmpty())
+            return true;
+        if (latestPre.isNotEmpty() && currentPre.isEmpty())
+            return false;
+
+        if (latestPre.isNotEmpty() && currentPre.isNotEmpty())
+        {
+            juce::StringArray latestPreParts;
+            latestPreParts.addTokens (latestPre, ".", "");
+            juce::StringArray currentPreParts;
+            currentPreParts.addTokens (currentPre, ".", "");
+
+            int maxPreParts = juce::jmax (latestPreParts.size(), currentPreParts.size());
+            for (int i = 0; i < maxPreParts; ++i)
+            {
+                if (i >= latestPreParts.size()) return false;
+                if (i >= currentPreParts.size()) return true;
+
+                auto& lp = latestPreParts[i];
+                auto& cp = currentPreParts[i];
+
+                bool isLatestNum = lp.containsOnly ("0123456789");
+                bool isCurrentNum = cp.containsOnly ("0123456789");
+
+                if (isLatestNum && isCurrentNum)
+                {
+                    int lVal = lp.getIntValue();
+                    int cVal = cp.getIntValue();
+                    if (lVal != cVal)
+                        return lVal > cVal;
+                }
+                else if (isLatestNum != isCurrentNum)
+                {
+                    return ! isLatestNum;
+                }
+                else
+                {
+                    int cmp = lp.compare (cp);
+                    if (cmp != 0)
+                        return cmp > 0;
+                }
+            }
+        }
+
+        return false;
     }
 
     void performGitHubRequest()
@@ -92,6 +181,7 @@ private:
         juce::URL url ("https://api.github.com/repos/" + user + "/" + repo + "/releases/latest");
         
         auto options = juce::URL::InputStreamOptions (juce::URL::ParameterHandling::inAddress)
+                        .withConnectionTimeoutMs (10000)
                         .withExtraHeaders ("User-Agent: " + appName + "-Updater\nAccept: application/vnd.github+json");
 
         auto state = threadState;
@@ -111,9 +201,29 @@ private:
                     
                     if (auto* obj = json.getDynamicObject())
                     {
-                        auto latestTag = obj->getProperty ("tag_name").toString();
-                        if (latestTag.isNotEmpty() && latestTag != juce::String (ProjectInfo::versionString))
-                            self->handleUpdateFound (obj);
+                        if (obj->hasProperty ("tag_name"))
+                        {
+                            // Successfully received valid release response from GitHub, save timestamp now
+                            if (auto* settings = getAppProperties().getUserSettings())
+                            {
+                                settings->setValue ("lastUpdateCheck", juce::Time::getCurrentTime().toMilliseconds());
+                                settings->saveIfNeeded();
+                            }
+
+                            auto latestTag = obj->getProperty ("tag_name").toString();
+                            if (isNewerVersion (latestTag, juce::String (ProjectInfo::versionString)))
+                                self->handleUpdateFound (obj);
+                        }
+                        else if (obj->hasProperty ("message"))
+                        {
+                            // GitHub API returned an error/rate-limit response (e.g. 403 rate limit exceeded).
+                            // Update timestamp to avoid hammering the endpoint repeatedly on every cycle.
+                            if (auto* settings = getAppProperties().getUserSettings())
+                            {
+                                settings->setValue ("lastUpdateCheck", juce::Time::getCurrentTime().toMilliseconds());
+                                settings->saveIfNeeded();
+                            }
+                        }
                     }
                 }
             });
@@ -196,6 +306,14 @@ private:
                                 juce::JUCEApplication::getInstance()->systemRequestedQuit();
                             }
                         })
+                    );
+                }
+                else
+                {
+                    juce::NativeMessageBox::showMessageBoxAsync (
+                        juce::MessageBoxIconType::WarningIcon,
+                        "Update Download Failed",
+                        "Curve was unable to download the update. Please check your internet connection or download the latest release directly from GitHub."
                     );
                 }
             }
