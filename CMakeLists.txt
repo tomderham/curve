@@ -34,6 +34,7 @@ target_sources(Curve PRIVATE
     Source/Plugins/InternalPlugins.cpp
     Source/Plugins/InvertPhaseNode.cpp
     Source/Plugins/PluginGraph.cpp
+    Source/Plugins/SpeakerEmulationNode.cpp
     Source/Plugins/SystemAudioCaptureNode.mm
     Source/UI/GraphEditorPanel.cpp
     Source/UI/MainHostWindow.cpp)

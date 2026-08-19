@@ -52,6 +52,7 @@
 #include "InternalPlugins.h"
 #include "InvertPhaseNode.h"
 #include "PluginGraph.h"
+#include "SpeakerEmulationNode.h"
 #include "SystemAudioCaptureNode.h"
 
 //==============================================================================
@@ -96,6 +97,18 @@ static const std::vector<PluginDescription>& getStaticInternalDescriptions()
         xfed.numInputChannels = 2;
         xfed.numOutputChannels = 2;
         result.push_back (xfed);
+
+        PluginDescription spkr;
+        spkr.name = "Headphone Speaker Emulation";
+        spkr.descriptiveName = "Headphone Speaker Emulation (Crossfeed + Ambience)";
+        spkr.pluginFormatName = "Internal";
+        spkr.category = "Plugins";
+        spkr.fileOrIdentifier = "SpeakerEmulation";
+        spkr.uniqueId = 0x53504B52; // "SPKR"
+        spkr.isInstrument = false;
+        spkr.numInputChannels = 2;
+        spkr.numOutputChannels = 2;
+        result.push_back (spkr);
 
         PluginDescription invp;
         invp.name = "Invert Phase";
@@ -146,6 +159,7 @@ InternalPluginFormat::InternalPluginFormat()
         [] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor> (AudioProcessorGraph::AudioGraphIOProcessor::midiInputNode); },
         [] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor> (AudioProcessorGraph::AudioGraphIOProcessor::midiOutputNode); },
         [] { return std::make_unique<CrossfeedNode>(); },
+        [] { return std::make_unique<SpeakerEmulationNode>(); },
         [] { return std::make_unique<InvertPhaseNode>(); }
     }
 {
