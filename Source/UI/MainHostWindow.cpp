@@ -369,8 +369,6 @@ MainHostWindow::MainHostWindow()
 
     restoreWindowStateFromString (getAppProperties().getUserSettings()->getValue ("mainWindowPos"));
 
-    setVisible (true);
-
     InternalPluginFormat internalFormat;
     internalTypes = internalFormat.getAllTypes();
 
@@ -886,6 +884,8 @@ void MainHostWindow::showAboutBox()
 
 void MainHostWindow::showWindow()
 {
+    juce::Process::makeForegroundProcess();
+
     if (! isOnDesktop())
         addToDesktop (getDesktopWindowStyleFlags());
 
@@ -906,4 +906,16 @@ void MainHostWindow::hideWindow()
     getAppProperties().getUserSettings()->setValue ("mainWindowPos", getWindowStateAsString());
     getAppProperties().getUserSettings()->saveIfNeeded();
     setVisible (false);
+}
+
+void MainHostWindow::showUpdateBanner (const juce::String& version, const juce::String& downloadUrl)
+{
+    if (graphHolder != nullptr)
+        graphHolder->showUpdateBanner (version, downloadUrl);
+}
+
+void MainHostWindow::showAppMenu (juce::Component* target)
+{
+    if (onShowAppMenu)
+        onShowAppMenu (target);
 }

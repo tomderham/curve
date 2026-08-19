@@ -100,6 +100,9 @@ private:
     std::unique_ptr<ConnectorComponent> draggingConnector;
     std::unique_ptr<PopupMenu> menu;
 
+    class BurgerButton;
+    std::unique_ptr<BurgerButton> burgerButton;
+
     PluginComponent* getComponentForPlugin (AudioProcessorGraph::NodeID) const;
     ConnectorComponent* getComponentForConnection (const AudioProcessorGraph::Connection&) const;
     PinComponent* findPinAt (Point<float>) const;
@@ -267,6 +270,7 @@ public:
     void startPresetTransition() { graphPlayer.startFadeOut(); }
     void endPresetTransition()   { graphPlayer.startFadeIn(); }
     bool isTransitionFadedOut() const { return graphPlayer.isFullyFadedOut(); }
+    void showUpdateBanner (const String& version, const String& downloadUrl);
 
 private:
     //==============================================================================
@@ -276,6 +280,9 @@ private:
     FadingAudioProcessorPlayer graphPlayer;
     MidiKeyboardState keyState;
     MidiOutput* midiOutput = nullptr;
+
+    class UpdateBannerComponent;
+    std::unique_ptr<UpdateBannerComponent> updateBanner;
 
     struct TooltipBar;
     std::unique_ptr<TooltipBar> statusBar;

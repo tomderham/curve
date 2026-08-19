@@ -86,30 +86,7 @@ public:
             juce::Process::makeForegroundProcess();
             auto currentMousePos = juce::Desktop::getInstance().getMousePosition();
 
-            juce::PopupMenu settingsmenu;
-            settingsmenu.addItem("Audio Settings", [this] { mainWindow.showAudioSettings(); });
-            settingsmenu.addItem("Plug-in Manager", [this] { mainWindow.showPluginListWindow(); });
-            settingsmenu.addSeparator();
-            settingsmenu.addItem("Auto-Check for App Updates", true, isAutoAppUpdateCheckEnabled, [this] { toggleAutoAppUpdateCheck(); });
-            settingsmenu.addItem("About...", [this] { mainWindow.showAboutBox(); });
-            settingsmenu.addSeparator();
-            settingsmenu.addItem("Quit", [] { juce::JUCEApplication::getInstance()->systemRequestedQuit(); });
-
-            juce::PopupMenu menu;
-
-            // Toggle Visibility
-            if (mainWindow.isVisible())
-                menu.addItem("Hide Editor", [this] { mainWindow.hideWindow(); });
-            else
-                menu.addItem("Show Editor", [this] { mainWindow.showWindow(); });
-
-            menu.addItem("Save As Preset...", [this] { mainWindow.saveAsPreset(); });
-            menu.addSeparator();
-            menu.addSectionHeader("Presets");
-            addPresetsToMenu(menu);
-            menu.addSeparator();
-
-            menu.addSubMenu("Settings", settingsmenu, true);
+            auto menu = buildAppMenu (mainWindow, gitHubUpdater, true);
 
             auto targetArea = juce::Rectangle<int>(currentMousePos.x, currentMousePos.y, 1, 1);
             juce::PopupMenu::Options options;
@@ -131,19 +108,14 @@ public:
 
     ~TrayIconController() override = default;
 
-private:
-    MainHostWindow& mainWindow;
-    GitHubUpdater& gitHubUpdater;
-    bool isAutoAppUpdateCheckEnabled = false;
-    bool isMenuOpen = false;
-    juce::uint32 lastMenuDismissTime = 0;
-
-    void addPresetsToMenu(juce::PopupMenu& menu)
+    static void addPresetsToMenu (juce::PopupMenu& menu, MainHostWindow& mainWindow)
     {
         // Scan Presets folder for presets
-        auto appDataDir = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory).getChildFile ("Application Support").getChildFile(JUCEApplication::getInstance()->getApplicationName());
-        auto presetsDir = appDataDir.getChildFile("Presets");
-        auto files = presetsDir.findChildFiles(juce::File::findFiles, false, "*.filtergraph");
+        auto appDataDir = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
+                              .getChildFile ("Application Support")
+                              .getChildFile (juce::JUCEApplication::getInstance()->getApplicationName());
+        auto presetsDir = appDataDir.getChildFile ("Presets");
+        auto files = presetsDir.findChildFiles (juce::File::findFiles, false, "*.filtergraph");
 
         // Sort presets alphabetically
         files.sort();
@@ -166,33 +138,63 @@ private:
             juce::PopupMenu::Item item (name.replace ("&", "&&"));
             item.setEnabled (true);
             item.setTicked (isCurrent);
-            item.setAction ([this, file] {
+            item.setAction ([&mainWindow, file] {
                 mainWindow.loadPreset (file);
             });
             menu.addItem (item);
         }
     }
 
-    void toggleAutoAppUpdateCheck()
+    static juce::PopupMenu buildAppMenu (MainHostWindow& mainWindow, GitHubUpdater& gitHubUpdater, bool includeVisibilityToggle = false)
     {
-        if (isAutoAppUpdateCheckEnabled) 
-        {
-            isAutoAppUpdateCheckEnabled = false;
+        bool isAutoAppUpdateCheckEnabled = true;
+        if (auto* settings = getAppProperties().getUserSettings())
+            isAutoAppUpdateCheckEnabled = settings->getBoolValue ("automaticUpdateChecks", true);
+
+        juce::PopupMenu settingsmenu;
+        settingsmenu.addItem ("Audio Settings", [&mainWindow] { mainWindow.showAudioSettings(); });
+        settingsmenu.addItem ("Plug-in Manager", [&mainWindow] { mainWindow.showPluginListWindow(); });
+        settingsmenu.addSeparator();
+        settingsmenu.addItem ("Check for Updates...", [&gitHubUpdater] { gitHubUpdater.checkForUpdates (true); });
+        settingsmenu.addItem ("Auto-Check for App Updates", true, isAutoAppUpdateCheckEnabled, [&gitHubUpdater, isAutoAppUpdateCheckEnabled] {
+            bool newState = ! isAutoAppUpdateCheckEnabled;
             if (auto* settings = getAppProperties().getUserSettings())
             {
-                settings->setValue ("automaticUpdateChecks", false);
+                settings->setValue ("automaticUpdateChecks", newState);
                 settings->saveIfNeeded();
             }
-        }
-        else
+            if (newState)
+                gitHubUpdater.doCheckNow();
+        });
+        settingsmenu.addItem ("About...", [&mainWindow] { mainWindow.showAboutBox(); });
+        settingsmenu.addSeparator();
+        settingsmenu.addItem ("Quit", [] { juce::JUCEApplication::getInstance()->systemRequestedQuit(); });
+
+        juce::PopupMenu menu;
+
+        if (includeVisibilityToggle)
         {
-            isAutoAppUpdateCheckEnabled = true;
-            if (auto* settings = getAppProperties().getUserSettings())
-            {
-                settings->setValue ("automaticUpdateChecks", true);
-                settings->saveIfNeeded();
-            }
-            gitHubUpdater.doCheckNow();
+            if (mainWindow.isVisible())
+                menu.addItem ("Hide Editor", [&mainWindow] { mainWindow.hideWindow(); });
+            else
+                menu.addItem ("Show Editor", [&mainWindow] { mainWindow.showWindow(); });
         }
+
+        menu.addItem ("Save As Preset...", [&mainWindow] { mainWindow.saveAsPreset(); });
+        menu.addSeparator();
+        menu.addSectionHeader ("Presets");
+        addPresetsToMenu (menu, mainWindow);
+        menu.addSeparator();
+
+        menu.addSubMenu ("Settings", settingsmenu, true);
+
+        return menu;
     }
+
+private:
+    MainHostWindow& mainWindow;
+    GitHubUpdater& gitHubUpdater;
+    bool isAutoAppUpdateCheckEnabled = false;
+    bool isMenuOpen = false;
+    juce::uint32 lastMenuDismissTime = 0;
 };

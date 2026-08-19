@@ -257,15 +257,54 @@ public:
 
         mainWindow.reset (new MainHostWindow());
 
-        // hide editor window initially
-        mainWindow->hideWindow();
+        // Show editor window on first launch; hide initially on subsequent launches
+        bool isFirstLaunch = false;
+        if (auto* settings = getAppProperties().getUserSettings())
+        {
+            if (! settings->getBoolValue ("hasRunBefore", false))
+            {
+                isFirstLaunch = true;
+                settings->setValue ("hasRunBefore", true);
+                settings->saveIfNeeded();
+            }
+        }
+
+        if (isFirstLaunch)
+            mainWindow->showWindow();
+        else
+            mainWindow->hideWindow();
 
         // initialize app Github updater
         githubUpdater.reset(new GitHubUpdater());
+        githubUpdater->onUpdateAvailable = [weakWindow = juce::Component::SafePointer<MainHostWindow> (mainWindow.get())] (const juce::String& ver, const juce::String& url)
+        {
+            if (auto* w = weakWindow.getComponent())
+                w->showUpdateBanner (ver, url);
+        };
         githubUpdater->start("tomderham", "curve", options.applicationName);
 
         // initialize menu bar controller
         trayIcon.reset(new TrayIconController(*mainWindow, *githubUpdater));
+
+        mainWindow->onShowAppMenu = [this] (juce::Component* target)
+        {
+            if (mainWindow != nullptr && githubUpdater != nullptr)
+            {
+                auto menu = TrayIconController::buildAppMenu (*mainWindow, *githubUpdater, false);
+                juce::PopupMenu::Options menuOptions;
+                if (target != nullptr)
+                {
+                    menuOptions = menuOptions.withTargetComponent (target);
+                }
+                else
+                {
+                    auto mousePos = juce::Desktop::getInstance().getMousePosition();
+                    menuOptions = menuOptions.withTargetScreenArea (juce::Rectangle<int> (mousePos.x, mousePos.y, 1, 1));
+                }
+
+                menu.showMenuAsync (menuOptions);
+            }
+        };
 
         // initialize audio resilience manager
         auto& deviceManager = mainWindow->getDeviceManager();

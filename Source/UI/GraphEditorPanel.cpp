@@ -766,8 +766,46 @@ struct GraphEditorPanel::ConnectorComponent final : public Component,
 
 
 //==============================================================================
+class GraphEditorPanel::BurgerButton final : public Button
+{
+public:
+    BurgerButton() : Button ("BurgerButton") {}
+
+    void paintButton (Graphics& g, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override
+    {
+        auto bounds = getLocalBounds().toFloat().reduced (1.0f);
+
+        if (shouldDrawButtonAsHighlighted || shouldDrawButtonAsDown)
+        {
+            g.setColour (Colours::white.withAlpha (shouldDrawButtonAsDown ? 0.22f : 0.12f));
+            g.fillRoundedRectangle (bounds, 4.0f);
+        }
+
+        g.setColour (Colours::white.withAlpha (shouldDrawButtonAsHighlighted ? 0.95f : 0.65f));
+
+        const float lineW = 14.0f;
+        const float lineH = 2.0f;
+        const float x = bounds.getCentreX() - lineW * 0.5f;
+        const float cy = bounds.getCentreY();
+        const float spacing = 4.0f;
+
+        g.fillRoundedRectangle (x, cy - spacing - lineH * 0.5f, lineW, lineH, 1.0f);
+        g.fillRoundedRectangle (x, cy - lineH * 0.5f, lineW, lineH, 1.0f);
+        g.fillRoundedRectangle (x, cy + spacing - lineH * 0.5f, lineW, lineH, 1.0f);
+    }
+};
+
+//==============================================================================
 GraphEditorPanel::GraphEditorPanel (PluginGraph& g)  : graph (g)
 {
+    burgerButton = std::make_unique<BurgerButton>();
+    burgerButton->onClick = [this]
+    {
+        if (auto* mw = findParentComponentOfClass<MainHostWindow>())
+            mw->showAppMenu (burgerButton.get());
+    };
+    addAndMakeVisible (burgerButton.get());
+
     graph.addChangeListener (this);
     setOpaque (true);
 }
@@ -775,6 +813,7 @@ GraphEditorPanel::GraphEditorPanel (PluginGraph& g)  : graph (g)
 GraphEditorPanel::~GraphEditorPanel()
 {
     graph.removeChangeListener (this);
+    burgerButton = nullptr;
     draggingConnector = nullptr;
     nodes.clear();
     connectors.clear();
@@ -783,6 +822,16 @@ GraphEditorPanel::~GraphEditorPanel()
 void GraphEditorPanel::paint (Graphics& g)
 {
     g.fillAll (getLookAndFeel().findColour (ResizableWindow::backgroundColourId));
+
+    // Draw subtle guidance hint at the bottom center of the canvas
+    g.setColour (Colours::white.withAlpha (0.28f));
+    g.setFont (FontOptions { 13.0f });
+    auto hintText = TRANS ("Right-click anywhere to add plug-ins")
+                    + "  " + String::charToString (0x2022) + "  "
+                    + TRANS ("Drag pins to connect audio and MIDI");
+    g.drawText (hintText,
+                getLocalBounds().removeFromBottom (22).reduced (10, 0),
+                Justification::centred, false);
 }
 
 void GraphEditorPanel::mouseDown (const MouseEvent& e)
@@ -854,6 +903,9 @@ GraphEditorPanel::PinComponent* GraphEditorPanel::findPinAt (Point<float> pos) c
 
 void GraphEditorPanel::resized()
 {
+    if (burgerButton != nullptr)
+        burgerButton->setBounds (10, 8, 24, 24);
+
     updateComponents();
 }
 
@@ -1252,9 +1304,6 @@ void GraphDocumentComponent::init()
 
     keyState.addListener (&graphPlayer.getMidiMessageCollector());
 
-    statusBar.reset (new TooltipBar());
-    addAndMakeVisible (statusBar.get());
-
     graphPanel->updateComponents();
 
     if (Desktop::getInstance().getMainMouseSource().isTouch())
@@ -1290,25 +1339,104 @@ GraphDocumentComponent::~GraphDocumentComponent()
     keyState.removeListener (&graphPlayer.getMidiMessageCollector());
 }
 
+//==============================================================================
+class GraphDocumentComponent::UpdateBannerComponent final : public Component
+{
+public:
+    UpdateBannerComponent (const String& version, const String& url, std::function<void()> onUpdate, std::function<void()> onDismiss)
+        : downloadUrl (url), updateCallback (std::move (onUpdate)), dismissCallback (std::move (onDismiss))
+    {
+        label.setText (TRANS ("A new version of Curve (") + version + TRANS (") is available!"), dontSendNotification);
+        label.setFont (FontOptions { 13.0f }.withStyle ("Bold"));
+        label.setColour (Label::textColourId, Colours::white);
+        addAndMakeVisible (label);
+
+        updateButton.setButtonText (TRANS ("Update Now"));
+        updateButton.setColour (TextButton::buttonColourId, Colour (0xff2563eb));
+        updateButton.setColour (TextButton::textColourOnId, Colours::white);
+        updateButton.setColour (TextButton::textColourOffId, Colours::white);
+        updateButton.onClick = [this] { if (updateCallback) updateCallback(); };
+        addAndMakeVisible (updateButton);
+
+        dismissButton.setButtonText (String::charToString (0x00D7)); // ×
+        dismissButton.onClick = [this] { if (dismissCallback) dismissCallback(); };
+        addAndMakeVisible (dismissButton);
+    }
+
+    void paint (Graphics& g) override
+    {
+        g.fillAll (Colour (0xff1e293b));
+        g.setColour (Colour (0xff3b82f6));
+        g.fillRect (0, getHeight() - 1, getWidth(), 1);
+    }
+
+    void resized() override
+    {
+        auto r = getLocalBounds().reduced (8, 4);
+        dismissButton.setBounds (r.removeFromRight (24));
+        r.removeFromRight (8);
+        updateButton.setBounds (r.removeFromRight (95));
+        r.removeFromRight (8);
+        label.setBounds (r);
+    }
+
+private:
+    String downloadUrl;
+    std::function<void()> updateCallback;
+    std::function<void()> dismissCallback;
+    Label label;
+    TextButton updateButton;
+    TextButton dismissButton;
+};
+
+void GraphDocumentComponent::showUpdateBanner (const String& version, const String& downloadUrl)
+{
+    if (updateBanner != nullptr)
+        return;
+
+    Component::SafePointer<GraphDocumentComponent> safeSelf (this);
+    updateBanner = std::make_unique<UpdateBannerComponent> (
+        version,
+        downloadUrl,
+        [downloadUrl]
+        {
+            if (downloadUrl.isNotEmpty())
+            {
+                if (downloadUrl.startsWithIgnoreCase ("http"))
+                    URL (downloadUrl).launchInDefaultBrowser();
+            }
+        },
+        [safeSelf]
+        {
+            if (auto* self = safeSelf.getComponent())
+            {
+                self->updateBanner = nullptr;
+                self->resized();
+            }
+        }
+    );
+
+    addAndMakeVisible (updateBanner.get());
+    resized();
+}
+
 void GraphDocumentComponent::resized()
 {
-    auto r = [this]
-    {
-        auto bounds = getLocalBounds();
+    auto r = getLocalBounds();
 
-        if (auto* display = Desktop::getInstance().getDisplays().getDisplayForRect (getScreenBounds()))
-            return display->safeAreaInsets.subtractedFrom (bounds);
+   #if JUCE_IOS || JUCE_ANDROID
+    if (auto* display = Desktop::getInstance().getDisplays().getDisplayForRect (getScreenBounds()))
+        r = display->safeAreaInsets.subtractedFrom (r);
+   #endif
 
-        return bounds;
-    }();
+    if (updateBanner != nullptr)
+        updateBanner->setBounds (r.removeFromTop (32));
 
     const int titleBarHeight = 40;
-    const int statusHeight = 20;
 
-    if (Desktop::getInstance().getMainMouseSource().isTouch())
+    if (Desktop::getInstance().getMainMouseSource().isTouch() && titleBarComponent != nullptr)
         titleBarComponent->setBounds (r.removeFromTop (titleBarHeight));
 
-    statusBar->setBounds (r.removeFromBottom (statusHeight));
     graphPanel->setBounds (r);
 
     checkAvailableWidth();

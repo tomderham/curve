@@ -129,6 +129,9 @@ public:
     void loadPreset (juce::File);
     juce::AudioDeviceManager& getDeviceManager() { return deviceManager; }
     void showAboutBox();
+    void showUpdateBanner (const juce::String& version, const juce::String& downloadUrl);
+    void showAppMenu (juce::Component* target = nullptr);
+    std::function<void (juce::Component*)> onShowAppMenu;
 
 private:
     //==============================================================================

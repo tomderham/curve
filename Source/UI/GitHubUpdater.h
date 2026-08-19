@@ -31,9 +31,26 @@ public:
         activeDownload.reset();
     }
 
+    std::function<void(const juce::String& version, const juce::String& downloadUrl)> onUpdateAvailable;
+
+    void checkForUpdates (bool isManualCheck = false)
+    {
+        performGitHubRequest (isManualCheck);
+    }
+
     void doCheckNow()
     {
-        performGitHubRequest();
+        performGitHubRequest (false);
+    }
+
+    void downloadUpdate (const juce::String& url)
+    {
+        auto tempDmg = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("Curve_update.dmg");
+        tempDmg.deleteFile();
+        
+        juce::URL::DownloadTaskOptions options;
+        options = options.withListener (this);
+        activeDownload = juce::URL (url).downloadToFile (tempDmg, options);
     }
 
     /** Starts the update monitoring. Call this in JUCEApplication::initialise(). */
@@ -80,7 +97,7 @@ private:
 
             if (currentTime > (lastCheck + 86400000)) // check for updates if more than 24 hours past
             {
-                performGitHubRequest();
+                performGitHubRequest (false);
             }
         }
     }
@@ -174,7 +191,7 @@ private:
         return false;
     }
 
-    void performGitHubRequest()
+    void performGitHubRequest (bool isManualCheck)
     {
         isChecking = true;
         
@@ -186,13 +203,13 @@ private:
 
         auto state = threadState;
 
-        juce::Thread::launch ([state, url, options]
+        juce::Thread::launch ([state, url, options, isManualCheck]
         {
             juce::String response;
             if (auto stream = url.createInputStream (options))
                 response = stream->readEntireStreamAsString();
             
-            juce::MessageManager::callAsync ([state, response] 
+            juce::MessageManager::callAsync ([state, response, isManualCheck] 
             {
                 if (auto* self = state->load())
                 {
@@ -211,19 +228,63 @@ private:
                             }
 
                             auto latestTag = obj->getProperty ("tag_name").toString();
+
+                            juce::String downloadUrl;
+                            if (auto* assets = obj->getProperty ("assets").getArray())
+                            {
+                                for (auto& asset : *assets)
+                                {
+                                    juce::String name = asset.getProperty ("name", juce::var()).toString();
+                                    if (name.endsWith (".dmg"))
+                                    {
+                                        downloadUrl = asset.getProperty ("browser_download_url", juce::var()).toString();
+                                        break;
+                                    }
+                                }
+                            }
+
                             if (isNewerVersion (latestTag, juce::String (ProjectInfo::versionString)))
+                            {
+                                if (self->onUpdateAvailable)
+                                    self->onUpdateAvailable (latestTag, downloadUrl);
+
                                 self->handleUpdateFound (obj);
+                            }
+                            else if (isManualCheck)
+                            {
+                                juce::NativeMessageBox::showMessageBoxAsync (
+                                    juce::MessageBoxIconType::InfoIcon,
+                                    "You're Up to Date",
+                                    "Curve v" + juce::String (ProjectInfo::versionString) + " is currently the newest available version."
+                                );
+                            }
                         }
                         else if (obj->hasProperty ("message"))
                         {
                             // GitHub API returned an error/rate-limit response (e.g. 403 rate limit exceeded).
-                            // Update timestamp to avoid hammering the endpoint repeatedly on every cycle.
                             if (auto* settings = getAppProperties().getUserSettings())
                             {
                                 settings->setValue ("lastUpdateCheck", juce::Time::getCurrentTime().toMilliseconds());
                                 settings->saveIfNeeded();
                             }
+
+                            if (isManualCheck)
+                            {
+                                juce::NativeMessageBox::showMessageBoxAsync (
+                                    juce::MessageBoxIconType::WarningIcon,
+                                    "Update Check Failed",
+                                    "Curve was unable to check for updates (GitHub API rate limit or error). Please try again later or check https://github.com/tomderham/curve/releases directly."
+                                );
+                            }
                         }
+                    }
+                    else if (isManualCheck)
+                    {
+                        juce::NativeMessageBox::showMessageBoxAsync (
+                            juce::MessageBoxIconType::WarningIcon,
+                            "Update Check Failed",
+                            "Curve was unable to connect to GitHub to check for updates. Please check your internet connection."
+                        );
                     }
                 }
             });
@@ -265,16 +326,6 @@ private:
                 }
             })
         );
-    }
-
-    void downloadUpdate (const juce::String& url)
-    {
-        auto tempDmg = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("Curve_update.dmg");
-        tempDmg.deleteFile();
-        
-        juce::URL::DownloadTaskOptions options;
-        options = options.withListener (this);
-        activeDownload = juce::URL (url).downloadToFile (tempDmg, options);
     }
 
     // --- Download Listener ---
