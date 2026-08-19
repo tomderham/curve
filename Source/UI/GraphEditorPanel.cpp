@@ -283,8 +283,15 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         else if (e.getNumberOfClicks() == 2)
         {
             if (auto f = graph.graph.getNodeForId (pluginID))
-                if (auto* w = graph.getOrCreateWindowFor (f, PluginWindow::Type::normal))
+            {
+                auto* proc = f->getProcessor();
+                auto windowType = (proc != nullptr && ! proc->hasEditor())
+                                      ? PluginWindow::Type::audioIO
+                                      : PluginWindow::Type::normal;
+
+                if (auto* w = graph.getOrCreateWindowFor (f, windowType))
                     w->toFront (true);
+            }
         }
     }
 

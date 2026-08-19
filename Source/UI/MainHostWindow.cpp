@@ -375,7 +375,32 @@ MainHostWindow::MainHostWindow()
     internalTypes = internalFormat.getAllTypes();
 
     if (auto savedPluginList = getAppProperties().getUserSettings()->getXmlValue ("pluginList"))
+    {
         knownPluginList.recreateFromXml (*savedPluginList);
+    }
+
+   #if JUCE_MAC
+    // Ensure Apple's built-in AUNBandEQ is available on first launch or if missing from pluginList
+    auto hasAUNBandEQ = [this]()
+    {
+        for (const auto& desc : knownPluginList.getTypes())
+            if (desc.fileOrIdentifier.containsIgnoreCase (",nbeq,appl"))
+                return true;
+        return false;
+    };
+
+    if (! hasAUNBandEQ())
+    {
+        AudioUnitPluginFormat auFormat;
+        OwnedArray<PluginDescription> found;
+        auFormat.findAllTypesForFile (found, "AudioUnit:Effects/aufx,nbeq,appl");
+        if (found.isEmpty())
+            auFormat.findAllTypesForFile (found, "AudioUnit:aufx,nbeq,appl");
+
+        for (auto* desc : found)
+            knownPluginList.addType (*desc);
+    }
+   #endif
 
     // Remove any cached known (internal) plugins from list
     auto types = knownPluginList.getTypes();
@@ -518,12 +543,47 @@ static void addToMenu (const KnownPluginList::PluginTree& tree,
 
 void MainHostWindow::addPluginsToMenu (PopupMenu& m)
 {
+    pluginDescriptionsAndPreference = {};
+
     if (graphHolder != nullptr)
     {
-        int i = 0;
+        PopupMenu audioIOMenu;
+        PopupMenu midiIOMenu;
+        PopupMenu pluginsMenu;
 
-        for (auto& t : internalTypes)
-            m.addItem (++i, t.name);
+        // Add Parametric EQ (AUNBandEQ) shortcut first in Plugins
+        for (const auto& desc : knownPluginList.getTypes())
+        {
+            if (desc.fileOrIdentifier.containsIgnoreCase (",nbeq,appl"))
+            {
+                pluginDescriptionsAndPreference.add (PluginDescriptionAndPreference { desc, PluginDescriptionAndPreference::UseARA::no });
+                const auto menuID = pluginDescriptionsAndPreference.size() - 1 + menuIDBase;
+                pluginsMenu.addItem (menuID, "Parametric EQ (AUNBandEQ)", true, false);
+                break;
+            }
+        }
+
+        for (size_t idx = 0; idx < internalTypes.size(); ++idx)
+        {
+            const auto& t = internalTypes[idx];
+            const int itemID = (int) idx + 1;
+
+            if (t.category == "Plugins")
+                pluginsMenu.addItem (itemID, t.name);
+            else if (t.name.containsIgnoreCase ("MIDI"))
+                midiIOMenu.addItem (itemID, t.name);
+            else
+                audioIOMenu.addItem (itemID, t.name);
+        }
+
+        if (audioIOMenu.getNumItems() > 0)
+            m.addSubMenu ("Audio I/O", audioIOMenu);
+
+        if (midiIOMenu.getNumItems() > 0)
+            m.addSubMenu ("MIDI I/O", midiIOMenu);
+
+        if (pluginsMenu.getNumItems() > 0)
+            m.addSubMenu ("Plugins", pluginsMenu);
     }
 
     m.addSeparator();
@@ -537,7 +597,6 @@ void MainHostWindow::addPluginsToMenu (PopupMenu& m)
     });
 
     auto tree = KnownPluginList::createTree (pluginDescriptions, pluginSortMethod);
-    pluginDescriptionsAndPreference = {};
     addToMenu (*tree, m, pluginDescriptions, pluginDescriptionsAndPreference);
 }
 

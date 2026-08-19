@@ -48,7 +48,9 @@
 
 #include <juce_audio_plugin_client/juce_audio_plugin_client.h>
 
+#include "CrossfeedNode.h"
 #include "InternalPlugins.h"
+#include "InvertPhaseNode.h"
 #include "PluginGraph.h"
 #include "SystemAudioCaptureNode.h"
 
@@ -61,11 +63,14 @@ static const std::vector<PluginDescription>& getStaticInternalDescriptions()
     {
         std::vector<PluginDescription> result;
 
+        // Audio I/O: Audio Input, System Audio Input, Audio Output
+        result.push_back (AudioProcessorGraph::AudioGraphIOProcessor (AudioProcessorGraph::AudioGraphIOProcessor::audioInputNode).getPluginDescription());
+
         PluginDescription satp;
         satp.name = "System Audio Input";
         satp.descriptiveName = "System Audio Input";
         satp.pluginFormatName = "Internal";
-        satp.category = "I/O";
+        satp.category = "Audio I/O";
         satp.fileOrIdentifier = "SystemAudio";
         satp.uniqueId = 0x53415450; // "SATP"
         satp.isInstrument = false;
@@ -73,10 +78,36 @@ static const std::vector<PluginDescription>& getStaticInternalDescriptions()
         satp.numOutputChannels = 2;
         result.push_back (satp);
 
-        result.push_back (AudioProcessorGraph::AudioGraphIOProcessor (AudioProcessorGraph::AudioGraphIOProcessor::audioInputNode).getPluginDescription());
-        result.push_back (AudioProcessorGraph::AudioGraphIOProcessor (AudioProcessorGraph::AudioGraphIOProcessor::midiInputNode).getPluginDescription());
         result.push_back (AudioProcessorGraph::AudioGraphIOProcessor (AudioProcessorGraph::AudioGraphIOProcessor::audioOutputNode).getPluginDescription());
+
+        // Midi I/O
+        result.push_back (AudioProcessorGraph::AudioGraphIOProcessor (AudioProcessorGraph::AudioGraphIOProcessor::midiInputNode).getPluginDescription());
         result.push_back (AudioProcessorGraph::AudioGraphIOProcessor (AudioProcessorGraph::AudioGraphIOProcessor::midiOutputNode).getPluginDescription());
+
+        // Plugins
+        PluginDescription xfed;
+        xfed.name = "Headphone Crossfeed";
+        xfed.descriptiveName = "Headphone Crossfeed";
+        xfed.pluginFormatName = "Internal";
+        xfed.category = "Plugins";
+        xfed.fileOrIdentifier = "Crossfeed";
+        xfed.uniqueId = 0x58464544; // "XFED"
+        xfed.isInstrument = false;
+        xfed.numInputChannels = 2;
+        xfed.numOutputChannels = 2;
+        result.push_back (xfed);
+
+        PluginDescription invp;
+        invp.name = "Invert Phase";
+        invp.descriptiveName = "Invert Phase (Polarity Flip)";
+        invp.pluginFormatName = "Internal";
+        invp.category = "Plugins";
+        invp.fileOrIdentifier = "InvertPhase";
+        invp.uniqueId = 0x494E5650; // "INVP"
+        invp.isInstrument = false;
+        invp.numInputChannels = 2;
+        invp.numOutputChannels = 2;
+        result.push_back (invp);
 
         return result;
     }();
@@ -94,7 +125,11 @@ std::unique_ptr<AudioPluginInstance> InternalPluginFormat::InternalPluginFactory
     const auto begin = descriptions.begin();
     const auto it = std::find_if (begin,
                                   descriptions.end(),
-                                  [&] (const PluginDescription& desc) { return name.equalsIgnoreCase (desc.name); });
+                                  [&] (const PluginDescription& desc)
+                                  {
+                                      return name.equalsIgnoreCase (desc.name)
+                                             || name.equalsIgnoreCase (desc.fileOrIdentifier);
+                                  });
 
     if (it == descriptions.end())
         return nullptr;
@@ -105,11 +140,13 @@ std::unique_ptr<AudioPluginInstance> InternalPluginFormat::InternalPluginFactory
 
 InternalPluginFormat::InternalPluginFormat()
     : factory {
-        [] { return std::make_unique<SystemAudioCaptureNode>(); },
         [] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor> (AudioProcessorGraph::AudioGraphIOProcessor::audioInputNode); },
-        [] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor> (AudioProcessorGraph::AudioGraphIOProcessor::midiInputNode); },
+        [] { return std::make_unique<SystemAudioCaptureNode>(); },
         [] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor> (AudioProcessorGraph::AudioGraphIOProcessor::audioOutputNode); },
-        [] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor> (AudioProcessorGraph::AudioGraphIOProcessor::midiOutputNode); }
+        [] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor> (AudioProcessorGraph::AudioGraphIOProcessor::midiInputNode); },
+        [] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor> (AudioProcessorGraph::AudioGraphIOProcessor::midiOutputNode); },
+        [] { return std::make_unique<CrossfeedNode>(); },
+        [] { return std::make_unique<InvertPhaseNode>(); }
     }
 {
 }

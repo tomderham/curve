@@ -29,8 +29,10 @@ juce_generate_juce_header(Curve)
 
 target_sources(Curve PRIVATE
     Source/HostStartup.cpp
+    Source/Plugins/CrossfeedNode.cpp
     Source/Plugins/IOConfigurationWindow.cpp
     Source/Plugins/InternalPlugins.cpp
+    Source/Plugins/InvertPhaseNode.cpp
     Source/Plugins/PluginGraph.cpp
     Source/Plugins/SystemAudioCaptureNode.mm
     Source/UI/GraphEditorPanel.cpp
