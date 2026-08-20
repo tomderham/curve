@@ -18,8 +18,8 @@
 
 //==============================================================================
 /**
-    An internal AudioProcessor that implements speaker-emulation
-    headphone crossfeed using zero-latency partitioned convolution.
+    An internal AudioProcessor that implements headphone crossfeed
+    using zero-latency partitioned convolution.
 */
 class CrossfeedNode : public juce::AudioPluginInstance
 {

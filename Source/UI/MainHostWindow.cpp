@@ -48,7 +48,7 @@
 #include "MainHostWindow.h"
 #include "AudioResilienceManager.h"
 #include "../Plugins/InternalPlugins.h"
-#include "../Plugins/SystemAudioCaptureNode.h"
+#include "../Plugins/OutputInterfaceLoopbackNode.h"
 
 constexpr const char* scanModeKey = "pluginScanMode";
 
@@ -378,25 +378,31 @@ MainHostWindow::MainHostWindow()
     }
 
    #if JUCE_MAC
-    // Ensure Apple's built-in AUNBandEQ is available on first launch or if missing from pluginList
-    auto hasAUNBandEQ = [this]()
+    // Populate Apple built-in AudioUnit plugins if missing from pluginList
+    AudioUnitPluginFormat auFormat;
+    auto auIdentifiers = auFormat.searchPathsForPlugins (FileSearchPath(), false, false);
+    for (const auto& identifier : auIdentifiers)
     {
-        for (const auto& desc : knownPluginList.getTypes())
-            if (desc.fileOrIdentifier.containsIgnoreCase (",nbeq,appl"))
-                return true;
-        return false;
-    };
+        if (identifier.containsIgnoreCase (",appl") || identifier.containsIgnoreCase ("apple"))
+        {
+            bool alreadyKnown = false;
+            for (const auto& knownDesc : knownPluginList.getTypes())
+            {
+                if (knownDesc.fileOrIdentifier == identifier)
+                {
+                    alreadyKnown = true;
+                    break;
+                }
+            }
 
-    if (! hasAUNBandEQ())
-    {
-        AudioUnitPluginFormat auFormat;
-        OwnedArray<PluginDescription> found;
-        auFormat.findAllTypesForFile (found, "AudioUnit:Effects/aufx,nbeq,appl");
-        if (found.isEmpty())
-            auFormat.findAllTypesForFile (found, "AudioUnit:aufx,nbeq,appl");
-
-        for (auto* desc : found)
-            knownPluginList.addType (*desc);
+            if (! alreadyKnown)
+            {
+                OwnedArray<PluginDescription> found;
+                auFormat.findAllTypesForFile (found, identifier);
+                for (auto* desc : found)
+                    knownPluginList.addType (*desc);
+            }
+        }
     }
    #endif
 

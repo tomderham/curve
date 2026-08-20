@@ -51,9 +51,9 @@
 #include "CrossfeedNode.h"
 #include "InternalPlugins.h"
 #include "InvertPhaseNode.h"
+#include "OutputInterfaceLoopbackNode.h"
 #include "PluginGraph.h"
 #include "SpeakerEmulationNode.h"
-#include "SystemAudioCaptureNode.h"
 
 //==============================================================================
 
@@ -64,20 +64,20 @@ static const std::vector<PluginDescription>& getStaticInternalDescriptions()
     {
         std::vector<PluginDescription> result;
 
-        // Audio I/O: Audio Input, System Audio Input, Audio Output
+        // Audio I/O: Audio Input, Output Interface Loopback, Audio Output
         result.push_back (AudioProcessorGraph::AudioGraphIOProcessor (AudioProcessorGraph::AudioGraphIOProcessor::audioInputNode).getPluginDescription());
 
-        PluginDescription satp;
-        satp.name = "System Audio Input";
-        satp.descriptiveName = "System Audio Input";
-        satp.pluginFormatName = "Internal";
-        satp.category = "Audio I/O";
-        satp.fileOrIdentifier = "SystemAudio";
-        satp.uniqueId = 0x53415450; // "SATP"
-        satp.isInstrument = false;
-        satp.numInputChannels = 0;
-        satp.numOutputChannels = 2;
-        result.push_back (satp);
+        PluginDescription loopback;
+        loopback.name = "Output Interface Loopback";
+        loopback.descriptiveName = "Output Interface Loopback";
+        loopback.pluginFormatName = "Internal";
+        loopback.category = "Audio I/O";
+        loopback.fileOrIdentifier = "OutputInterfaceLoopback";
+        loopback.uniqueId = 0x53415450; // "SATP"
+        loopback.isInstrument = false;
+        loopback.numInputChannels = 0;
+        loopback.numOutputChannels = 2;
+        result.push_back (loopback);
 
         result.push_back (AudioProcessorGraph::AudioGraphIOProcessor (AudioProcessorGraph::AudioGraphIOProcessor::audioOutputNode).getPluginDescription());
 
@@ -100,7 +100,7 @@ static const std::vector<PluginDescription>& getStaticInternalDescriptions()
 
         PluginDescription spkr;
         spkr.name = "Headphone Speaker Emulation";
-        spkr.descriptiveName = "Headphone Speaker Emulation (Crossfeed + Ambience)";
+        spkr.descriptiveName = "Headphone Speaker Emulation";
         spkr.pluginFormatName = "Internal";
         spkr.category = "Plugins";
         spkr.fileOrIdentifier = "SpeakerEmulation";
@@ -112,7 +112,7 @@ static const std::vector<PluginDescription>& getStaticInternalDescriptions()
 
         PluginDescription invp;
         invp.name = "Invert Phase";
-        invp.descriptiveName = "Invert Phase (Polarity Flip)";
+        invp.descriptiveName = "Invert Phase";
         invp.pluginFormatName = "Internal";
         invp.category = "Plugins";
         invp.fileOrIdentifier = "InvertPhase";
@@ -144,17 +144,34 @@ std::unique_ptr<AudioPluginInstance> InternalPluginFormat::InternalPluginFactory
                                              || name.equalsIgnoreCase (desc.fileOrIdentifier);
                                   });
 
-    if (it == descriptions.end())
-        return nullptr;
+    if (it != descriptions.end())
+    {
+        const auto index = (size_t) std::distance (begin, it);
+        return constructors[index]();
+    }
 
-    const auto index = (size_t) std::distance (begin, it);
-    return constructors[index]();
+    // Legacy node name compatibility
+    if (name.equalsIgnoreCase ("System Audio Input") || name.equalsIgnoreCase ("SystemAudio"))
+    {
+        const auto loopbackIt = std::find_if (begin, descriptions.end(), [] (const PluginDescription& desc) {
+            return desc.fileOrIdentifier.equalsIgnoreCase ("OutputInterfaceLoopback")
+                || desc.uniqueId == 0x53415450;
+        });
+
+        if (loopbackIt != descriptions.end())
+        {
+            const auto index = (size_t) std::distance (begin, loopbackIt);
+            return constructors[index]();
+        }
+    }
+
+    return nullptr;
 }
 
 InternalPluginFormat::InternalPluginFormat()
     : factory {
         [] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor> (AudioProcessorGraph::AudioGraphIOProcessor::audioInputNode); },
-        [] { return std::make_unique<SystemAudioCaptureNode>(); },
+        [] { return std::make_unique<OutputInterfaceLoopbackNode>(); },
         [] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor> (AudioProcessorGraph::AudioGraphIOProcessor::audioOutputNode); },
         [] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor> (AudioProcessorGraph::AudioGraphIOProcessor::midiInputNode); },
         [] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor> (AudioProcessorGraph::AudioGraphIOProcessor::midiOutputNode); },
@@ -176,6 +193,8 @@ void InternalPluginFormat::createPluginInstance (const PluginDescription& desc,
 {
     if (auto p = createInstance (desc.name))
         callback (std::move (p), {});
+    else if (auto pById = createInstance (desc.fileOrIdentifier))
+        callback (std::move (pById), {});
     else
         callback (nullptr, NEEDS_TRANS ("Invalid internal plugin name"));
 }

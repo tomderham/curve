@@ -67,7 +67,7 @@ void InvertPhaseNode::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
 void InvertPhaseNode::fillInPluginDescription (juce::PluginDescription& description) const
 {
     description.name = "Invert Phase";
-    description.descriptiveName = "Invert Phase (Polarity Flip)";
+    description.descriptiveName = "Invert Phase";
     description.pluginFormatName = "Internal";
     description.category = "Utility";
     description.manufacturerName = "Curve";

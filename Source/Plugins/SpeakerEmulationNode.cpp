@@ -122,7 +122,7 @@ void SpeakerEmulationNode::processBlock (juce::AudioBuffer<float>& buffer, juce:
 void SpeakerEmulationNode::fillInPluginDescription (juce::PluginDescription& description) const
 {
     description.name = getName();
-    description.descriptiveName = "Headphone Speaker Emulation (Crossfeed + Ambience)";
+    description.descriptiveName = getName();
     description.pluginFormatName = "Internal";
     description.category = "Plugins";
     description.manufacturerName = "Thomas Derham";

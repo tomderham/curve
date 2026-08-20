@@ -235,15 +235,29 @@ void PluginGraph::newDocument()
 
     for (const auto& desc : internalFormat.getAllTypes())
     {
-        if (desc.name == "Audio Input" || desc.name == "Audio Output")
+        if (desc.name == "Audio Input" || desc.name == "Output Interface Loopback" || desc.name == "Audio Output")
         {
             if (auto instance = formatManager.createPluginInstance (desc, graph.getSampleRate(), graph.getBlockSize(), errorMessage))
             {
                 instance->enableAllBuses();
                 if (auto node = graph.addNode (std::move (instance)))
                 {
-                    node->properties.set ("x", 0.5);
-                    node->properties.set ("y", desc.name == "Audio Input" ? 0.1 : 0.9);
+                    double xPos = 0.5;
+                    double yPos = 0.9;
+
+                    if (desc.name == "Audio Input")
+                    {
+                        xPos = 0.35;
+                        yPos = 0.1;
+                    }
+                    else if (desc.name == "Output Interface Loopback")
+                    {
+                        xPos = 0.65;
+                        yPos = 0.1;
+                    }
+
+                    node->properties.set ("x", xPos);
+                    node->properties.set ("y", yPos);
                     node->properties.set ("useARA", false);
                 }
             }

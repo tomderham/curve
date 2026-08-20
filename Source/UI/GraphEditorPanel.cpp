@@ -48,7 +48,7 @@
 #include "GraphEditorPanel.h"
 #include "../Plugins/InternalPlugins.h"
 #include "MainHostWindow.h"
-#include "../Plugins/SystemAudioCaptureNode.h"
+#include "../Plugins/OutputInterfaceLoopbackNode.h"
 
 //==============================================================================
 #if JUCE_IOS
@@ -445,7 +445,10 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         menu->addItem ("Toggle Bypass", [this]
         {
             if (auto* node = graph.graph.getNodeForId (pluginID))
+            {
                 node->setBypassed (! node->isBypassed());
+                graph.graph.sendChangeMessage();
+            }
 
             repaint();
         });
@@ -1304,6 +1307,9 @@ void GraphDocumentComponent::init()
 
     keyState.addListener (&graphPlayer.getMidiMessageCollector());
 
+    graph->graph.addChangeListener (this);
+    graph->addChangeListener (this);
+
     graphPanel->updateComponents();
 
     if (Desktop::getInstance().getMainMouseSource().isTouch())
@@ -1460,26 +1466,66 @@ void GraphDocumentComponent::releaseGraph()
 
     statusBar = nullptr;
 
+    if (graph != nullptr)
+    {
+        graph->graph.removeChangeListener (this);
+        graph->removeChangeListener (this);
+    }
+
     graphPlayer.setProcessor (nullptr);
     graph = nullptr;
 }
 
 void GraphDocumentComponent::propagateDeviceSettingsToNodes()
 {
-    if (graph != nullptr)
+    if (auto* device = deviceManager.getCurrentAudioDevice())
     {
-        if (auto* device = deviceManager.getCurrentAudioDevice())
-        {
-            juce::String currentDeviceName = device->getName();
-            auto workgroup = deviceManager.getDeviceAudioWorkgroup();
+        juce::String currentDeviceName = device->getName();
+        double currentSampleRate = device->getCurrentSampleRate();
+        auto workgroup = deviceManager.getDeviceAudioWorkgroup();
 
+       #if JUCE_MAC
+        OutputInterfaceLoopbackNode::warmUpTap (currentDeviceName, currentSampleRate);
+       #endif
+
+        if (graph != nullptr)
+        {
+            bool anyLoopbackFound = false;
             for (auto* node : graph->graph.getNodes())
-                if (auto* captureNode = dynamic_cast<SystemAudioCaptureNode*> (node->getProcessor()))
+            {
+                if (auto* captureNode = dynamic_cast<OutputInterfaceLoopbackNode*> (node->getProcessor()))
                 {
+                    anyLoopbackFound = true;
+                    bool isBypassed = node->isBypassed();
+                    bool hasOutputConnection = false;
+                    for (const auto& conn : graph->graph.getConnections())
+                    {
+                        if (conn.source.nodeID == node->nodeID)
+                        {
+                            hasOutputConnection = true;
+                            break;
+                        }
+                    }
+
+                    bool shouldBeActive = (! isBypassed) && hasOutputConnection;
                     captureNode->setTargetOutputDeviceName (currentDeviceName);
+                    captureNode->setActiveState (shouldBeActive);
                     captureNode->setAudioWorkgroup (workgroup);
                 }
+            }
+
+            if (! anyLoopbackFound)
+                OutputInterfaceLoopbackNode::updateGlobalMuteBehavior();
         }
+
+       #if JUCE_MAC
+        bool autoSync = true;
+        if (auto* settings = getAppProperties().getUserSettings())
+            autoSync = settings->getBoolValue ("autoSyncSystemOutput", true);
+
+        if (autoSync)
+            OutputInterfaceLoopbackNode::syncSystemOutputDevice (currentDeviceName);
+       #endif
     }
 }
 

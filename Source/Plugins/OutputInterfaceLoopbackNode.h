@@ -17,14 +17,14 @@
 
 //==============================================================================
 /**
-    An internal AudioProcessor that captures macOS system audio
-    natively via CoreAudio process taps.
+    An internal AudioProcessor that captures macOS output interface loopback
+    audio natively via CoreAudio process taps.
 */
-class SystemAudioCaptureNode : public juce::AudioPluginInstance
+class OutputInterfaceLoopbackNode : public juce::AudioPluginInstance
 {
 public:
-    SystemAudioCaptureNode();
-    ~SystemAudioCaptureNode() override;
+    OutputInterfaceLoopbackNode();
+    ~OutputInterfaceLoopbackNode() override;
 
     //==============================================================================
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
@@ -34,7 +34,7 @@ public:
     //==============================================================================
     juce::AudioProcessorEditor* createEditor() override { return nullptr; }
     bool hasEditor() const override { return false; }
-    const juce::String getName() const override { return "System Audio Input"; }
+    const juce::String getName() const override { return "Output Interface Loopback"; }
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return false; }
     double getTailLengthSeconds() const override { return 0.0; }
@@ -50,6 +50,12 @@ public:
     void fillInPluginDescription (juce::PluginDescription& description) const override;
 
     void setTargetOutputDeviceName (const juce::String& name);
+    void refreshCapture();
+    void setActiveState (bool shouldBeActive);
+    static void updateGlobalMuteBehavior();
+    static void syncSystemOutputDevice (const juce::String& name);
+    static bool isAnyTapActiveInGraph();
+    static void warmUpTap (const juce::String& targetDevice, double sampleRate);
 
     // Lets the tap's own real-time thread join the same audio workgroup as the main
     // output device's IO thread, so the OS scheduler treats them as one deadline chain.
@@ -65,18 +71,15 @@ private:
     juce::AbstractFifo fifo { ringBufferCapacity };
     juce::AudioBuffer<float> ringBuffer;
 
-    // PIMPL idiom to hide Objective-C++ details from this header
-    struct TapWrapper;
-    std::unique_ptr<TapWrapper> tapWrapper;
-
     std::atomic<bool> isCapturing { false };
     std::atomic<bool> isBuffering { true };
     std::atomic<bool> hadUnderrunLastBlock { true };
+    std::atomic<bool> isActiveInGraph { true };
 
     juce::String targetOutputDeviceName;
     juce::SpinLock workgroupLock;
     juce::AudioWorkgroup pendingWorkgroup;
     std::atomic<bool> workgroupNeedsUpdate { false };
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SystemAudioCaptureNode)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OutputInterfaceLoopbackNode)
 };

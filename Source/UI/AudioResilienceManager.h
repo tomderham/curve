@@ -18,6 +18,7 @@
 juce::PropertiesFile* getUserSettings();
 
 #if JUCE_MAC
+#include "../Plugins/OutputInterfaceLoopbackNode.h"
 struct MacOSSleepWakeNotifierBase
 {
     virtual ~MacOSSleepWakeNotifierBase() = default;
@@ -237,6 +238,16 @@ public:
             {
                 disconnectedCheckCount = 0;
                 consecutiveEnforceFailures = 0;
+
+               #if JUCE_MAC
+                bool autoSync = true;
+                if (auto* settings = getUserSettings())
+                    autoSync = settings->getBoolValue ("autoSyncSystemOutput", true);
+
+                if (autoSync)
+                    OutputInterfaceLoopbackNode::syncSystemOutputDevice (targetOutputDeviceName);
+               #endif
+
                 return;
             }
         }

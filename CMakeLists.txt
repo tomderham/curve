@@ -35,7 +35,7 @@ target_sources(Curve PRIVATE
     Source/Plugins/InvertPhaseNode.cpp
     Source/Plugins/PluginGraph.cpp
     Source/Plugins/SpeakerEmulationNode.cpp
-    Source/Plugins/SystemAudioCaptureNode.mm
+    Source/Plugins/OutputInterfaceLoopbackNode.mm
     Source/UI/GraphEditorPanel.cpp
     Source/UI/MainHostWindow.cpp)
 
@@ -63,7 +63,8 @@ target_link_libraries(Curve PRIVATE
     juce::juce_recommended_config_flags
     juce::juce_recommended_lto_flags
     juce::juce_recommended_warning_flags
-    "-framework CoreAudio")
+    "-framework CoreAudio"
+    "-framework AVFoundation")
 
 juce_add_bundle_resources_directory(Curve  ${CMAKE_CURRENT_SOURCE_DIR}/Source/Assets/)
 

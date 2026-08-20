@@ -148,13 +148,30 @@ public:
     static juce::PopupMenu buildAppMenu (MainHostWindow& mainWindow, GitHubUpdater& gitHubUpdater, bool includeVisibilityToggle = false)
     {
         bool isAutoAppUpdateCheckEnabled = true;
+        bool isAutoSyncSoundEnabled = true;
         if (auto* settings = getAppProperties().getUserSettings())
+        {
             isAutoAppUpdateCheckEnabled = settings->getBoolValue ("automaticUpdateChecks", true);
+            isAutoSyncSoundEnabled = settings->getBoolValue ("autoSyncSystemOutput", true);
+        }
 
         juce::PopupMenu settingsmenu;
         settingsmenu.addItem ("Audio Settings", [&mainWindow] { mainWindow.showAudioSettings(); });
         settingsmenu.addItem ("Plug-in Manager", [&mainWindow] { mainWindow.showPluginListWindow(); });
         settingsmenu.addSeparator();
+       #if JUCE_MAC
+        settingsmenu.addItem ("Force macOS System Audio to loopback", true, isAutoSyncSoundEnabled, [&mainWindow, isAutoSyncSoundEnabled] {
+            bool newState = ! isAutoSyncSoundEnabled;
+            if (auto* settings = getAppProperties().getUserSettings())
+            {
+                settings->setValue ("autoSyncSystemOutput", newState);
+                settings->saveIfNeeded();
+            }
+            if (mainWindow.graphHolder != nullptr)
+                mainWindow.graphHolder->propagateDeviceSettingsToNodes();
+        });
+        settingsmenu.addSeparator();
+       #endif
         settingsmenu.addItem ("Check for Updates...", [&gitHubUpdater] { gitHubUpdater.checkForUpdates (true); });
         settingsmenu.addItem ("Auto-Check for App Updates", true, isAutoAppUpdateCheckEnabled, [&gitHubUpdater, isAutoAppUpdateCheckEnabled] {
             bool newState = ! isAutoAppUpdateCheckEnabled;

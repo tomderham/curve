@@ -19,8 +19,7 @@
 //==============================================================================
 /**
     An internal AudioProcessor that implements true-stereo headphone
-    speaker emulation (crossfeed + room ambience) using zero-latency
-    partitioned convolution.
+    speaker emulation using zero-latency partitioned convolution.
 */
 class SpeakerEmulationNode : public juce::AudioPluginInstance
 {
