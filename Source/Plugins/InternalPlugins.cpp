@@ -48,7 +48,9 @@
 
 #include <juce_audio_plugin_client/juce_audio_plugin_client.h>
 
+#include "AudioRecorderNode.h"
 #include "CrossfeedNode.h"
+#include "GainNode.h"
 #include "InternalPlugins.h"
 #include "InvertPhaseNode.h"
 #include "OutputInterfaceLoopbackNode.h"
@@ -110,6 +112,18 @@ static const std::vector<PluginDescription>& getStaticInternalDescriptions()
         spkr.numOutputChannels = 2;
         result.push_back (spkr);
 
+        PluginDescription gain;
+        gain.name = "Gain";
+        gain.descriptiveName = "Gain";
+        gain.pluginFormatName = "Internal";
+        gain.category = "Plugins";
+        gain.fileOrIdentifier = "Gain";
+        gain.uniqueId = 0x4741494E; // "GAIN"
+        gain.isInstrument = false;
+        gain.numInputChannels = 2;
+        gain.numOutputChannels = 2;
+        result.push_back (gain);
+
         PluginDescription invp;
         invp.name = "Invert Phase";
         invp.descriptiveName = "Invert Phase";
@@ -121,6 +135,18 @@ static const std::vector<PluginDescription>& getStaticInternalDescriptions()
         invp.numInputChannels = 2;
         invp.numOutputChannels = 2;
         result.push_back (invp);
+
+        PluginDescription recd;
+        recd.name = "Audio Recorder";
+        recd.descriptiveName = "Audio Recorder";
+        recd.pluginFormatName = "Internal";
+        recd.category = "Plugins";
+        recd.fileOrIdentifier = "AudioRecorder";
+        recd.uniqueId = 0x52454344; // "RECD"
+        recd.isInstrument = false;
+        recd.numInputChannels = 2;
+        recd.numOutputChannels = 0;
+        result.push_back (recd);
 
         return result;
     }();
@@ -177,7 +203,9 @@ InternalPluginFormat::InternalPluginFormat()
         [] { return std::make_unique<AudioProcessorGraph::AudioGraphIOProcessor> (AudioProcessorGraph::AudioGraphIOProcessor::midiOutputNode); },
         [] { return std::make_unique<CrossfeedNode>(); },
         [] { return std::make_unique<SpeakerEmulationNode>(); },
-        [] { return std::make_unique<InvertPhaseNode>(); }
+        [] { return std::make_unique<GainNode>(); },
+        [] { return std::make_unique<InvertPhaseNode>(); },
+        [] { return std::make_unique<AudioRecorderNode>(); }
     }
 {
 }

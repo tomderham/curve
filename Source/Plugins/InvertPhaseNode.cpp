@@ -69,13 +69,13 @@ void InvertPhaseNode::fillInPluginDescription (juce::PluginDescription& descript
     description.name = "Invert Phase";
     description.descriptiveName = "Invert Phase";
     description.pluginFormatName = "Internal";
-    description.category = "Utility";
+    description.category = "Plugins";
     description.manufacturerName = "Curve";
     description.version = "1.0.0";
     description.fileOrIdentifier = "InvertPhase";
     description.uniqueId = 0x494E5650; // 'INVP'
     description.isInstrument = false;
-    description.numInputChannels = 2;
-    description.numOutputChannels = 2;
+    description.numInputChannels = getMainBusNumInputChannels();
+    description.numOutputChannels = getMainBusNumOutputChannels();
     description.hasSharedContainer = false;
 }

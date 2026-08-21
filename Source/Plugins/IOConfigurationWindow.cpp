@@ -445,6 +445,26 @@ IOConfigurationWindow::IOConfigurationWindow (AudioProcessor& p)
     title.setFont (title.getFont().withStyle (Font::bold));
     addAndMakeVisible (title);
 
+    if (auto* graph = getGraph())
+    {
+        ScopedLock renderLock (graph->getCallbackLock());
+        
+        graph->suspendProcessing (true);
+        graph->releaseResources();
+
+        p.suspendProcessing (true);
+        p.releaseResources();
+
+        graph->prepareToPlay (graph->getSampleRate(), graph->getBlockSize());
+        graph->suspendProcessing (false);
+    }
+    else
+    {
+        ScopedLock renderLock (p.getCallbackLock());
+        p.suspendProcessing (true);
+        p.releaseResources();
+    }
+
     if (p.getBusCount (true)  > 0 || p.canAddBus (true))
     {
         inConfig.reset (new InputOutputConfig (*this, true));
@@ -461,7 +481,25 @@ IOConfigurationWindow::IOConfigurationWindow (AudioProcessor& p)
     setSize (400, (inConfig != nullptr && outConfig != nullptr ? 160 : 0) + 200);
 }
 
-IOConfigurationWindow::~IOConfigurationWindow() = default;
+IOConfigurationWindow::~IOConfigurationWindow()
+{
+    if (auto* graph = getGraph())
+    {
+        if (auto* p = getAudioProcessor())
+        {
+            ScopedLock renderLock (graph->getCallbackLock());
+
+            graph->suspendProcessing (true);
+            graph->releaseResources();
+
+            p->prepareToPlay (graph->getSampleRate(), graph->getBlockSize());
+            p->suspendProcessing (false);
+
+            graph->prepareToPlay (graph->getSampleRate(), graph->getBlockSize());
+            graph->suspendProcessing (false);
+        }
+    }
+}
 
 void IOConfigurationWindow::paint (Graphics& g)
 {
@@ -484,8 +522,11 @@ void IOConfigurationWindow::resized()
 
 void IOConfigurationWindow::update()
 {
+    auto nodeID = getNodeID();
+
     if (auto* graph = getGraph())
-        graph->removeIllegalConnections();
+        if (nodeID != AudioProcessorGraph::NodeID())
+            graph->disconnectNode (nodeID);
 
     if (auto* graphEditor = getGraphEditor())
         if (auto* panel = graphEditor->graphPanel.get())

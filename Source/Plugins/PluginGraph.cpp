@@ -177,14 +177,13 @@ PluginWindow* PluginGraph::getOrCreateWindowFor (AudioProcessorGraph::Node* node
         {
             auto description = plugin->getPluginDescription();
 
-            if (dynamic_cast<AudioProcessorGraph::AudioGraphIOProcessor*> (plugin) != nullptr)
+            const bool isHardwareIO = (description.category == "Audio I/O" || description.category == "Midi I/O");
+
+            if (isHardwareIO)
             {
                 getCommandManager().invokeDirectly (CommandIDs::showAudioSettings, false);
                 return nullptr;
             }
-
-            if (type == PluginWindow::Type::normal && ! plugin->hasEditor())
-                return nullptr;
 
             auto localDpiDisabler = makeDPIAwarenessDisablerForPlugin (description);
             return activePluginWindows.add (new PluginWindow (node,
