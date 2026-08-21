@@ -857,8 +857,8 @@ void OutputInterfaceLoopbackNode::processBlock (juce::AudioBuffer<float>& buffer
     int numSamplesNeeded = buffer.getNumSamples();
     int currentReady = fifo.getNumReady();
 
-    // Discard excessive frames (>40ms) to bound latency
-    int maxCushion = juce::jmin (ringBufferCapacity - 1024, numSamplesNeeded * 4 + (int) std::ceil (sr * 0.040));
+    // Discard excessive frames (>4 blocks) to bound latency and prevent lag buildup
+    int maxCushion = juce::jmin (ringBufferCapacity - 1024, numSamplesNeeded * 4);
     if (currentReady > maxCushion)
     {
         int dropCount = currentReady - (numSamplesNeeded * 2);
@@ -868,10 +868,10 @@ void OutputInterfaceLoopbackNode::processBlock (juce::AudioBuffer<float>& buffer
         currentReady -= (size1 + size2);
     }
 
-    // On initial start, sample-rate switch, or after starvation, buffer phase margin before resuming
+    // On initial start, sample-rate switch, or after starvation, buffer 2 blocks of phase margin before resuming
     if (! isPrimed.load (std::memory_order_relaxed))
     {
-        int primeThreshold = juce::jmax (numSamplesNeeded * 4, (int) std::ceil (sr * 0.010));
+        int primeThreshold = numSamplesNeeded * 2;
         if (currentReady >= primeThreshold)
         {
             isPrimed.store (true, std::memory_order_relaxed);
