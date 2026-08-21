@@ -235,7 +235,7 @@ void PluginGraph::newDocument()
     for (const auto& desc : internalFormat.getAllTypes())
     {
         bool isAudioInput  = (desc.fileOrIdentifier == "Audio Input" || desc.name == "Audio Input");
-        bool isLoopback    = (desc.fileOrIdentifier == "OutputInterfaceLoopback" || desc.name == "Output Interface Loopback");
+        bool isLoopback    = (desc.fileOrIdentifier == "OutputInterfaceLoopback" || desc.name == "Interface Loopback (In)" || desc.name == "Output Interface Loopback");
         bool isAudioOutput = (desc.fileOrIdentifier == "Audio Output" || desc.name == "Audio Output");
 
         if (isAudioInput || isLoopback || isAudioOutput)

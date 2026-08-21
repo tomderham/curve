@@ -70,8 +70,8 @@ static const std::vector<PluginDescription>& getStaticInternalDescriptions()
         result.push_back (AudioProcessorGraph::AudioGraphIOProcessor (AudioProcessorGraph::AudioGraphIOProcessor::audioInputNode).getPluginDescription());
 
         PluginDescription loopback;
-        loopback.name = "Output Interface Loopback";
-        loopback.descriptiveName = "Output Interface Loopback";
+        loopback.name = "Interface Loopback (In)";
+        loopback.descriptiveName = "Interface Loopback (In)";
         loopback.pluginFormatName = "Internal";
         loopback.category = "Audio I/O";
         loopback.fileOrIdentifier = "OutputInterfaceLoopback";
@@ -177,7 +177,8 @@ std::unique_ptr<AudioPluginInstance> InternalPluginFormat::InternalPluginFactory
     }
 
     // Legacy node name compatibility
-    if (name.equalsIgnoreCase ("System Audio Input") || name.equalsIgnoreCase ("SystemAudio"))
+    if (name.equalsIgnoreCase ("System Audio Input") || name.equalsIgnoreCase ("SystemAudio")
+        || name.equalsIgnoreCase ("Output Interface Loopback") || name.equalsIgnoreCase ("OutputInterfaceLoopback"))
     {
         const auto loopbackIt = std::find_if (begin, descriptions.end(), [] (const PluginDescription& desc) {
             return desc.fileOrIdentifier.equalsIgnoreCase ("OutputInterfaceLoopback")

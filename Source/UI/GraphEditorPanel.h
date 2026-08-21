@@ -46,6 +46,7 @@
 
 #pragma once
 
+#include <JuceHeader.h>
 #include "../Plugins/PluginGraph.h"
 
 class MainHostWindow;

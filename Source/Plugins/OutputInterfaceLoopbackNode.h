@@ -34,7 +34,7 @@ public:
     //==============================================================================
     juce::AudioProcessorEditor* createEditor() override { return nullptr; }
     bool hasEditor() const override { return false; }
-    const juce::String getName() const override { return "Output Interface Loopback"; }
+    const juce::String getName() const override { return "Interface Loopback (In)"; }
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return false; }
     double getTailLengthSeconds() const override { return 0.0; }

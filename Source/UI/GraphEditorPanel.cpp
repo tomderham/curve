@@ -193,7 +193,65 @@ struct GraphEditorPanel::PinComponent final : public Component,
 };
 
 //==============================================================================
+static String getTooltipForProcessor (const AudioProcessor& processor)
+{
+    // For hosted 3rd-party plugins (AU, VST3, ARA)
+    if (auto* instance = dynamic_cast<const AudioPluginInstance*> (&processor))
+    {
+        auto desc = instance->getPluginDescription();
+
+        if (desc.pluginFormatName != "Internal")
+        {
+            String tip = desc.name;
+            if (desc.descriptiveName.isNotEmpty() && desc.descriptiveName != desc.name)
+                tip << " (" << desc.descriptiveName << ")";
+            if (desc.manufacturerName.isNotEmpty())
+                tip << " - " << desc.manufacturerName;
+            if (desc.pluginFormatName.isNotEmpty())
+                tip << " [" << desc.pluginFormatName << "]";
+            return tip;
+        }
+    }
+
+    // Curve Internal Nodes & Audio/MIDI I/O
+    const auto name = processor.getName();
+
+    if (name == "Audio Output")
+        return "Audio Output: The output interface selected in Curve's Audio Settings.";
+
+    if (name == "Audio Input")
+        return "Audio Input: The input interface selected in Curve's Audio Settings.";
+
+    if (name == "MIDI Output")
+        return "MIDI Output: The MIDI Output interface selected in Curve's Audio Settings.";
+
+    if (name == "MIDI Input")
+        return "MIDI Input: The Active MIDI inputs selected in Curve's Audio Settings.";
+
+    if (name == "Interface Loopback (In)")
+        return "Interface Loopback (In): Loopback virtual input interface; audio that would have been sent to the selected output interface.";
+
+    if (name == "Headphone Speaker Emulation")
+        return "Headphone Speaker Emulation: Mid-field studio speaker emulation processor (including crossfeed) for monitoring with headphones.";
+
+    if (name == "Headphone Crossfeed")
+        return "Headphone Crossfeed: Crossfeed processor for natural soundstage imaging when monitoring with headphones.";
+
+    if (name == "Gain")
+        return "Gain: Volume trim (-96 dB to +24 dB) and mute toggle.";
+
+    if (name == "Invert Phase")
+        return "Invert Phase: Negates polarity of audio signal on each channel.";
+
+    if (name == "Audio Recorder")
+        return "WAV Audio Capture: Multi-channel audio recorder utility, saves WAV files to Desktop.";
+
+    return name;
+}
+
+//==============================================================================
 struct GraphEditorPanel::PluginComponent final : public Component,
+                                                 public SettableTooltipClient,
                                                  public Timer,
                                                  private AudioProcessorParameter::Listener,
                                                  private AsyncUpdater
@@ -209,6 +267,8 @@ struct GraphEditorPanel::PluginComponent final : public Component,
             {
                 if (auto* bypassParam = processor->getBypassParameter())
                     bypassParam->addListener (this);
+
+                setTooltip (getTooltipForProcessor (*processor));
             }
         }
 
@@ -393,6 +453,7 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         if (formatSuffix != " (Internal)")
             finalName += formatSuffix;
         setName (finalName);
+        setTooltip (getTooltipForProcessor (processor));
 
         {
             auto p = graph.getNodePosition (pluginID);
@@ -829,16 +890,6 @@ GraphEditorPanel::~GraphEditorPanel()
 void GraphEditorPanel::paint (Graphics& g)
 {
     g.fillAll (getLookAndFeel().findColour (ResizableWindow::backgroundColourId));
-
-    // Draw subtle guidance hint at the bottom center of the canvas
-    g.setColour (Colours::white.withAlpha (0.28f));
-    g.setFont (FontOptions { 13.0f });
-    auto hintText = TRANS ("Right-click anywhere to add plug-ins")
-                    + "  " + String::charToString (0x2022) + "  "
-                    + TRANS ("Drag pins to connect audio and MIDI");
-    g.drawText (hintText,
-                getLocalBounds().removeFromBottom (22).reduced (10, 0),
-                Justification::centred, false);
 }
 
 void GraphEditorPanel::mouseDown (const MouseEvent& e)
@@ -1078,12 +1129,15 @@ void GraphEditorPanel::timerCallback()
 struct GraphDocumentComponent::TooltipBar final : public Component,
                                                   private Timer
 {
-    TooltipBar() = default;
+    TooltipBar()
+    {
+        startTimer (40);
+    }
 
     void visibilityChanged() override
     {
         if (isShowing())
-            startTimer (100);
+            startTimer (40);
         else
             stopTimer();
     }
@@ -1095,9 +1149,25 @@ struct GraphDocumentComponent::TooltipBar final : public Component,
 
     void paint (Graphics& g) override
     {
-        g.setFont (FontOptions ((float) getHeight() * 0.7f, Font::bold));
-        g.setColour (Colours::black);
-        g.drawFittedText (tip, 10, 0, getWidth() - 12, getHeight(), Justification::centredLeft, 1);
+        g.fillAll (getLookAndFeel().findColour (ResizableWindow::backgroundColourId));
+
+        auto bounds = getLocalBounds().reduced (12, 0);
+
+        if (tip.isNotEmpty())
+        {
+            g.setColour (Colour (0xff93c5fd));
+            g.setFont (FontOptions { 13.0f });
+            g.drawFittedText (tip, bounds, Justification::centred, 1);
+        }
+        else
+        {
+            g.setColour (Colours::white.withAlpha (0.28f));
+            g.setFont (FontOptions { 13.0f });
+            auto hintText = TRANS ("Right-click anywhere to add plug-ins")
+                            + "  " + String::charToString (0x2022) + "  "
+                            + TRANS ("Drag pins to connect audio and MIDI");
+            g.drawFittedText (hintText, bounds, Justification::centred, 1);
+        }
     }
 
     void timerCallback() override
@@ -1307,6 +1377,10 @@ void GraphDocumentComponent::init()
 
     graphPanel.reset (new GraphEditorPanel (*graph));
     addAndMakeVisible (graphPanel.get());
+
+    statusBar.reset (new TooltipBar());
+    addAndMakeVisible (statusBar.get());
+
     graphPlayer.setProcessor (&graph->graph);
 
     keyState.addListener (&graphPlayer.getMidiMessageCollector());
@@ -1446,6 +1520,10 @@ void GraphDocumentComponent::resized()
 
     if (Desktop::getInstance().getMainMouseSource().isTouch() && titleBarComponent != nullptr)
         titleBarComponent->setBounds (r.removeFromTop (titleBarHeight));
+
+    const int statusBarHeight = 24;
+    if (statusBar != nullptr)
+        statusBar->setBounds (r.removeFromBottom (statusBarHeight));
 
     graphPanel->setBounds (r);
 
