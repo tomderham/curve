@@ -254,10 +254,16 @@ public:
       }
     }
 
-    if (isFirstLaunch)
-      mainWindow->showWindow();
-    else
+    if (isFirstLaunch) {
+      juce::MessageManager::callAsync(
+          [weakWin =
+               juce::Component::SafePointer<MainHostWindow>(mainWindow.get())] {
+            if (auto *w = weakWin.getComponent())
+              w->showWindow();
+          });
+    } else {
       mainWindow->hideWindow();
+    }
 
     // initialize app Github updater
     githubUpdater.reset(new GitHubUpdater());
