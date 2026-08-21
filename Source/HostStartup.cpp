@@ -463,9 +463,9 @@ public:
 private:
   std::unique_ptr<MainHostWindow> mainWindow;
   std::unique_ptr<PluginScannerSubprocess> storedScannerSubprocess;
-  std::unique_ptr<TrayIconController> trayIcon;
-  std::unique_ptr<AudioResilienceManager> resilienceManager;
   std::unique_ptr<GitHubUpdater> githubUpdater;
+  std::unique_ptr<AudioResilienceManager> resilienceManager;
+  std::unique_ptr<TrayIconController> trayIcon;
   bool lastShutdownClean = true;
 };
 

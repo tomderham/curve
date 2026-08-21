@@ -165,7 +165,7 @@ static std::atomic<int> activeTapCount { 0 };
 // Process-wide Shared Tap Session to maintain persistent CoreAudio client hooks
 // across node destructions, preset changes, and graph topology updates.
 struct SharedTapSession {
-    juce::SpinLock lock;
+    juce::CriticalSection lock;
     AudioObjectID tapID = 0;
     AudioObjectID aggregateDeviceID = 0;
     AudioDeviceIOProcID ioProcID = nullptr;
@@ -243,7 +243,7 @@ struct SharedTapSession {
 
     void stopAndDestroy()
     {
-        const juce::SpinLock::ScopedLockType sl (lock);
+        const juce::ScopedLock sl (lock);
         currentDeviceName.clear();
         currentSampleRate = 0.0;
         
@@ -272,7 +272,7 @@ struct SharedTapSession {
 
     bool ensureInitialized (const juce::String& targetDeviceName, double sampleRate, int samplesPerBlock)
     {
-        const juce::SpinLock::ScopedLockType sl (lock);
+        const juce::ScopedLock sl (lock);
 
         juce::String resolvedName = targetDeviceName;
         if (resolvedName.isEmpty())
@@ -281,9 +281,6 @@ struct SharedTapSession {
                 if (auto savedState = settings->getXmlValue ("audioDeviceState"))
                     resolvedName = savedState->getStringAttribute ("audioOutputDeviceName");
         }
-
-        std::fprintf (stderr, "[LoopbackNode] ensureInitialized called: target='%s', sampleRate=%.1f, blockSize=%d (currentDev='%s', currentRate=%.1f, tapID=%u, aggID=%u)\n",
-                      resolvedName.toRawUTF8(), sampleRate, samplesPerBlock, currentDeviceName.toRawUTF8(), currentSampleRate, (unsigned) tapID, (unsigned) aggregateDeviceID);
 
         if (tapID != 0 && aggregateDeviceID != 0 && currentDeviceName == resolvedName
             && sampleRate > 0.0 && std::abs (currentSampleRate - sampleRate) < 1.0)
@@ -297,8 +294,6 @@ struct SharedTapSession {
             {
                 if (tapID != 0 || aggregateDeviceID != 0)
                 {
-                    std::fprintf (stderr, "[LoopbackNode] Re-initializing tap session for '%s' @ %.1f Hz (previous: '%s' @ %.1f Hz, tapID=%u, aggID=%u)\n",
-                                  resolvedName.toRawUTF8(), sampleRate, currentDeviceName.toRawUTF8(), currentSampleRate, (unsigned) tapID, (unsigned) aggregateDeviceID);
                     if (ioProcID != nullptr && aggregateDeviceID != 0)
                     {
                         AudioDeviceStop (aggregateDeviceID, ioProcID);
@@ -332,14 +327,12 @@ struct SharedTapSession {
                 UInt32 size = sizeof(myProcessObjectID);
                 AudioObjectPropertyAddress prop = { kAudioHardwarePropertyTranslatePIDToProcessObject, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
                 if (AudioObjectGetPropertyData(kAudioObjectSystemObject, &prop, sizeof(myPid), &myPid, &size, &myProcessObjectID) != noErr) {
-                    std::fprintf (stderr, "[LoopbackNode] FAILED to translate PID to process object ID\n");
                     return false;
                 }
 
                 AudioObjectID outputDevID = findDeviceID (resolvedName);
                 CFStringRef outputUID = getDeviceUID (outputDevID);
                 if (outputUID == NULL) {
-                    std::fprintf (stderr, "[LoopbackNode] FAILED to get UID for output device '%s' (devID=%u)\n", resolvedName.toRawUTF8(), (unsigned) outputDevID);
                     return false;
                 }
 
@@ -362,8 +355,6 @@ struct SharedTapSession {
 
                 if (tapID == 0)
                 {
-                    std::fprintf (stderr, "[LoopbackNode] Creating Process Tap for output UID: %s\n", [(__bridge NSString*)outputUID UTF8String]);
-
                     CATapDescription *tapDesc = [[[CATapDescription alloc] initExcludingProcesses:@[ @(myProcessObjectID) ]
                                                                                      andDeviceUID:(__bridge NSString*)outputUID
                                                                                        withStream:0] autorelease];
@@ -372,7 +363,6 @@ struct SharedTapSession {
                     }
 
                     if (!tapDesc) {
-                        std::fprintf (stderr, "[LoopbackNode] FAILED to allocate CATapDescription\n");
                         CFRelease(outputUID);
                         return false;
                     }
@@ -382,11 +372,9 @@ struct SharedTapSession {
 
                     OSStatus tapErr = AudioHardwareCreateProcessTap(tapDesc, &tapID);
                     if (tapErr != noErr || tapID == 0) {
-                        std::fprintf (stderr, "[LoopbackNode] AudioHardwareCreateProcessTap FAILED with OSStatus: %d (tapID=%u)\n", (int) tapErr, (unsigned) tapID);
                         CFRelease(outputUID);
                         return false;
                     }
-                    std::fprintf (stderr, "[LoopbackNode] AudioHardwareCreateProcessTap succeeded: tapID=%u\n", (unsigned) tapID);
 
                     if (activeTapUUIDString != nil)
                         [activeTapUUIDString release];
@@ -410,25 +398,14 @@ struct SharedTapSession {
                 OSStatus aggErr = AudioHardwareCreateAggregateDevice((__bridge CFDictionaryRef)aggDict, &aggregateDeviceID);
 
                 if (aggErr != noErr) {
-                    std::fprintf (stderr, "[LoopbackNode] AudioHardwareCreateAggregateDevice FAILED with OSStatus: %d\n", (int) aggErr);
                     CFRelease(outputUID);
                     if (tapID != 0) { AudioHardwareDestroyProcessTap (tapID); tapID = 0; }
                     return false;
                 }
-                std::fprintf (stderr, "[LoopbackNode] AudioHardwareCreateAggregateDevice succeeded: aggID=%u\n", (unsigned) aggregateDeviceID);
 
                 // Explicitly lock the aggregate clock to the physical hardware device
                 AudioObjectPropertyAddress mainProp = { kAudioAggregateDevicePropertyMainSubDevice, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
                 AudioObjectSetPropertyData (aggregateDeviceID, &mainProp, 0, NULL, sizeof(CFStringRef), &outputUID);
-
-                CFStringRef clockUID = NULL;
-                UInt32 clockSize = sizeof(clockUID);
-                AudioObjectPropertyAddress clockProp = { kAudioAggregateDevicePropertyClockDevice, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
-                if (AudioObjectGetPropertyData (aggregateDeviceID, &clockProp, 0, NULL, &clockSize, &clockUID) == noErr && clockUID != NULL)
-                {
-                    std::fprintf (stderr, "[LoopbackNode] Aggregate clock subdevice confirmed: %s\n", [(__bridge NSString*)clockUID UTF8String]);
-                    CFRelease (clockUID);
-                }
 
                 CFRelease(outputUID);
 
@@ -484,15 +461,12 @@ struct SharedTapSession {
                     if (startErr == noErr) {
                         currentDeviceName = resolvedName;
                         currentSampleRate = sampleRate;
-                        std::fprintf (stderr, "[LoopbackNode] Fresh Aggregate & IOProc started for '%s' @ %.1f Hz\n", currentDeviceName.toRawUTF8(), currentSampleRate);
                         return true;
                     } else {
-                        std::fprintf (stderr, "[LoopbackNode] AudioDeviceStart FAILED with OSStatus: %d\n", (int) startErr);
                         if (ioProcID != nullptr) { AudioDeviceDestroyIOProcID (aggregateDeviceID, ioProcID); ioProcID = nullptr; }
                         if (aggregateDeviceID != 0) { AudioHardwareDestroyAggregateDevice (aggregateDeviceID); aggregateDeviceID = 0; }
                     }
                 } else {
-                    std::fprintf (stderr, "[LoopbackNode] AudioDeviceCreateIOProcIDWithBlock FAILED with OSStatus: %d\n", (int) ioProcErr);
                     if (aggregateDeviceID != 0) { AudioHardwareDestroyAggregateDevice (aggregateDeviceID); aggregateDeviceID = 0; }
                 }
             }
@@ -673,8 +647,6 @@ bool OutputInterfaceLoopbackNode::isBusesLayoutSupported (const BusesLayout& lay
 
 void OutputInterfaceLoopbackNode::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    std::fprintf (stderr, "[LoopbackNode] prepareToPlay: sampleRate=%.1f, samplesPerBlock=%d, targetDevice='%s'\n",
-                  sampleRate, samplesPerBlock, targetOutputDeviceName.toRawUTF8());
 #if JUCE_MAC
     getSharedTapSession().removeListener (this);
 #endif
@@ -734,10 +706,21 @@ void OutputInterfaceLoopbackNode::pushAudio (const float* const* channelData, in
 
     for (int ch = 0; ch < copyChannels; ++ch)
     {
-        if (size1 > 0)
-            ringBuffer.copyFrom (ch, start1, channelData[ch], size1);
-        if (size2 > 0)
-            ringBuffer.copyFrom (ch, start2, channelData[ch] + size1, size2);
+        const float* src = channelData[ch];
+        if (src != nullptr)
+        {
+            if (size1 > 0)
+                ringBuffer.copyFrom (ch, start1, src, size1);
+            if (size2 > 0)
+                ringBuffer.copyFrom (ch, start2, src + size1, size2);
+        }
+        else
+        {
+            if (size1 > 0)
+                ringBuffer.clear (ch, start1, size1);
+            if (size2 > 0)
+                ringBuffer.clear (ch, start2, size2);
+        }
     }
 
     for (int ch = copyChannels; ch < destChannels; ++ch)
@@ -885,7 +868,7 @@ void OutputInterfaceLoopbackNode::processBlock (juce::AudioBuffer<float>& buffer
         currentReady -= (size1 + size2);
     }
 
-    // On initial start or sample-rate switch, wait once for 10ms of phase margin to prevent phase-jitter starvation
+    // On initial start, sample-rate switch, or after starvation, buffer phase margin before resuming
     if (! isPrimed.load (std::memory_order_relaxed))
     {
         int primeThreshold = juce::jmax (numSamplesNeeded * 4, (int) std::ceil (sr * 0.010));
@@ -900,7 +883,7 @@ void OutputInterfaceLoopbackNode::processBlock (juce::AudioBuffer<float>& buffer
         }
     }
 
-    // Read available frames immediately without pausing
+    // Read available frames
     int numSamplesToRead = juce::jmin (currentReady, numSamplesNeeded);
     if (numSamplesToRead > 0)
     {
@@ -936,12 +919,14 @@ void OutputInterfaceLoopbackNode::processBlock (juce::AudioBuffer<float>& buffer
                 for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
                     buffer.applyGainRamp (ch, numSamplesToRead - fade, fade, 1.0f, 0.0f);
                 hadUnderrunLastBlock.store (true, std::memory_order_relaxed);
+                isPrimed.store (false, std::memory_order_relaxed); // Re-arm hysteresis on starvation
             }
         }
     }
     else
     {
         hadUnderrunLastBlock.store (true, std::memory_order_relaxed);
+        isPrimed.store (false, std::memory_order_relaxed); // Re-arm hysteresis on starvation
     }
 }
 

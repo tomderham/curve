@@ -207,7 +207,7 @@ void AudioRecorderNode::startRecording()
     if (isRecordingFlag.load (std::memory_order_acquire))
         return;
 
-    int numChans = juce::jmax (1, getMainBusNumInputChannels());
+    int numChans = juce::jlimit (1, maxRecorderChannels, getMainBusNumInputChannels());
     fifo.reset();
     fifoBuffer.clear();
     samplesRecorded.store (0, std::memory_order_release);
@@ -309,7 +309,7 @@ bool AudioRecorderNode::isBusesLayoutSupported (const BusesLayout& layouts) cons
     const auto inSet  = layouts.getMainInputChannelSet();
     const auto outSet = layouts.getMainOutputChannelSet();
 
-    if (inSet.isDisabled() || inSet.size() == 0)
+    if (inSet.isDisabled() || inSet.size() == 0 || inSet.size() > maxRecorderChannels)
         return false;
 
     return outSet.isDisabled() || outSet.size() == 0;

@@ -58,6 +58,7 @@ public:
     bool isRecording() const noexcept { return isRecordingFlag.load (std::memory_order_relaxed); }
     juce::int64 getRecordedSampleCount() const noexcept { return samplesRecorded.load (std::memory_order_relaxed); }
     juce::File getLastRecordedFile() const { return lastRecordedFile; }
+    static constexpr int maxRecorderChannels = 32;
 
 private:
     void run() override;
@@ -66,7 +67,6 @@ private:
     std::atomic<juce::int64> samplesRecorded { 0 };
     juce::File lastRecordedFile;
 
-    static constexpr int maxRecorderChannels = 32;
     static constexpr int fifoCapacity = 131072;
     juce::AbstractFifo fifo { fifoCapacity };
     juce::AudioBuffer<float> fifoBuffer { maxRecorderChannels, fifoCapacity };
