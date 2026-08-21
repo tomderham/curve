@@ -232,6 +232,9 @@ void CrossfeedNode::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
         return;
 
     const int maxCapacity = crossBuffer.getNumSamples();
+    if (maxCapacity <= 0)
+        return;
+
     int samplesProcessed = 0;
 
     while (samplesProcessed < numSamples)

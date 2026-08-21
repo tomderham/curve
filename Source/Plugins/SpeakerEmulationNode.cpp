@@ -99,6 +99,9 @@ void SpeakerEmulationNode::processBlock (juce::AudioBuffer<float>& buffer, juce:
         return;
 
     const int maxCapacity = leftBuffer.getNumSamples();
+    if (maxCapacity <= 0)
+        return;
+
     int samplesProcessed = 0;
 
     while (samplesProcessed < numSamples)

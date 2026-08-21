@@ -14,6 +14,8 @@
 #pragma once
 #include <JuceHeader.h>
 
+juce::PropertiesFile* getUserSettings();
+
 class GitHubUpdater  : public juce::URL::DownloadTask::Listener,
                        private juce::Timer
 {
@@ -43,42 +45,56 @@ public:
         performGitHubRequest (false);
     }
 
-    void downloadUpdate (const juce::String& url)
+    void start (const juce::String& gitHubUser, const juce::String& gitHubRepo, const juce::String& applicationName)
     {
-        auto tempDmg = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("Curve_update.dmg");
-        tempDmg.deleteFile();
-        
-        juce::URL::DownloadTaskOptions options;
-        options = options.withListener (this);
-        activeDownload = juce::URL (url).downloadToFile (tempDmg, options);
-    }
-
-    /** Starts the update monitoring. Call this in JUCEApplication::initialise(). */
-    void start (const juce::String& githubUser, const juce::String& githubRepo, const juce::String& applicationName)
-    {
-        user = githubUser;
-        repo = githubRepo;
+        user = gitHubUser;
+        repo = gitHubRepo;
         appName = applicationName;
 
-        // Perform the first check immediately on startup
-        if (areAutomaticChecksEnabled())
-            checkIfTimeForUpdateCheck();
+        startTimer (3600000); // Check every hour
+        checkIfTimeForUpdateCheck(); // Also check on launch
+    }
 
-        // Timer callback runs every subsequent hour
-        startTimer (60 * 60 * 1000); 
+    // Set callback for download progress: progress is 0.0 to 1.0 (-1.0 if indeterminate)
+    std::function<void(float progress)> onDownloadProgress;
+
+    void downloadUpdate (const juce::String& downloadUrl)
+    {
+        if (downloadUrl.isEmpty())
+            return;
+
+        auto tempDir = juce::File::getSpecialLocation (juce::File::tempDirectory);
+        auto targetFile = tempDir.getChildFile ("Curve_Update.dmg");
+        
+        if (targetFile.existsAsFile())
+            targetFile.deleteFile();
+
+        juce::URL url (downloadUrl);
+        activeDownload = url.downloadToFile (targetFile, juce::URL::DownloadTaskOptions().withListener (this));
+    }
+
+    void progress (juce::URL::DownloadTask* /*task*/, juce::int64 bytesDownloaded, juce::int64 totalLength) override
+    {
+        if (onDownloadProgress != nullptr)
+        {
+            float p = (totalLength > 0) ? (float) bytesDownloaded / (float) totalLength : -1.0f;
+            juce::MessageManager::callAsync ([this, p] {
+                if (onDownloadProgress != nullptr)
+                    onDownloadProgress (p);
+            });
+        }
     }
 
 private:
-    // --- Timer Logic ---
-    void timerCallback() override 
-    { 
+    void timerCallback() override
+    {
         if (areAutomaticChecksEnabled())
             checkIfTimeForUpdateCheck(); 
     }
 
     bool areAutomaticChecksEnabled() const
     {
-        if (auto* settings = getAppProperties().getUserSettings())
+        if (auto* settings = getUserSettings())
             return settings->getBoolValue ("automaticUpdateChecks", true);
         return false;
     }
@@ -89,7 +105,7 @@ private:
         if (isChecking || activeDownload != nullptr)
             return;
 
-        if (auto* settings = getAppProperties().getUserSettings())
+        if (auto* settings = getUserSettings())
         {
             auto lastCheckStr = settings->getValue ("lastUpdateCheck", "0");
             auto lastCheck = lastCheckStr.getLargeIntValue();
@@ -224,7 +240,7 @@ private:
                         if (obj->hasProperty ("tag_name"))
                         {
                             // Successfully received valid release response from GitHub, save timestamp now
-                            if (auto* settings = getAppProperties().getUserSettings())
+                            if (auto* settings = getUserSettings())
                             {
                                 settings->setValue ("lastUpdateCheck", juce::Time::getCurrentTime().toMilliseconds());
                                 settings->saveIfNeeded();
@@ -265,7 +281,7 @@ private:
                         else if (obj->hasProperty ("message"))
                         {
                             // GitHub API returned an error/rate-limit response (e.g. 403 rate limit exceeded).
-                            if (auto* settings = getAppProperties().getUserSettings())
+                            if (auto* settings = getUserSettings())
                             {
                                 settings->setValue ("lastUpdateCheck", juce::Time::getCurrentTime().toMilliseconds());
                                 settings->saveIfNeeded();

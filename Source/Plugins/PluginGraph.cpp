@@ -307,8 +307,8 @@ Result PluginGraph::saveDocument (const File& file)
 File PluginGraph::getLastDocumentOpened()
 {
     RecentlyOpenedFilesList recentFiles;
-    recentFiles.restoreFromString (getAppProperties().getUserSettings()
-                                        ->getValue ("recentFilterGraphFiles"));
+    if (auto* settings = getUserSettings())
+        recentFiles.restoreFromString (settings->getValue ("recentFilterGraphFiles"));
 
     return recentFiles.getFile (0);
 }
@@ -316,14 +316,13 @@ File PluginGraph::getLastDocumentOpened()
 void PluginGraph::setLastDocumentOpened (const File& file)
 {
     RecentlyOpenedFilesList recentFiles;
-    recentFiles.restoreFromString (getAppProperties().getUserSettings()
-                                        ->getValue ("recentFilterGraphFiles"));
-
-    recentFiles.addFile (file);
-
-    getAppProperties().getUserSettings()
-        ->setValue ("recentFilterGraphFiles", recentFiles.toString());
-    getAppProperties().getUserSettings()->saveIfNeeded();
+    if (auto* settings = getUserSettings())
+    {
+        recentFiles.restoreFromString (settings->getValue ("recentFilterGraphFiles"));
+        recentFiles.addFile (file);
+        settings->setValue ("recentFilterGraphFiles", recentFiles.toString());
+        settings->saveIfNeeded();
+    }
 }
 
 //==============================================================================

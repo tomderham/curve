@@ -1486,10 +1486,11 @@ void GraphDocumentComponent::propagateDeviceSettingsToNodes()
     {
         juce::String currentDeviceName = device->getName();
         double currentSampleRate = device->getCurrentSampleRate();
+        int currentBufferSize = device->getCurrentBufferSizeSamples();
         auto workgroup = deviceManager.getDeviceAudioWorkgroup();
 
        #if JUCE_MAC
-        OutputInterfaceLoopbackNode::warmUpTap (currentDeviceName, currentSampleRate);
+        OutputInterfaceLoopbackNode::warmUpTap (currentDeviceName, currentSampleRate, currentBufferSize);
        #endif
 
         if (graph != nullptr)
