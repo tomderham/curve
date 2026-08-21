@@ -66,9 +66,10 @@ private:
     std::atomic<juce::int64> samplesRecorded { 0 };
     juce::File lastRecordedFile;
 
+    static constexpr int maxRecorderChannels = 32;
     static constexpr int fifoCapacity = 131072;
     juce::AbstractFifo fifo { fifoCapacity };
-    juce::AudioBuffer<float> fifoBuffer { 2, fifoCapacity };
+    juce::AudioBuffer<float> fifoBuffer { maxRecorderChannels, fifoCapacity };
 
     double currentSampleRate = 96000.0;
     std::unique_ptr<juce::AudioFormatWriter> writer;

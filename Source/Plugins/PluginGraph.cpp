@@ -234,7 +234,11 @@ void PluginGraph::newDocument()
 
     for (const auto& desc : internalFormat.getAllTypes())
     {
-        if (desc.name == "Audio Input" || desc.name == "Output Interface Loopback" || desc.name == "Audio Output")
+        bool isAudioInput  = (desc.fileOrIdentifier == "Audio Input" || desc.name == "Audio Input");
+        bool isLoopback    = (desc.fileOrIdentifier == "OutputInterfaceLoopback" || desc.name == "Output Interface Loopback");
+        bool isAudioOutput = (desc.fileOrIdentifier == "Audio Output" || desc.name == "Audio Output");
+
+        if (isAudioInput || isLoopback || isAudioOutput)
         {
             if (auto instance = formatManager.createPluginInstance (desc, graph.getSampleRate(), graph.getBlockSize(), errorMessage))
             {
@@ -244,12 +248,12 @@ void PluginGraph::newDocument()
                     double xPos = 0.5;
                     double yPos = 0.9;
 
-                    if (desc.name == "Audio Input")
+                    if (isAudioInput)
                     {
                         xPos = 0.35;
                         yPos = 0.1;
                     }
-                    else if (desc.name == "Output Interface Loopback")
+                    else if (isLoopback)
                     {
                         xPos = 0.65;
                         yPos = 0.1;

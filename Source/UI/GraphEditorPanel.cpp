@@ -46,6 +46,7 @@
 
 #include <JuceHeader.h>
 #include "GraphEditorPanel.h"
+#include "FilteredAudioDeviceSelectorComponent.h"
 #include "../Plugins/InternalPlugins.h"
 #include "MainHostWindow.h"
 #include "../Plugins/OutputInterfaceLoopbackNode.h"
@@ -454,17 +455,20 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         });
 
         menu->addSeparator();
-        if (getProcessor()->hasEditor())
-            menu->addItem ("Show Plug-in GUI", [this] { showWindow (PluginWindow::Type::normal); });
+        if (auto* proc = getProcessor())
+        {
+            if (proc->hasEditor())
+                menu->addItem ("Show Plug-in GUI", [this] { showWindow (PluginWindow::Type::normal); });
 
-       #if JUCE_PLUGINHOST_ARA && (JUCE_MAC || JUCE_WINDOWS || JUCE_LINUX)
-        if (auto* instance = dynamic_cast<AudioPluginInstance*> (getProcessor()))
-            if (instance->getPluginDescription().hasARAExtension && isNodeUsingARA())
-                menu->addItem ("Show ARA Host Controls", [this] { showWindow (PluginWindow::Type::araHost); });
-       #endif
+           #if JUCE_PLUGINHOST_ARA && (JUCE_MAC || JUCE_WINDOWS || JUCE_LINUX)
+            if (auto* instance = dynamic_cast<AudioPluginInstance*> (proc))
+                if (instance->getPluginDescription().hasARAExtension && isNodeUsingARA())
+                    menu->addItem ("Show ARA Host Controls", [this] { showWindow (PluginWindow::Type::araHost); });
+           #endif
 
-        if (autoScaleOptionAvailable)
-            addPluginAutoScaleOptionsSubMenu (dynamic_cast<AudioPluginInstance*> (getProcessor()), *menu);
+            if (autoScaleOptionAvailable)
+                addPluginAutoScaleOptionsSubMenu (dynamic_cast<AudioPluginInstance*> (proc), *menu);
+        }
 
         menu->addSeparator();
         menu->addItem ("Configure Audio I/O", [this] { showWindow (PluginWindow::Type::audioIO); });
@@ -1324,9 +1328,9 @@ void GraphDocumentComponent::init()
 
         pluginListSidePanel.setContent (&pluginListBox, false);
 
-        mobileSettingsSidePanel.setContent (new AudioDeviceSelectorComponent (deviceManager,
-                                                                              0, 2, 0, 2,
-                                                                              true, true, true, false));
+        mobileSettingsSidePanel.setContent (new FilteredAudioDeviceSelectorComponent (deviceManager,
+                                                                               0, 2, 0, 2,
+                                                                               true, true, true, false));
 
         addAndMakeVisible (pluginListSidePanel);
         addAndMakeVisible (mobileSettingsSidePanel);
@@ -1586,7 +1590,7 @@ void GraphDocumentComponent::checkAvailableWidth()
 
 bool GraphDocumentComponent::closeAnyOpenPluginWindows()
 {
-    return graphPanel->graph.closeAnyOpenPluginWindows();
+    return graphPanel != nullptr && graphPanel->graph.closeAnyOpenPluginWindows();
 }
 
 void GraphDocumentComponent::changeListenerCallback (ChangeBroadcaster*)

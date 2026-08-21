@@ -193,6 +193,9 @@ private:
 
     void performGitHubRequest (bool isManualCheck)
     {
+        if (isChecking || activeDownload != nullptr)
+            return;
+
         isChecking = true;
         
         juce::URL url ("https://api.github.com/repos/" + user + "/" + repo + "/releases/latest");

@@ -131,7 +131,7 @@ static AudioObjectID findDeviceID (const juce::String& targetNameOrUID)
         }
     }
 
-    // Pass 2: Prefix / Substring match
+    // Pass 2: Prefix match (e.g. CoreAudio device names with appended suffixes)
     for (size_t i = 0; i < numDevices; ++i)
     {
         AudioObjectID devID = devIDs[i];
@@ -141,8 +141,7 @@ static AudioObjectID findDeviceID (const juce::String& targetNameOrUID)
         {
             juce::String nameStr = juce::String::fromUTF8 ([(__bridge NSString*)devName UTF8String]);
             CFRelease (devName);
-            if (targetNameOrUID.startsWithIgnoreCase (nameStr) || nameStr.startsWithIgnoreCase (targetNameOrUID)
-                || targetNameOrUID.containsIgnoreCase (nameStr) || nameStr.containsIgnoreCase (targetNameOrUID))
+            if (targetNameOrUID.startsWithIgnoreCase (nameStr) || nameStr.startsWithIgnoreCase (targetNameOrUID))
                 return devID;
         }
     }
@@ -440,7 +439,7 @@ static SharedTapSession& getSharedTapSession()
 //==============================================================================
 OutputInterfaceLoopbackNode::OutputInterfaceLoopbackNode()
     : AudioPluginInstance (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
-      ringBuffer (2, ringBufferCapacity)
+      ringBuffer (maxTapChannels, ringBufferCapacity)
 {
     ringBuffer.clear();
     if (auto* settings = getUserSettings())
@@ -602,8 +601,6 @@ bool OutputInterfaceLoopbackNode::isBusesLayoutSupported (const BusesLayout& lay
 
 void OutputInterfaceLoopbackNode::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    int numChannels = juce::jmax (1, getMainBusNumOutputChannels());
-
 #if JUCE_MAC
     getSharedTapSession().removeListener (this);
 #endif
@@ -612,7 +609,6 @@ void OutputInterfaceLoopbackNode::prepareToPlay (double sampleRate, int samplesP
         // Lock only around buffer reset so hot-swapping does not block the audio thread
         juce::ScopedLock lock (getCallbackLock());
         fifo.reset();
-        ringBuffer.setSize (numChannels, ringBufferCapacity, false, true, true);
         ringBuffer.clear();
         isBuffering.store (true, std::memory_order_release);
         hadUnderrunLastBlock.store (true, std::memory_order_release);

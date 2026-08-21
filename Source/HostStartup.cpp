@@ -376,7 +376,7 @@ public:
 
     // Delay so this doesn't stack on the startup-recovery dialog above.
     juce::Timer::callAfterDelay(1500, [] {
-      auto *userSettings = getAppProperties().getUserSettings();
+      auto *userSettings = getUserSettings();
       if (userSettings == nullptr ||
           userSettings->getBoolValue("hasPromptedLoginItem", false))
         return;
@@ -386,7 +386,7 @@ public:
           "Would you like Curve to open automatically each time you log in? "
           "You can change this later from the tray menu under Settings.",
           nullptr, juce::ModalCallbackFunction::create([](int result) {
-            auto *s = getAppProperties().getUserSettings();
+            auto *s = getUserSettings();
             if (s == nullptr)
               return;
 

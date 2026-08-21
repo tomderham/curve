@@ -194,13 +194,13 @@ public:
         if (isSuspended)
             return;
 
-        // Defer resilience checks only while audio configuration dialogs are modal
-        if (auto* modal = juce::Component::getCurrentlyModalComponent())
+        // Defer resilience checks while audio configuration dialogs are modal
+        for (int i = 0; i < juce::Component::getNumCurrentlyModalComponents(); ++i)
         {
-            if (dynamic_cast<juce::AudioDeviceSelectorComponent*> (modal) != nullptr
-                || modal->findParentComponentOfClass<juce::AudioDeviceSelectorComponent>() != nullptr)
+            if (auto* modal = juce::Component::getCurrentlyModalComponent (i))
             {
-                return;
+                if (containsAudioDeviceSelector (modal))
+                    return;
             }
         }
 
@@ -230,32 +230,21 @@ public:
 
         // Fast path: bypass checks when target device is already active, playing, and matching configured parameters
         auto* currentDevice = deviceManager.getCurrentAudioDevice();
-        if (currentDevice != nullptr && currentDevice->isPlaying() && !wokeFromSleep)
+        if (!wokeFromSleep && isConfigurationMatching (currentDevice))
         {
-            juce::AudioDeviceManager::AudioDeviceSetup currentSetup;
-            deviceManager.getAudioDeviceSetup (currentSetup);
+            disconnectedCheckCount = 0;
+            consecutiveEnforceFailures = 0;
 
-            bool isOutputMatching = (currentSetup.outputDeviceName == targetOutputDeviceName);
-            bool isInputMatching  = (targetInputDeviceName.isEmpty() || currentSetup.inputDeviceName == targetInputDeviceName);
-            bool isRateMatching   = (targetSampleRate <= 0.0 || std::abs (currentDevice->getCurrentSampleRate() - targetSampleRate) < 1.0);
-            bool isBufferMatching = (targetBufferSize <= 0 || currentDevice->getCurrentBufferSizeSamples() == targetBufferSize);
+           #if JUCE_MAC
+            bool autoSync = true;
+            if (auto* settings = getUserSettings())
+                autoSync = settings->getBoolValue ("autoSyncSystemOutput", true);
 
-            if (isOutputMatching && isInputMatching && isRateMatching && isBufferMatching)
-            {
-                disconnectedCheckCount = 0;
-                consecutiveEnforceFailures = 0;
+            if (autoSync)
+                OutputInterfaceLoopbackNode::syncSystemOutputDevice (targetOutputDeviceName);
+           #endif
 
-               #if JUCE_MAC
-                bool autoSync = true;
-                if (auto* settings = getUserSettings())
-                    autoSync = settings->getBoolValue ("autoSyncSystemOutput", true);
-
-                if (autoSync)
-                    OutputInterfaceLoopbackNode::syncSystemOutputDevice (targetOutputDeviceName);
-               #endif
-
-                return;
-            }
+            return;
         }
 
         // Rescan hardware devices to discover newly connected interfaces
@@ -291,24 +280,39 @@ public:
             return;
         }
 
-        // Apply target configuration if not currently selected or playing
-        if (currentDevice == nullptr || !currentDevice->isPlaying())
+        // Apply target configuration if not currently matching configured parameters
+        if (! isConfigurationMatching (currentDevice))
         {
             enforceConfiguration (cachedAudioState.get());
         }
-        else
-        {
-            juce::AudioDeviceManager::AudioDeviceSetup currentSetup;
-            deviceManager.getAudioDeviceSetup (currentSetup);
+    }
 
-            bool isOutputMatching = (currentSetup.outputDeviceName == targetOutputDeviceName);
-            bool isInputMatching  = (targetInputDeviceName.isEmpty() || currentSetup.inputDeviceName == targetInputDeviceName);
-            bool isRateMatching   = (targetSampleRate <= 0.0 || std::abs (currentDevice->getCurrentSampleRate() - targetSampleRate) < 1.0);
-            bool isBufferMatching = (targetBufferSize <= 0 || currentDevice->getCurrentBufferSizeSamples() == targetBufferSize);
+    static bool containsAudioDeviceSelector (juce::Component* comp)
+    {
+        if (comp == nullptr)
+            return false;
+        if (dynamic_cast<juce::AudioDeviceSelectorComponent*> (comp) != nullptr)
+            return true;
+        for (int i = 0; i < comp->getNumChildComponents(); ++i)
+            if (containsAudioDeviceSelector (comp->getChildComponent (i)))
+                return true;
+        return false;
+    }
 
-            if (!isOutputMatching || !isInputMatching || !isRateMatching || !isBufferMatching)
-                enforceConfiguration (cachedAudioState.get());
-        }
+    bool isConfigurationMatching (juce::AudioIODevice* currentDevice) const
+    {
+        if (currentDevice == nullptr || ! currentDevice->isPlaying())
+            return false;
+
+        juce::AudioDeviceManager::AudioDeviceSetup currentSetup;
+        deviceManager.getAudioDeviceSetup (currentSetup);
+
+        bool isOutputMatching = (currentSetup.outputDeviceName == targetOutputDeviceName);
+        bool isInputMatching  = (targetInputDeviceName.isEmpty() || currentSetup.inputDeviceName == targetInputDeviceName);
+        bool isRateMatching   = (targetSampleRate <= 0.0 || std::abs (currentDevice->getCurrentSampleRate() - targetSampleRate) < 1.0);
+        bool isBufferMatching = (targetBufferSize <= 0 || currentDevice->getCurrentBufferSizeSamples() == targetBufferSize);
+
+        return isOutputMatching && isInputMatching && isRateMatching && isBufferMatching;
     }
 
 private:

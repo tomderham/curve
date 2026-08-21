@@ -47,6 +47,7 @@
 #include <JuceHeader.h>
 #include "MainHostWindow.h"
 #include "AudioResilienceManager.h"
+#include "FilteredAudioDeviceSelectorComponent.h"
 #include "../Plugins/InternalPlugins.h"
 #include "../Plugins/OutputInterfaceLoopbackNode.h"
 
@@ -381,26 +382,24 @@ MainHostWindow::MainHostWindow()
     // Populate Apple built-in AudioUnit plugins if missing from pluginList
     AudioUnitPluginFormat auFormat;
     auto auIdentifiers = auFormat.searchPathsForPlugins (FileSearchPath(), false, false);
+    
+    std::unordered_set<juce::String> knownIdentifiers;
+    for (const auto& knownDesc : knownPluginList.getTypes())
+        knownIdentifiers.insert (knownDesc.fileOrIdentifier);
+
     for (const auto& identifier : auIdentifiers)
     {
         if (identifier.containsIgnoreCase (",appl") || identifier.containsIgnoreCase ("apple"))
         {
-            bool alreadyKnown = false;
-            for (const auto& knownDesc : knownPluginList.getTypes())
-            {
-                if (knownDesc.fileOrIdentifier == identifier)
-                {
-                    alreadyKnown = true;
-                    break;
-                }
-            }
-
-            if (! alreadyKnown)
+            if (knownIdentifiers.find (identifier) == knownIdentifiers.end())
             {
                 OwnedArray<PluginDescription> found;
                 auFormat.findAllTypesForFile (found, identifier);
                 for (auto* desc : found)
+                {
                     knownPluginList.addType (*desc);
+                    knownIdentifiers.insert (identifier);
+                }
             }
         }
     }
@@ -712,11 +711,14 @@ bool MainHostWindow::perform (const InvocationInfo& info)
 
 void MainHostWindow::showAudioSettings()
 {
-    auto* audioSettingsComp = new AudioDeviceSelectorComponent (deviceManager,
-                                                                0, 256,
-                                                                0, 256,
-                                                                true, true,
-                                                                true, false);
+    if (auto* rm = getResilienceManager())
+        rm->setSuspended (true);
+
+    auto* audioSettingsComp = new FilteredAudioDeviceSelectorComponent (deviceManager,
+                                                                        0, 256,
+                                                                        0, 256,
+                                                                        true, true,
+                                                                        true, false);
 
     audioSettingsComp->setSize (500, 450);
 
@@ -740,16 +742,27 @@ void MainHostWindow::showAudioSettings()
                              {
                                  auto audioState = safeThis->deviceManager.createStateXml();
 
-                                 getAppProperties().getUserSettings()->setValue ("audioDeviceState", audioState.get());
-                                 getAppProperties().getUserSettings()->saveIfNeeded();
+                                 if (auto* settings = getUserSettings())
+                                 {
+                                     settings->setValue ("audioDeviceState", audioState.get());
+                                     settings->saveIfNeeded();
+                                 }
 
                                  if (auto* rm = getResilienceManager())
+                                 {
                                      rm->updateTargetSettings();
+                                     rm->setSuspended (false);
+                                 }
 
                                  if (safeThis->graphHolder != nullptr)
                                  {
                                      safeThis->graphHolder->propagateDeviceSettingsToNodes();
                                  }
+                             }
+                             else
+                             {
+                                 if (auto* rm = getResilienceManager())
+                                     rm->setSuspended (false);
                              }
                          }), true);
 }
@@ -847,8 +860,9 @@ void MainHostWindow::loadPreset(juce::File file)
         audioGraph.suspendProcessing (true);
 
         graphHolder->graph->setRestorePluginWindowsOnLoad (false);
-        graphHolder->graph->loadFrom (file, true);
-        graphHolder->propagateDeviceSettingsToNodes();
+        auto result = graphHolder->graph->loadFrom (file, true);
+        if (result.wasOk())
+            graphHolder->propagateDeviceSettingsToNodes();
 
         audioGraph.suspendProcessing (false);
 

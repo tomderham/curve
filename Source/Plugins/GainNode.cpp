@@ -139,13 +139,28 @@ void GainNode::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&
 
     if (smoothedGain.isSmoothing())
     {
-        for (int s = 0; s < numSamples; ++s)
+        if (numChannels == 2 && buffer.getWritePointer (0) != nullptr && buffer.getWritePointer (1) != nullptr)
         {
-            float g = smoothedGain.getNextValue();
-            for (int ch = 0; ch < numChannels; ++ch)
+            auto* out0 = buffer.getWritePointer (0);
+            auto* out1 = buffer.getWritePointer (1);
+            for (int s = 0; s < numSamples; ++s)
             {
-                if (auto* channelData = buffer.getWritePointer (ch))
-                    channelData[s] *= g;
+                float g = smoothedGain.getNextValue();
+                out0[s] *= g;
+                out1[s] *= g;
+            }
+        }
+        else
+        {
+            auto* const* channelPointers = buffer.getArrayOfWritePointers();
+            for (int s = 0; s < numSamples; ++s)
+            {
+                float g = smoothedGain.getNextValue();
+                for (int ch = 0; ch < numChannels; ++ch)
+                {
+                    if (auto* channelData = channelPointers[ch])
+                        channelData[s] *= g;
+                }
             }
         }
     }

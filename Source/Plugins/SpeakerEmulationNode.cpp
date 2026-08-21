@@ -90,8 +90,10 @@ void SpeakerEmulationNode::processBlock (juce::AudioBuffer<float>& buffer, juce:
     const auto totalNumOutputChannels = getTotalNumOutputChannels();
     const auto numSamples = buffer.getNumSamples();
 
+    const int bufferChannels = buffer.getNumChannels();
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
-        buffer.clear (i, 0, numSamples);
+        if (i < bufferChannels)
+            buffer.clear (i, 0, numSamples);
 
     if (totalNumInputChannels < 2 || totalNumOutputChannels < 2 || numSamples == 0)
         return;
@@ -130,11 +132,10 @@ void SpeakerEmulationNode::processBlock (juce::AudioBuffer<float>& buffer, juce:
         const auto* rOutL = rightBuffer.getReadPointer (0);
         const auto* rOutR = rightBuffer.getReadPointer (1);
 
-        for (int i = 0; i < chunkSize; ++i)
-        {
-            outL[i] = lOutL[i] + rOutL[i];
-            outR[i] = lOutR[i] + rOutR[i];
-        }
+        juce::FloatVectorOperations::copy (outL, lOutL, chunkSize);
+        juce::FloatVectorOperations::add (outL, rOutL, chunkSize);
+        juce::FloatVectorOperations::copy (outR, lOutR, chunkSize);
+        juce::FloatVectorOperations::add (outR, rOutR, chunkSize);
 
         samplesProcessed += chunkSize;
     }

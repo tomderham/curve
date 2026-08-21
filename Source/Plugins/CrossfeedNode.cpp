@@ -220,6 +220,8 @@ void CrossfeedNode::releaseResources()
 
 void CrossfeedNode::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
 {
+    juce::ScopedNoDenormals noDenormals;
+
     if (isSuspended())
         return;
 

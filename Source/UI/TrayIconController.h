@@ -79,10 +79,6 @@ public:
     setIconImage(getImageFromAssets("juce_icon.png"),
                  getImageFromAssets("juce_icon_template.png"));
     setIconTooltip("Curve");
-
-    if (auto *settings = getAppProperties().getUserSettings())
-      isAutoAppUpdateCheckEnabled =
-          settings->getBoolValue("automaticUpdateChecks", true);
   }
 
   void mouseUp(const juce::MouseEvent &) override {
@@ -265,7 +261,6 @@ public:
 private:
   MainHostWindow &mainWindow;
   GitHubUpdater &gitHubUpdater;
-  bool isAutoAppUpdateCheckEnabled = false;
   bool isMenuOpen = false;
   juce::uint32 lastMenuDismissTime = 0;
 };

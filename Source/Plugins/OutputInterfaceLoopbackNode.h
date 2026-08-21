@@ -67,9 +67,10 @@ public:
 
 private:
     // Lock-free ring buffer components
+    static constexpr int maxTapChannels = 32;
     static constexpr int ringBufferCapacity = 32768; // 2^15 samples: power-of-two alignment & fits inside L2/L3 cache
     juce::AbstractFifo fifo { ringBufferCapacity };
-    juce::AudioBuffer<float> ringBuffer;
+    juce::AudioBuffer<float> ringBuffer { maxTapChannels, ringBufferCapacity };
 
     std::atomic<bool> isCapturing { false };
     std::atomic<bool> isBuffering { true };
