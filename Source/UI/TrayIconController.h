@@ -11,207 +11,239 @@
 ==============================================================================
 */
 
-#include "MainHostWindow.h"
-#include "GraphEditorPanel.h"
 #include "GitHubUpdater.h"
+#include "GraphEditorPanel.h"
+#include "LoginItemManager.h"
+#include "MainHostWindow.h"
 
-inline std::unique_ptr<InputStream> createAssetInputStream (const char* resourcePath)
-{
+inline std::unique_ptr<InputStream>
+createAssetInputStream(const char *resourcePath) {
 
-    auto assetsDir = File::getSpecialLocation (File::currentExecutableFile)
-                          .getParentDirectory().getSiblingFile ("Resources").getChildFile ("Assets");
+  auto assetsDir = File::getSpecialLocation(File::currentExecutableFile)
+                       .getParentDirectory()
+                       .getSiblingFile("Resources")
+                       .getChildFile("Assets");
 
-    auto resourceFile = assetsDir.getChildFile (resourcePath);
+  auto resourceFile = assetsDir.getChildFile(resourcePath);
 
-    if (! resourceFile.existsAsFile())
-        return {};
+  if (!resourceFile.existsAsFile())
+    return {};
 
-    return resourceFile.createInputStream();
-
+  return resourceFile.createInputStream();
 }
 
-inline Image getImageFromAssets (const char* assetName)
-{
-    auto hashCode = (String (assetName) + "@juce_demo_assets").hashCode64();
-    auto img = ImageCache::getFromHashCode (hashCode);
+inline Image getImageFromAssets(const char *assetName) {
+  auto hashCode = (String(assetName) + "@juce_demo_assets").hashCode64();
+  auto img = ImageCache::getFromHashCode(hashCode);
 
-    if (img.isNull())
-    {
-        std::unique_ptr<InputStream> juceIconStream (createAssetInputStream (assetName));
+  if (img.isNull()) {
+    std::unique_ptr<InputStream> juceIconStream(
+        createAssetInputStream(assetName));
 
-        if (juceIconStream == nullptr)
-            return {};
+    if (juceIconStream == nullptr)
+      return {};
 
-        img = ImageFileFormat::loadFrom (*juceIconStream);
+    img = ImageFileFormat::loadFrom(*juceIconStream);
 
-        ImageCache::addImageToCache (img, hashCode);
+    ImageCache::addImageToCache(img, hashCode);
+  }
+
+  return img;
+}
+
+inline bool attemptToEnableLoginItem() {
+  juce::String errorMessage;
+  LoginItemManager::setEnabled(true, errorMessage);
+
+  bool enabled =
+      (LoginItemManager::getStatus() == LoginItemManager::Status::enabled);
+
+  if (enabled) {
+    if (auto *settings = getAppProperties().getUserSettings()) {
+      settings->setValue("openAtLogin", true);
+      settings->saveIfNeeded();
     }
+  } else {
+    LoginItemManager::openSystemSettingsLoginItemsPane();
+  }
 
-    return img;
+  return enabled;
 }
 
-class TrayIconController : public juce::SystemTrayIconComponent
-{
+class TrayIconController : public juce::SystemTrayIconComponent {
 public:
-    // Pass a reference to the window so we can control it
-    TrayIconController(MainHostWindow& windowToControl, GitHubUpdater& gitHubUpdaterToControl)
-        : mainWindow(windowToControl), gitHubUpdater(gitHubUpdaterToControl)
-    {
-        setIconImage (getImageFromAssets ("juce_icon.png"),
-                      getImageFromAssets ("juce_icon_template.png"));
-        setIconTooltip("Curve");
+  // Pass a reference to the window so we can control it
+  TrayIconController(MainHostWindow &windowToControl,
+                     GitHubUpdater &gitHubUpdaterToControl)
+      : mainWindow(windowToControl), gitHubUpdater(gitHubUpdaterToControl) {
+    setIconImage(getImageFromAssets("juce_icon.png"),
+                 getImageFromAssets("juce_icon_template.png"));
+    setIconTooltip("Curve");
 
-        if (auto* settings = getAppProperties().getUserSettings())
-            isAutoAppUpdateCheckEnabled = settings->getBoolValue ("automaticUpdateChecks", true);
+    if (auto *settings = getAppProperties().getUserSettings())
+      isAutoAppUpdateCheckEnabled =
+          settings->getBoolValue("automaticUpdateChecks", true);
+  }
+
+  void mouseUp(const juce::MouseEvent &) override {
+    // Leave this empty to prevent double-firing
+  }
+
+  void mouseDown(const juce::MouseEvent &event) override {
+    if (event.mouseWasClicked()) {
+      auto now = juce::Time::getMillisecondCounter();
+      if (isMenuOpen || (now - lastMenuDismissTime < 250)) {
+        isMenuOpen = false;
+        lastMenuDismissTime = now;
+        juce::PopupMenu::dismissAllActiveMenus();
+        return;
+      }
+
+      juce::Process::makeForegroundProcess();
+      auto currentMousePos = juce::Desktop::getInstance().getMousePosition();
+
+      auto menu = buildAppMenu(mainWindow, gitHubUpdater, true);
+
+      auto targetArea =
+          juce::Rectangle<int>(currentMousePos.x, currentMousePos.y, 1, 1);
+      juce::PopupMenu::Options options;
+      options =
+          options.withParentComponent(nullptr).withTargetScreenArea(targetArea);
+
+      isMenuOpen = true;
+      juce::Component::SafePointer<TrayIconController> safeSelf(this);
+      menu.showMenuAsync(options, [safeSelf](int) {
+        if (auto *self = safeSelf.getComponent()) {
+          self->isMenuOpen = false;
+          self->lastMenuDismissTime = juce::Time::getMillisecondCounter();
+        }
+      });
+    }
+  }
+
+  ~TrayIconController() override = default;
+
+  static void addPresetsToMenu(juce::PopupMenu &menu,
+                               MainHostWindow &mainWindow) {
+    // Scan Presets folder for presets
+    auto appDataDir =
+        juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
+            .getChildFile("Application Support")
+            .getChildFile(
+                juce::JUCEApplication::getInstance()->getApplicationName());
+    auto presetsDir = appDataDir.getChildFile("Presets");
+    auto files = presetsDir.findChildFiles(juce::File::findFiles, false,
+                                           "*.filtergraph");
+
+    // Sort presets alphabetically
+    files.sort();
+
+    juce::File activeFile;
+    if (mainWindow.graphHolder != nullptr &&
+        mainWindow.graphHolder->graph != nullptr)
+      activeFile = mainWindow.graphHolder->graph->getFile();
+
+    if (files.isEmpty()) {
+      menu.addItem("(No presets found)", false, false, nullptr);
+      return;
     }
 
-    void mouseUp(const juce::MouseEvent&) override
-    {
-        // Leave this empty to prevent double-firing
+    for (const auto &file : files) {
+      juce::String name = file.getFileNameWithoutExtension();
+      bool isCurrent = (file == activeFile);
+
+      juce::PopupMenu::Item item(name.replace("&", "&&"));
+      item.setEnabled(true);
+      item.setTicked(isCurrent);
+      item.setAction([&mainWindow, file] { mainWindow.loadPreset(file); });
+      menu.addItem(item);
+    }
+  }
+
+  static juce::PopupMenu buildAppMenu(MainHostWindow &mainWindow,
+                                      GitHubUpdater &gitHubUpdater,
+                                      bool includeVisibilityToggle = false) {
+    bool isAutoAppUpdateCheckEnabled = true;
+    bool isAutoSyncSoundEnabled = true;
+    if (auto *settings = getAppProperties().getUserSettings()) {
+      isAutoAppUpdateCheckEnabled =
+          settings->getBoolValue("automaticUpdateChecks", true);
+      isAutoSyncSoundEnabled =
+          settings->getBoolValue("autoSyncSystemOutput", true);
     }
 
-    void mouseDown(const juce::MouseEvent& event) override
-    {
-        if (event.mouseWasClicked())
-        {
-            auto now = juce::Time::getMillisecondCounter();
-            if (isMenuOpen || (now - lastMenuDismissTime < 250))
-            {
-                isMenuOpen = false;
-                lastMenuDismissTime = now;
-                juce::PopupMenu::dismissAllActiveMenus();
-                return;
-            }
-
-            juce::Process::makeForegroundProcess();
-            auto currentMousePos = juce::Desktop::getInstance().getMousePosition();
-
-            auto menu = buildAppMenu (mainWindow, gitHubUpdater, true);
-
-            auto targetArea = juce::Rectangle<int>(currentMousePos.x, currentMousePos.y, 1, 1);
-            juce::PopupMenu::Options options;
-            options = options.withParentComponent(nullptr)
-                .withTargetScreenArea(targetArea);
-
-            isMenuOpen = true;
-            juce::Component::SafePointer<TrayIconController> safeSelf (this);
-            menu.showMenuAsync(options, [safeSelf] (int)
-            {
-                if (auto* self = safeSelf.getComponent())
-                {
-                    self->isMenuOpen = false;
-                    self->lastMenuDismissTime = juce::Time::getMillisecondCounter();
-                }
-            });
-        }
-    }
-
-    ~TrayIconController() override = default;
-
-    static void addPresetsToMenu (juce::PopupMenu& menu, MainHostWindow& mainWindow)
-    {
-        // Scan Presets folder for presets
-        auto appDataDir = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
-                              .getChildFile ("Application Support")
-                              .getChildFile (juce::JUCEApplication::getInstance()->getApplicationName());
-        auto presetsDir = appDataDir.getChildFile ("Presets");
-        auto files = presetsDir.findChildFiles (juce::File::findFiles, false, "*.filtergraph");
-
-        // Sort presets alphabetically
-        files.sort();
-
-        juce::File activeFile;
-        if (mainWindow.graphHolder != nullptr && mainWindow.graphHolder->graph != nullptr)
-            activeFile = mainWindow.graphHolder->graph->getFile();
-
-        if (files.isEmpty())
-        {
-            menu.addItem ("(No presets found)", false, false, nullptr);
-            return;
-        }
-
-        for (const auto& file : files)
-        {
-            juce::String name = file.getFileNameWithoutExtension();
-            bool isCurrent = (file == activeFile);
-
-            juce::PopupMenu::Item item (name.replace ("&", "&&"));
-            item.setEnabled (true);
-            item.setTicked (isCurrent);
-            item.setAction ([&mainWindow, file] {
-                mainWindow.loadPreset (file);
-            });
-            menu.addItem (item);
-        }
-    }
-
-    static juce::PopupMenu buildAppMenu (MainHostWindow& mainWindow, GitHubUpdater& gitHubUpdater, bool includeVisibilityToggle = false)
-    {
-        bool isAutoAppUpdateCheckEnabled = true;
-        bool isAutoSyncSoundEnabled = true;
-        if (auto* settings = getAppProperties().getUserSettings())
-        {
-            isAutoAppUpdateCheckEnabled = settings->getBoolValue ("automaticUpdateChecks", true);
-            isAutoSyncSoundEnabled = settings->getBoolValue ("autoSyncSystemOutput", true);
-        }
-
-        juce::PopupMenu settingsmenu;
-        settingsmenu.addItem ("Audio Settings", [&mainWindow] { mainWindow.showAudioSettings(); });
-        settingsmenu.addItem ("Plug-in Manager", [&mainWindow] { mainWindow.showPluginListWindow(); });
-        settingsmenu.addSeparator();
-       #if JUCE_MAC
-        settingsmenu.addItem ("Force macOS System Audio to loopback", true, isAutoSyncSoundEnabled, [&mainWindow, isAutoSyncSoundEnabled] {
-            bool newState = ! isAutoSyncSoundEnabled;
-            if (auto* settings = getAppProperties().getUserSettings())
-            {
-                settings->setValue ("autoSyncSystemOutput", newState);
-                settings->saveIfNeeded();
-            }
-            if (mainWindow.graphHolder != nullptr)
-                mainWindow.graphHolder->propagateDeviceSettingsToNodes();
+    juce::PopupMenu settingsmenu;
+    settingsmenu.addItem("Audio Settings",
+                         [&mainWindow] { mainWindow.showAudioSettings(); });
+    settingsmenu.addItem("Plug-in Manager",
+                         [&mainWindow] { mainWindow.showPluginListWindow(); });
+    settingsmenu.addSeparator();
+#if JUCE_MAC
+    settingsmenu.addItem(
+        "Force macOS System Audio to loopback", true, isAutoSyncSoundEnabled,
+        [&mainWindow, isAutoSyncSoundEnabled] {
+          bool newState = !isAutoSyncSoundEnabled;
+          if (auto *settings = getAppProperties().getUserSettings()) {
+            settings->setValue("autoSyncSystemOutput", newState);
+            settings->saveIfNeeded();
+          }
+          if (mainWindow.graphHolder != nullptr)
+            mainWindow.graphHolder->propagateDeviceSettingsToNodes();
         });
-        settingsmenu.addSeparator();
-       #endif
-        settingsmenu.addItem ("Check for Updates...", [&gitHubUpdater] { gitHubUpdater.checkForUpdates (true); });
-        settingsmenu.addItem ("Auto-Check for App Updates", true, isAutoAppUpdateCheckEnabled, [&gitHubUpdater, isAutoAppUpdateCheckEnabled] {
-            bool newState = ! isAutoAppUpdateCheckEnabled;
-            if (auto* settings = getAppProperties().getUserSettings())
-            {
-                settings->setValue ("automaticUpdateChecks", newState);
-                settings->saveIfNeeded();
-            }
-            if (newState)
-                gitHubUpdater.doCheckNow();
+    settingsmenu.addSeparator();
+#endif
+    settingsmenu.addItem("Check for Updates...", [&gitHubUpdater] {
+      gitHubUpdater.checkForUpdates(true);
+    });
+    settingsmenu.addItem(
+        "Auto-Check for App Updates", true, isAutoAppUpdateCheckEnabled,
+        [&gitHubUpdater, isAutoAppUpdateCheckEnabled] {
+          bool newState = !isAutoAppUpdateCheckEnabled;
+          if (auto *settings = getAppProperties().getUserSettings()) {
+            settings->setValue("automaticUpdateChecks", newState);
+            settings->saveIfNeeded();
+          }
+          if (newState)
+            gitHubUpdater.doCheckNow();
         });
-        settingsmenu.addItem ("About...", [&mainWindow] { mainWindow.showAboutBox(); });
-        settingsmenu.addSeparator();
-        settingsmenu.addItem ("Quit", [] { juce::JUCEApplication::getInstance()->systemRequestedQuit(); });
+    settingsmenu.addItem("Open at Login...", [] {
+      if (attemptToEnableLoginItem())
+        juce::NativeMessageBox::showMessageBoxAsync(
+            juce::MessageBoxIconType::InfoIcon, "Open at Login",
+            "Curve will now open automatically at login.");
+    });
+    settingsmenu.addItem("About...",
+                         [&mainWindow] { mainWindow.showAboutBox(); });
+    settingsmenu.addSeparator();
+    settingsmenu.addItem("Quit", [] {
+      juce::JUCEApplication::getInstance()->systemRequestedQuit();
+    });
 
-        juce::PopupMenu menu;
+    juce::PopupMenu menu;
 
-        if (includeVisibilityToggle)
-        {
-            if (mainWindow.isVisible())
-                menu.addItem ("Hide Editor", [&mainWindow] { mainWindow.hideWindow(); });
-            else
-                menu.addItem ("Show Editor", [&mainWindow] { mainWindow.showWindow(); });
-        }
-
-        menu.addItem ("Save As Preset...", [&mainWindow] { mainWindow.saveAsPreset(); });
-        menu.addSeparator();
-        menu.addSectionHeader ("Presets");
-        addPresetsToMenu (menu, mainWindow);
-        menu.addSeparator();
-
-        menu.addSubMenu ("Settings", settingsmenu, true);
-
-        return menu;
+    if (includeVisibilityToggle) {
+      if (mainWindow.isVisible())
+        menu.addItem("Hide Editor", [&mainWindow] { mainWindow.hideWindow(); });
+      else
+        menu.addItem("Show Editor", [&mainWindow] { mainWindow.showWindow(); });
     }
+
+    menu.addItem("Save As Preset...",
+                 [&mainWindow] { mainWindow.saveAsPreset(); });
+    menu.addSeparator();
+    menu.addSectionHeader("Presets");
+    addPresetsToMenu(menu, mainWindow);
+    menu.addSeparator();
+
+    menu.addSubMenu("Settings", settingsmenu, true);
+
+    return menu;
+  }
 
 private:
-    MainHostWindow& mainWindow;
-    GitHubUpdater& gitHubUpdater;
-    bool isAutoAppUpdateCheckEnabled = false;
-    bool isMenuOpen = false;
-    juce::uint32 lastMenuDismissTime = 0;
+  MainHostWindow &mainWindow;
+  GitHubUpdater &gitHubUpdater;
+  bool isAutoAppUpdateCheckEnabled = false;
+  bool isMenuOpen = false;
+  juce::uint32 lastMenuDismissTime = 0;
 };

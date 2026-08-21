@@ -39,6 +39,7 @@ target_sources(Curve PRIVATE
     Source/Plugins/SpeakerEmulationNode.cpp
     Source/Plugins/OutputInterfaceLoopbackNode.mm
     Source/UI/GraphEditorPanel.cpp
+    Source/UI/LoginItemManager.mm
     Source/UI/MainHostWindow.cpp)
 
 target_compile_definitions(Curve PRIVATE
@@ -66,6 +67,7 @@ target_link_libraries(Curve PRIVATE
     juce::juce_recommended_lto_flags
     juce::juce_recommended_warning_flags
     "-framework CoreAudio"
+    "-framework ServiceManagement"
     "-framework AVFoundation")
 
 juce_add_bundle_resources_directory(Curve  ${CMAKE_CURRENT_SOURCE_DIR}/Source/Assets/)
