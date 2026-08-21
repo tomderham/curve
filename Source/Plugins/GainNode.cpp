@@ -113,6 +113,7 @@ void GainNode::prepareToPlay (double sampleRate, int samplesPerBlock)
     juce::ignoreUnused (samplesPerBlock);
     smoothedGain.reset (sampleRate > 0.0 ? sampleRate : 96000.0, 0.02); // 20ms smoothing
     updateTargetGain();
+    smoothedGain.setCurrentAndTargetValue (targetGainLinear.load (std::memory_order_relaxed));
 }
 
 void GainNode::releaseResources()
@@ -132,25 +133,32 @@ void GainNode::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&
     if (numSamples == 0 || numChannels == 0)
         return;
 
+    float target = targetGainLinear.load (std::memory_order_acquire);
+    if (std::abs (smoothedGain.getTargetValue() - target) > 0.0001f)
+        smoothedGain.setTargetValue (target);
+
     if (smoothedGain.isSmoothing())
     {
         for (int s = 0; s < numSamples; ++s)
         {
             float g = smoothedGain.getNextValue();
             for (int ch = 0; ch < numChannels; ++ch)
-                buffer.setSample (ch, s, buffer.getSample (ch, s) * g);
+            {
+                if (auto* channelData = buffer.getWritePointer (ch))
+                    channelData[s] *= g;
+            }
         }
     }
     else
     {
-        float target = smoothedGain.getCurrentValue();
-        if (target == 0.0f)
+        float current = smoothedGain.getCurrentValue();
+        if (current == 0.0f)
         {
             buffer.clear();
         }
-        else if (target != 1.0f)
+        else if (current != 1.0f)
         {
-            buffer.applyGain (target);
+            buffer.applyGain (current);
         }
     }
 }
@@ -171,13 +179,13 @@ void GainNode::updateTargetGain()
 {
     if (muted.load (std::memory_order_relaxed))
     {
-        smoothedGain.setTargetValue (0.0f);
+        targetGainLinear.store (0.0f, std::memory_order_release);
     }
     else
     {
         float db = gainDb.load (std::memory_order_relaxed);
         float lin = (db <= -95.9f) ? 0.0f : juce::Decibels::decibelsToGain (db);
-        smoothedGain.setTargetValue (lin);
+        targetGainLinear.store (lin, std::memory_order_release);
     }
 }
 

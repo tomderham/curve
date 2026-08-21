@@ -77,9 +77,6 @@ private:
     std::atomic<bool> isActiveInGraph { true };
 
     juce::String targetOutputDeviceName;
-    juce::SpinLock workgroupLock;
-    juce::AudioWorkgroup pendingWorkgroup;
-    std::atomic<bool> workgroupNeedsUpdate { false };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OutputInterfaceLoopbackNode)
 };

@@ -191,13 +191,27 @@ public:
 
         if (fadeGain.isSmoothing())
         {
-            for (int s = 0; s < numSamples; ++s)
+            if (numOutputChannels == 2 && outputChannelData[0] != nullptr && outputChannelData[1] != nullptr)
             {
-                float g = fadeGain.getNextValue();
-                for (int ch = 0; ch < numOutputChannels; ++ch)
+                auto* out0 = outputChannelData[0];
+                auto* out1 = outputChannelData[1];
+                for (int s = 0; s < numSamples; ++s)
                 {
-                    if (outputChannelData[ch] != nullptr)
-                        outputChannelData[ch][s] *= g;
+                    float g = fadeGain.getNextValue();
+                    out0[s] *= g;
+                    out1[s] *= g;
+                }
+            }
+            else
+            {
+                for (int s = 0; s < numSamples; ++s)
+                {
+                    float g = fadeGain.getNextValue();
+                    for (int ch = 0; ch < numOutputChannels; ++ch)
+                    {
+                        if (auto* out = outputChannelData[ch])
+                            out[s] *= g;
+                    }
                 }
             }
 

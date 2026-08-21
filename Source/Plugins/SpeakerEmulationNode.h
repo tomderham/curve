@@ -56,6 +56,7 @@ private:
 
     juce::AudioBuffer<float> leftBuffer;
     juce::AudioBuffer<float> rightBuffer;
+    double lastSampleRate = 0.0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SpeakerEmulationNode)
 };

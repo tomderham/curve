@@ -519,13 +519,10 @@ AutoScale getAutoScaleValueForPlugin(const String &identifier) {
           StringArray::fromLines(settings->getValue("autoScalePlugins"));
       plugins.removeEmptyStrings();
 
+      auto prefix = identifier + ":";
       for (auto &plugin : plugins) {
-        auto fromIdentifier =
-            plugin.fromFirstOccurrenceOf(identifier, false, false);
-
-        if (fromIdentifier.isNotEmpty())
-          return autoScaleFromString(
-              fromIdentifier.fromFirstOccurrenceOf(":", false, false));
+        if (plugin.startsWith(prefix))
+          return autoScaleFromString(plugin.substring(prefix.length()));
       }
     }
   }
@@ -541,10 +538,11 @@ void setAutoScaleValueForPlugin(const String &identifier, AutoScale s) {
   auto plugins = StringArray::fromLines(settings->getValue("autoScalePlugins"));
   plugins.removeEmptyStrings();
 
-  auto index = [identifier, plugins] {
+  auto prefix = identifier + ":";
+  auto index = [prefix, plugins] {
     auto it =
         std::find_if(plugins.begin(), plugins.end(), [&](const String &str) {
-          return str.startsWith(identifier);
+          return str.startsWith(prefix);
         });
 
     return (int)std::distance(plugins.begin(), it);

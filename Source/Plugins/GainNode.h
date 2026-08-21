@@ -62,8 +62,9 @@ private:
 
     std::atomic<float> gainDb { 0.0f };
     std::atomic<bool> muted { false };
+    std::atomic<float> targetGainLinear { 1.0f };
 
-    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smoothedGain;
+    juce::LinearSmoothedValue<float> smoothedGain;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (GainNode)
 };

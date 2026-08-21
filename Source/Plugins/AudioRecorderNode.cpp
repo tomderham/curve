@@ -161,6 +161,10 @@ void AudioRecorderNode::prepareToPlay (double sampleRate, int samplesPerBlock)
     juce::ignoreUnused (samplesPerBlock);
     currentSampleRate = sampleRate > 0.0 ? sampleRate : 96000.0;
     int numChans = juce::jmax (1, getMainBusNumInputChannels());
+
+    if (isRecording())
+        stopRecording();
+
     fifo.reset();
     fifoBuffer.setSize (numChans, fifoCapacity);
     fifoBuffer.clear();
@@ -317,6 +321,10 @@ bool AudioRecorderNode::isBusesLayoutSupported (const BusesLayout& layouts) cons
 void AudioRecorderNode::processorLayoutsChanged()
 {
     int numChans = juce::jmax (1, getMainBusNumInputChannels());
+
+    if (isRecording())
+        stopRecording();
+
     fifo.reset();
     fifoBuffer.setSize (numChans, fifoCapacity);
     fifoBuffer.clear();

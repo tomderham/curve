@@ -33,35 +33,46 @@ bool SpeakerEmulationNode::isBusesLayoutSupported (const BusesLayout& layouts) c
 
 void SpeakerEmulationNode::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
+    if (sampleRate <= 0.0)
+        sampleRate = 44100.0;
+
+    const auto maxBlock = juce::jmax (1, samplesPerBlock);
+
     juce::dsp::ProcessSpec spec;
     spec.sampleRate = sampleRate;
-    spec.maximumBlockSize = (juce::uint32) samplesPerBlock;
+    spec.maximumBlockSize = (juce::uint32) maxBlock;
     spec.numChannels = 2;
 
-    leftConvolution.reset();
-    leftConvolution.loadImpulseResponse (
-        SpeakerEmulationData::leftWavData,
-        SpeakerEmulationData::leftWavSize,
-        juce::dsp::Convolution::Stereo::yes,
-        juce::dsp::Convolution::Trim::no,
-        0,
-        juce::dsp::Convolution::Normalise::no
-    );
-    leftConvolution.prepare (spec);
+    if (std::abs (sampleRate - lastSampleRate) > 0.1)
+    {
+        lastSampleRate = sampleRate;
 
-    rightConvolution.reset();
-    rightConvolution.loadImpulseResponse (
-        SpeakerEmulationData::rightWavData,
-        SpeakerEmulationData::rightWavSize,
-        juce::dsp::Convolution::Stereo::yes,
-        juce::dsp::Convolution::Trim::no,
-        0,
-        juce::dsp::Convolution::Normalise::no
-    );
+        leftConvolution.reset();
+        leftConvolution.loadImpulseResponse (
+            SpeakerEmulationData::leftWavData,
+            SpeakerEmulationData::leftWavSize,
+            juce::dsp::Convolution::Stereo::yes,
+            juce::dsp::Convolution::Trim::no,
+            0,
+            juce::dsp::Convolution::Normalise::no
+        );
+
+        rightConvolution.reset();
+        rightConvolution.loadImpulseResponse (
+            SpeakerEmulationData::rightWavData,
+            SpeakerEmulationData::rightWavSize,
+            juce::dsp::Convolution::Stereo::yes,
+            juce::dsp::Convolution::Trim::no,
+            0,
+            juce::dsp::Convolution::Normalise::no
+        );
+    }
+
+    leftConvolution.prepare (spec);
     rightConvolution.prepare (spec);
 
-    leftBuffer.setSize (2, samplesPerBlock);
-    rightBuffer.setSize (2, samplesPerBlock);
+    leftBuffer.setSize (2, maxBlock, false, true, false);
+    rightBuffer.setSize (2, maxBlock, false, true, false);
 }
 
 void SpeakerEmulationNode::releaseResources()
@@ -85,37 +96,47 @@ void SpeakerEmulationNode::processBlock (juce::AudioBuffer<float>& buffer, juce:
     if (totalNumInputChannels < 2 || totalNumOutputChannels < 2 || numSamples == 0)
         return;
 
-    leftBuffer.setSize (2, numSamples, false, false, true);
-    rightBuffer.setSize (2, numSamples, false, false, true);
+    const int maxCapacity = leftBuffer.getNumSamples();
+    int samplesProcessed = 0;
 
-    // Feed Input Left into both channels of leftBuffer (processes LL -> Ch0, LR -> Ch1)
-    leftBuffer.copyFrom (0, 0, buffer, 0, 0, numSamples);
-    leftBuffer.copyFrom (1, 0, buffer, 0, 0, numSamples);
-
-    // Feed Input Right into both channels of rightBuffer (processes RL -> Ch0, RR -> Ch1)
-    rightBuffer.copyFrom (0, 0, buffer, 1, 0, numSamples);
-    rightBuffer.copyFrom (1, 0, buffer, 1, 0, numSamples);
-
-    // Process Left convolution: Ch0 = LL, Ch1 = LR
-    juce::dsp::AudioBlock<float> leftBlock (leftBuffer);
-    leftConvolution.process (juce::dsp::ProcessContextReplacing<float> (leftBlock));
-
-    // Process Right convolution: Ch0 = RL, Ch1 = RR
-    juce::dsp::AudioBlock<float> rightBlock (rightBuffer);
-    rightConvolution.process (juce::dsp::ProcessContextReplacing<float> (rightBlock));
-
-    // Sum true-stereo outputs: OutL = LL + RL, OutR = LR + RR
-    auto* outL = buffer.getWritePointer (0);
-    auto* outR = buffer.getWritePointer (1);
-    const auto* lOutL = leftBuffer.getReadPointer (0);
-    const auto* lOutR = leftBuffer.getReadPointer (1);
-    const auto* rOutL = rightBuffer.getReadPointer (0);
-    const auto* rOutR = rightBuffer.getReadPointer (1);
-
-    for (int i = 0; i < numSamples; ++i)
+    while (samplesProcessed < numSamples)
     {
-        outL[i] = lOutL[i] + rOutL[i];
-        outR[i] = lOutR[i] + rOutR[i];
+        const int chunkSize = (maxCapacity > 0) ? juce::jmin (numSamples - samplesProcessed, maxCapacity)
+                                                : (numSamples - samplesProcessed);
+
+        // Feed Input Left into both channels of leftBuffer (processes LL -> Ch0, LR -> Ch1)
+        leftBuffer.copyFrom (0, 0, buffer, 0, samplesProcessed, chunkSize);
+        leftBuffer.copyFrom (1, 0, buffer, 0, samplesProcessed, chunkSize);
+
+        // Feed Input Right into both channels of rightBuffer (processes RL -> Ch0, RR -> Ch1)
+        rightBuffer.copyFrom (0, 0, buffer, 1, samplesProcessed, chunkSize);
+        rightBuffer.copyFrom (1, 0, buffer, 1, samplesProcessed, chunkSize);
+
+        // Process Left convolution: Ch0 = LL, Ch1 = LR
+        juce::dsp::AudioBlock<float> leftBlock (leftBuffer);
+        auto leftSub = leftBlock.getSubBlock (0, (size_t) chunkSize);
+        leftConvolution.process (juce::dsp::ProcessContextReplacing<float> (leftSub));
+
+        // Process Right convolution: Ch0 = RL, Ch1 = RR
+        juce::dsp::AudioBlock<float> rightBlock (rightBuffer);
+        auto rightSub = rightBlock.getSubBlock (0, (size_t) chunkSize);
+        rightConvolution.process (juce::dsp::ProcessContextReplacing<float> (rightSub));
+
+        // Sum true-stereo outputs: OutL = LL + RL, OutR = LR + RR
+        auto* outL = buffer.getWritePointer (0, samplesProcessed);
+        auto* outR = buffer.getWritePointer (1, samplesProcessed);
+        const auto* lOutL = leftBuffer.getReadPointer (0);
+        const auto* lOutR = leftBuffer.getReadPointer (1);
+        const auto* rOutL = rightBuffer.getReadPointer (0);
+        const auto* rOutR = rightBuffer.getReadPointer (1);
+
+        for (int i = 0; i < chunkSize; ++i)
+        {
+            outL[i] = lOutL[i] + rOutL[i];
+            outR[i] = lOutR[i] + rOutR[i];
+        }
+
+        samplesProcessed += chunkSize;
     }
 }
 

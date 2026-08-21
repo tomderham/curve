@@ -194,9 +194,15 @@ public:
         if (isSuspended)
             return;
 
-        // Skip resilience checks while modal components are active
-        if (juce::Component::getCurrentlyModalComponent() != nullptr)
-            return;
+        // Defer resilience checks only while audio configuration dialogs are modal
+        if (auto* modal = juce::Component::getCurrentlyModalComponent())
+        {
+            if (dynamic_cast<juce::AudioDeviceSelectorComponent*> (modal) != nullptr
+                || modal->findParentComponentOfClass<juce::AudioDeviceSelectorComponent>() != nullptr)
+            {
+                return;
+            }
+        }
 
         juce::uint32 nowMonotonic = juce::Time::getMillisecondCounter();
         juce::int64 nowWallClock = juce::Time::getCurrentTime().toMilliseconds();

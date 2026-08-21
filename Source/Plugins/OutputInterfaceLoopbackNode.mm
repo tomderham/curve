@@ -174,38 +174,54 @@ struct SharedTapSession {
     double currentSampleRate = 0.0;
     
     juce::SpinLock listenerLock;
-    std::vector<OutputInterfaceLoopbackNode*> listeners;
+    static constexpr size_t maxListeners = 8;
+    std::array<OutputInterfaceLoopbackNode*, maxListeners> listeners {};
+    size_t numListeners = 0;
     
-    SharedTapSession()
-    {
-        listeners.reserve (8);
-    }
+    SharedTapSession() = default;
     
     void addListener (OutputInterfaceLoopbackNode* node)
     {
+        if (node == nullptr) return;
         const juce::SpinLock::ScopedLockType sl (listenerLock);
-        if (std::find (listeners.begin(), listeners.end(), node) == listeners.end())
-            listeners.push_back (node);
+        for (size_t i = 0; i < numListeners; ++i)
+            if (listeners[i] == node)
+                return;
+
+        if (numListeners < maxListeners)
+            listeners[numListeners++] = node;
     }
     
     void removeListener (OutputInterfaceLoopbackNode* node)
     {
+        if (node == nullptr) return;
         const juce::SpinLock::ScopedLockType sl (listenerLock);
-        listeners.erase (std::remove (listeners.begin(), listeners.end(), node), listeners.end());
+        for (size_t i = 0; i < numListeners; ++i)
+        {
+            if (listeners[i] == node)
+            {
+                for (size_t j = i; j < numListeners - 1; ++j)
+                    listeners[j] = listeners[j + 1];
+                listeners[--numListeners] = nullptr;
+                break;
+            }
+        }
     }
     
     void broadcastAudioInterleaved (const float* data, int numChannels, int numSamples)
     {
         const juce::SpinLock::ScopedLockType sl (listenerLock);
-        for (auto* l : listeners)
-            l->pushAudioInterleaved (data, numChannels, numSamples);
+        for (size_t i = 0; i < numListeners; ++i)
+            if (auto* l = listeners[i])
+                l->pushAudioInterleaved (data, numChannels, numSamples);
     }
     
     void broadcastAudio (const float* const* channelData, int numChannels, int numSamples)
     {
         const juce::SpinLock::ScopedLockType sl (listenerLock);
-        for (auto* l : listeners)
-            l->pushAudio (channelData, numChannels, numSamples);
+        for (size_t i = 0; i < numListeners; ++i)
+            if (auto* l = listeners[i])
+                l->pushAudio (channelData, numChannels, numSamples);
     }
     
     void updateMuteBehavior (bool shouldBeActive)
@@ -213,12 +229,14 @@ struct SharedTapSession {
         if (tapID != 0)
         {
             AudioObjectPropertyAddress descProp = { kAudioTapPropertyDescription, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
-            CATapDescription* curDesc = nil;
-            UInt32 size = sizeof (curDesc);
-            if (AudioObjectGetPropertyData (tapID, &descProp, 0, NULL, &size, &curDesc) == noErr && curDesc != nil)
+            CFTypeRef curDescRef = NULL;
+            UInt32 size = sizeof (curDescRef);
+            if (AudioObjectGetPropertyData (tapID, &descProp, 0, NULL, &size, &curDescRef) == noErr && curDescRef != NULL)
             {
+                CATapDescription* curDesc = (CATapDescription*) curDescRef;
                 curDesc.muteBehavior = shouldBeActive ? CATapMutedWhenTapped : CATapUnmuted;
                 AudioObjectSetPropertyData (tapID, &descProp, 0, NULL, sizeof (curDesc), &curDesc);
+                CFRelease (curDescRef);
             }
         }
     }
@@ -372,16 +390,18 @@ struct SharedTapSession {
                     }
 
                     if (tapChannelCount > 1 && tapBuffer.mNumberChannels == 1) {
-                        juce::HeapBlock<const float*> channelPointers (tapChannelCount);
+                        constexpr int maxTapChannels = 32;
+                        int clampedChannels = std::min (tapChannelCount, maxTapChannels);
+                        const float* channelPointers[maxTapChannels];
                         UInt32 minBytes = UINT32_MAX;
-                        for (int ch = 0; ch < tapChannelCount; ++ch) {
+                        for (int ch = 0; ch < clampedChannels; ++ch) {
                             int bufIdx = (int)numBuffers - tapChannelCount + ch;
                             channelPointers[ch] = static_cast<const float*>(inInputData->mBuffers[bufIdx].mData);
                             minBytes = std::min (minBytes, inInputData->mBuffers[bufIdx].mDataByteSize);
                         }
                         int numSamples = static_cast<int> (minBytes / sizeof(float));
                         if (numSamples > 0)
-                            selfSession->broadcastAudio (channelPointers.get(), tapChannelCount, numSamples);
+                            selfSession->broadcastAudio (channelPointers, clampedChannels, numSamples);
                     } else if (tapBuffer.mNumberChannels >= 1 && tapBuffer.mData != nullptr && tapBuffer.mDataByteSize > 0) {
                         int inChannels = static_cast<int> (tapBuffer.mNumberChannels);
                         const float* interleavedData = static_cast<const float*>(tapBuffer.mData);
@@ -564,9 +584,7 @@ void OutputInterfaceLoopbackNode::syncSystemOutputDevice (const juce::String& ta
 
 void OutputInterfaceLoopbackNode::setAudioWorkgroup (const juce::AudioWorkgroup& workgroup)
 {
-    const juce::SpinLock::ScopedLockType lock (workgroupLock);
-    pendingWorkgroup = workgroup;
-    workgroupNeedsUpdate.store (true, std::memory_order_release);
+    juce::ignoreUnused (workgroup);
 }
 
 bool OutputInterfaceLoopbackNode::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -585,6 +603,10 @@ bool OutputInterfaceLoopbackNode::isBusesLayoutSupported (const BusesLayout& lay
 void OutputInterfaceLoopbackNode::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     int numChannels = juce::jmax (1, getMainBusNumOutputChannels());
+
+#if JUCE_MAC
+    getSharedTapSession().removeListener (this);
+#endif
 
     {
         // Lock only around buffer reset so hot-swapping does not block the audio thread
@@ -611,16 +633,16 @@ void OutputInterfaceLoopbackNode::prepareToPlay (double sampleRate, int samplesP
 
 void OutputInterfaceLoopbackNode::releaseResources()
 {
+#if JUCE_MAC
+    getSharedTapSession().removeListener (this);
+#endif
+
     // Reset buffer tracking without destroying the underlying OS CoreAudio tap stream.
     juce::ScopedLock lock (getCallbackLock());
     fifo.reset();
     ringBuffer.clear();
     isBuffering.store (true, std::memory_order_release);
     hadUnderrunLastBlock.store (true, std::memory_order_release);
-
-#if JUCE_MAC
-    getSharedTapSession().removeListener (this);
-#endif
 }
 
 void OutputInterfaceLoopbackNode::pushAudio (const float* const* channelData, int numChannels, int numSamples)

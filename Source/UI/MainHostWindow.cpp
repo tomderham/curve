@@ -832,11 +832,16 @@ void MainHostWindow::loadPreset(juce::File file)
 
     if (graphHolder != nullptr && graphHolder->graph != nullptr)
     {
-        // Smoothly fade out active audio before modifying the graph
-        graphHolder->startPresetTransition();
+        const bool hasActiveDevice = (deviceManager.getCurrentAudioDevice() != nullptr);
 
-        for (int i = 0; i < 6 && ! graphHolder->isTransitionFadedOut(); ++i)
-            juce::Thread::sleep (5);
+        // Smoothly fade out active audio before modifying the graph
+        if (hasActiveDevice)
+        {
+            graphHolder->startPresetTransition();
+
+            for (int i = 0; i < 6 && ! graphHolder->isTransitionFadedOut(); ++i)
+                juce::Thread::sleep (5);
+        }
 
         auto& audioGraph = graphHolder->graph->graph;
         audioGraph.suspendProcessing (true);
@@ -848,7 +853,8 @@ void MainHostWindow::loadPreset(juce::File file)
         audioGraph.suspendProcessing (false);
 
         // Smoothly fade in new preset audio
-        graphHolder->endPresetTransition();
+        if (hasActiveDevice)
+            graphHolder->endPresetTransition();
     }
 
     if (auto* rm = getResilienceManager())

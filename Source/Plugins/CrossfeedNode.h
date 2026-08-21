@@ -54,7 +54,6 @@ private:
     juce::dsp::Convolution directConvolution { juce::dsp::Convolution::Latency { 0 } };
     juce::dsp::Convolution crossConvolution  { juce::dsp::Convolution::Latency { 0 } };
 
-    juce::AudioBuffer<float> directBuffer;
     juce::AudioBuffer<float> crossBuffer;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CrossfeedNode)

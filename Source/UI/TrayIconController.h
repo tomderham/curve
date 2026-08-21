@@ -148,6 +148,8 @@ public:
       return;
     }
 
+    juce::Component::SafePointer<MainHostWindow> safeWindow (&mainWindow);
+
     for (const auto &file : files) {
       juce::String name = file.getFileNameWithoutExtension();
       bool isCurrent = (file == activeFile);
@@ -155,7 +157,10 @@ public:
       juce::PopupMenu::Item item(name.replace("&", "&&"));
       item.setEnabled(true);
       item.setTicked(isCurrent);
-      item.setAction([&mainWindow, file] { mainWindow.loadPreset(file); });
+      item.setAction([safeWindow, file] {
+        if (auto* w = safeWindow.getComponent())
+          w->loadPreset(file);
+      });
       menu.addItem(item);
     }
   }
@@ -172,23 +177,30 @@ public:
           settings->getBoolValue("autoSyncSystemOutput", true);
     }
 
+    juce::Component::SafePointer<MainHostWindow> safeWindow (&mainWindow);
+
     juce::PopupMenu settingsmenu;
-    settingsmenu.addItem("Audio Settings",
-                         [&mainWindow] { mainWindow.showAudioSettings(); });
-    settingsmenu.addItem("Plug-in Manager",
-                         [&mainWindow] { mainWindow.showPluginListWindow(); });
+    settingsmenu.addItem("Audio Settings", [safeWindow] {
+      if (auto* w = safeWindow.getComponent())
+        w->showAudioSettings();
+    });
+    settingsmenu.addItem("Plug-in Manager", [safeWindow] {
+      if (auto* w = safeWindow.getComponent())
+        w->showPluginListWindow();
+    });
     settingsmenu.addSeparator();
 #if JUCE_MAC
     settingsmenu.addItem(
         "Force macOS System Audio to loopback", true, isAutoSyncSoundEnabled,
-        [&mainWindow, isAutoSyncSoundEnabled] {
+        [safeWindow, isAutoSyncSoundEnabled] {
           bool newState = !isAutoSyncSoundEnabled;
           if (auto *settings = getAppProperties().getUserSettings()) {
             settings->setValue("autoSyncSystemOutput", newState);
             settings->saveIfNeeded();
           }
-          if (mainWindow.graphHolder != nullptr)
-            mainWindow.graphHolder->propagateDeviceSettingsToNodes();
+          if (auto* w = safeWindow.getComponent())
+            if (w->graphHolder != nullptr)
+              w->graphHolder->propagateDeviceSettingsToNodes();
         });
     settingsmenu.addSeparator();
 #endif
@@ -212,8 +224,10 @@ public:
             juce::MessageBoxIconType::InfoIcon, "Open at Login",
             "Curve will now open automatically at login.");
     });
-    settingsmenu.addItem("About...",
-                         [&mainWindow] { mainWindow.showAboutBox(); });
+    settingsmenu.addItem("About...", [safeWindow] {
+      if (auto* w = safeWindow.getComponent())
+        w->showAboutBox();
+    });
     settingsmenu.addSeparator();
     settingsmenu.addItem("Quit", [] {
       juce::JUCEApplication::getInstance()->systemRequestedQuit();
@@ -223,13 +237,21 @@ public:
 
     if (includeVisibilityToggle) {
       if (mainWindow.isVisible())
-        menu.addItem("Hide Editor", [&mainWindow] { mainWindow.hideWindow(); });
+        menu.addItem("Hide Editor", [safeWindow] {
+          if (auto* w = safeWindow.getComponent())
+            w->hideWindow();
+        });
       else
-        menu.addItem("Show Editor", [&mainWindow] { mainWindow.showWindow(); });
+        menu.addItem("Show Editor", [safeWindow] {
+          if (auto* w = safeWindow.getComponent())
+            w->showWindow();
+        });
     }
 
-    menu.addItem("Save As Preset...",
-                 [&mainWindow] { mainWindow.saveAsPreset(); });
+    menu.addItem("Save As Preset...", [safeWindow] {
+      if (auto* w = safeWindow.getComponent())
+        w->saveAsPreset();
+    });
     menu.addSeparator();
     menu.addSectionHeader("Presets");
     addPresetsToMenu(menu, mainWindow);

@@ -208,7 +208,6 @@ void CrossfeedNode::prepareToPlay (double sampleRate, int samplesPerBlock)
     directConvolution.prepare (spec);
     crossConvolution.prepare (spec);
 
-    directBuffer.setSize (2, maxBlock, false, true, false);
     crossBuffer.setSize (2, maxBlock, false, true, false);
 }
 
@@ -216,7 +215,6 @@ void CrossfeedNode::releaseResources()
 {
     directConvolution.reset();
     crossConvolution.reset();
-    directBuffer.setSize (0, 0);
     crossBuffer.setSize (0, 0);
 }
 
@@ -231,45 +229,42 @@ void CrossfeedNode::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
     if (numSamples == 0 || numChannels < 2)
         return;
 
-    // Ensure buffers can accommodate incoming block size without reallocating unless strictly necessary
-    if (numSamples > directBuffer.getNumSamples())
+    const int maxCapacity = crossBuffer.getNumSamples();
+    int samplesProcessed = 0;
+
+    while (samplesProcessed < numSamples)
     {
-        directBuffer.setSize (2, numSamples, false, false, true);
-        crossBuffer.setSize (2, numSamples, false, false, true);
-    }
+        const int chunkSize = (maxCapacity > 0) ? juce::jmin (numSamples - samplesProcessed, maxCapacity)
+                                                : (numSamples - samplesProcessed);
 
-    directBuffer.copyFrom (0, 0, buffer, 0, 0, numSamples);
-    directBuffer.copyFrom (1, 0, buffer, 1, 0, numSamples);
+        // Copy input chunk to crossBuffer for crossfeed convolution
+        crossBuffer.copyFrom (0, 0, buffer, 0, samplesProcessed, chunkSize);
+        crossBuffer.copyFrom (1, 0, buffer, 1, samplesProcessed, chunkSize);
 
-    crossBuffer.copyFrom (0, 0, buffer, 0, 0, numSamples);
-    crossBuffer.copyFrom (1, 0, buffer, 1, 0, numSamples);
+        // Convolve buffer directly in-place with directConvolution
+        juce::dsp::AudioBlock<float> directBlock (buffer);
+        auto directSub = directBlock.getSubBlock ((size_t) samplesProcessed, (size_t) chunkSize);
+        juce::dsp::ProcessContextReplacing<float> directContext (directSub);
+        directConvolution.process (directContext);
 
-    juce::dsp::AudioBlock<float> directBlock (directBuffer);
-    juce::dsp::AudioBlock<float> crossBlock (crossBuffer);
+        // Convolve crossBuffer with crossConvolution
+        juce::dsp::AudioBlock<float> crossBlock (crossBuffer);
+        auto crossSub = crossBlock.getSubBlock (0, (size_t) chunkSize);
+        juce::dsp::ProcessContextReplacing<float> crossContext (crossSub);
+        crossConvolution.process (crossContext);
 
-    auto directSub = directBlock.getSubBlock (0, (size_t) numSamples);
-    auto crossSub  = crossBlock.getSubBlock (0, (size_t) numSamples);
+        // Symmetric 2x2 Stereo Crossfeed:
+        // Left  out = Left direct  + Right cross
+        // Right out = Right direct + Left cross
+        auto* outL = buffer.getWritePointer (0, samplesProcessed);
+        auto* outR = buffer.getWritePointer (1, samplesProcessed);
+        const auto* crossL = crossBuffer.getReadPointer (0);
+        const auto* crossR = crossBuffer.getReadPointer (1);
 
-    juce::dsp::ProcessContextReplacing<float> directContext (directSub);
-    juce::dsp::ProcessContextReplacing<float> crossContext (crossSub);
+        juce::FloatVectorOperations::add (outL, crossR, chunkSize);
+        juce::FloatVectorOperations::add (outR, crossL, chunkSize);
 
-    directConvolution.process (directContext);
-    crossConvolution.process (crossContext);
-
-    // Symmetric 2x2 Stereo Crossfeed:
-    // Left  out = Left direct  + Right cross
-    // Right out = Right direct + Left cross
-    auto* outL = buffer.getWritePointer (0);
-    auto* outR = buffer.getWritePointer (1);
-    const auto* dirL = directBuffer.getReadPointer (0);
-    const auto* dirR = directBuffer.getReadPointer (1);
-    const auto* crossL = crossBuffer.getReadPointer (0);
-    const auto* crossR = crossBuffer.getReadPointer (1);
-
-    for (int i = 0; i < numSamples; ++i)
-    {
-        outL[i] = dirL[i] + crossR[i];
-        outR[i] = dirR[i] + crossL[i];
+        samplesProcessed += chunkSize;
     }
 }
 
