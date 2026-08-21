@@ -55,6 +55,7 @@ private:
     juce::dsp::Convolution crossConvolution  { juce::dsp::Convolution::Latency { 0 } };
 
     juce::AudioBuffer<float> crossBuffer;
+    double lastSampleRate = 0.0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CrossfeedNode)
 };

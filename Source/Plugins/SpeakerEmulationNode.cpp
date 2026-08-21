@@ -48,19 +48,47 @@ void SpeakerEmulationNode::prepareToPlay (double sampleRate, int samplesPerBlock
         lastSampleRate = sampleRate;
 
         leftConvolution.reset();
+        rightConvolution.reset();
+
+        const void* lData = nullptr;
+        size_t lSize = 0;
+        const void* rData = nullptr;
+        size_t rSize = 0;
+
+        if (sampleRate >= 88200.0)
+        {
+            lData = SpeakerEmulationData::leftWav_96kData;
+            lSize = SpeakerEmulationData::leftWav_96kSize;
+            rData = SpeakerEmulationData::rightWav_96kData;
+            rSize = SpeakerEmulationData::rightWav_96kSize;
+        }
+        else if (sampleRate >= 46000.0)
+        {
+            lData = SpeakerEmulationData::leftWav_48kData;
+            lSize = SpeakerEmulationData::leftWav_48kSize;
+            rData = SpeakerEmulationData::rightWav_48kData;
+            rSize = SpeakerEmulationData::rightWav_48kSize;
+        }
+        else
+        {
+            lData = SpeakerEmulationData::leftWav_44kData;
+            lSize = SpeakerEmulationData::leftWav_44kSize;
+            rData = SpeakerEmulationData::rightWav_44kData;
+            rSize = SpeakerEmulationData::rightWav_44kSize;
+        }
+
         leftConvolution.loadImpulseResponse (
-            SpeakerEmulationData::leftWavData,
-            SpeakerEmulationData::leftWavSize,
+            lData,
+            lSize,
             juce::dsp::Convolution::Stereo::yes,
             juce::dsp::Convolution::Trim::no,
             0,
             juce::dsp::Convolution::Normalise::no
         );
 
-        rightConvolution.reset();
         rightConvolution.loadImpulseResponse (
-            SpeakerEmulationData::rightWavData,
-            SpeakerEmulationData::rightWavSize,
+            rData,
+            rSize,
             juce::dsp::Convolution::Stereo::yes,
             juce::dsp::Convolution::Trim::no,
             0,
@@ -81,6 +109,7 @@ void SpeakerEmulationNode::releaseResources()
     rightConvolution.reset();
     leftBuffer.setSize (0, 0);
     rightBuffer.setSize (0, 0);
+    lastSampleRate = 0.0;
 }
 
 void SpeakerEmulationNode::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
