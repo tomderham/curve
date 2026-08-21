@@ -28,19 +28,12 @@ public:
 
         gainSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
         gainSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 80, 20);
-        gainSlider.setRange (-96.0, 24.0, 0.1);
+        gainSlider.setRange (-60.0, 60.0, 0.1);
         gainSlider.setTextValueSuffix (" dB");
         gainSlider.setValue (gainNode.getGainDb(), juce::dontSendNotification);
         gainSlider.setDoubleClickReturnValue (true, 0.0);
         gainSlider.addListener (this);
         addAndMakeVisible (gainSlider);
-
-        resetButton.setButtonText ("0 dB");
-        resetButton.onClick = [this]
-        {
-            gainSlider.setValue (0.0);
-        };
-        addAndMakeVisible (resetButton);
 
         muteButton.setButtonText ("Mute");
         muteButton.setClickingTogglesState (true);
@@ -74,8 +67,7 @@ public:
     {
         titleLabel.setBounds (10, 10, getWidth() - 20, 20);
         gainSlider.setBounds (getWidth() / 2 - 55, 34, 110, 100);
-        resetButton.setBounds (getWidth() / 2 - 75, 140, 65, 26);
-        muteButton.setBounds (getWidth() / 2 + 10, 140, 65, 26);
+        muteButton.setBounds (getWidth() / 2 - 40, 140, 80, 26);
     }
 
     void sliderValueChanged (juce::Slider* slider) override
@@ -94,7 +86,6 @@ private:
     GainNode& gainNode;
     juce::Label titleLabel;
     juce::Slider gainSlider;
-    juce::TextButton resetButton;
     juce::TextButton muteButton;
 };
 
@@ -199,7 +190,7 @@ void GainNode::updateTargetGain()
     else
     {
         float db = gainDb.load (std::memory_order_relaxed);
-        float lin = (db <= -95.9f) ? 0.0f : juce::Decibels::decibelsToGain (db);
+        float lin = juce::Decibels::decibelsToGain (db);
         targetGainLinear.store (lin, std::memory_order_release);
     }
 }

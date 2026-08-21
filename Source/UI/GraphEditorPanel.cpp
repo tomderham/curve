@@ -238,7 +238,7 @@ static String getTooltipForProcessor (const AudioProcessor& processor)
         return "Headphone Crossfeed: Crossfeed processor for natural soundstage imaging when monitoring with headphones.";
 
     if (name == "Gain")
-        return "Gain: Volume trim (-96 dB to +24 dB) and mute toggle.";
+        return "Gain: Volume trim (-60 dB to +60 dB) and mute toggle.";
 
     if (name == "Invert Phase")
         return "Invert Phase: Negates polarity of audio signal on each channel.";

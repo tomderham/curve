@@ -19,7 +19,7 @@
 //==============================================================================
 /**
     An internal AudioProcessor that applies smooth, precise gain adjustment
-    (-96 dB to +24 dB) with optional muting and 0 added latency.
+    (-60 dB to +60 dB) with optional muting and 0 added latency.
 */
 class GainNode : public juce::AudioPluginInstance
 {
