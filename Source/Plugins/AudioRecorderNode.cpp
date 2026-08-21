@@ -248,28 +248,8 @@ void AudioRecorderNode::stopRecording()
     isRecordingFlag.store (false, std::memory_order_release);
     stopThread (2000);
 
-    // Flush any remaining samples in FIFO
-    int ready = fifo.getNumReady();
-    if (ready > 0)
-    {
-        int start1, size1, start2, size2;
-        fifo.prepareToRead (ready, start1, size1, start2, size2);
-
-        const juce::ScopedLock sl (writerLock);
-        if (writer != nullptr)
-        {
-            if (size1 > 0)
-                writer->writeFromAudioSampleBuffer (fifoBuffer, start1, size1);
-            if (size2 > 0)
-                writer->writeFromAudioSampleBuffer (fifoBuffer, start2, size2);
-        }
-        fifo.finishedRead (size1 + size2);
-    }
-
-    {
-        const juce::ScopedLock sl (writerLock);
-        writer.reset();
-    }
+    const juce::ScopedLock sl (writerLock);
+    writer.reset();
 }
 
 void AudioRecorderNode::run()
@@ -296,6 +276,24 @@ void AudioRecorderNode::run()
         {
             wait (5);
         }
+    }
+
+    // Drain any remaining samples on thread exit
+    int remaining = fifo.getNumReady();
+    if (remaining > 0)
+    {
+        int start1, size1, start2, size2;
+        fifo.prepareToRead (remaining, start1, size1, start2, size2);
+
+        const juce::ScopedLock sl (writerLock);
+        if (writer != nullptr)
+        {
+            if (size1 > 0)
+                writer->writeFromAudioSampleBuffer (fifoBuffer, start1, size1);
+            if (size2 > 0)
+                writer->writeFromAudioSampleBuffer (fifoBuffer, start2, size2);
+        }
+        fifo.finishedRead (size1 + size2);
     }
 }
 

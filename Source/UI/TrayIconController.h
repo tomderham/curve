@@ -200,19 +200,23 @@ public:
         });
     settingsmenu.addSeparator();
 #endif
-    settingsmenu.addItem("Check for Updates...", [&gitHubUpdater] {
-      gitHubUpdater.checkForUpdates(true);
+    auto updaterToken = gitHubUpdater.getLifetimeToken();
+    settingsmenu.addItem("Check for Updates...", [updaterToken] {
+      if (updaterToken != nullptr)
+        if (auto* u = updaterToken->load())
+          u->checkForUpdates(true);
     });
     settingsmenu.addItem(
         "Auto-Check for App Updates", true, isAutoAppUpdateCheckEnabled,
-        [&gitHubUpdater, isAutoAppUpdateCheckEnabled] {
+        [updaterToken, isAutoAppUpdateCheckEnabled] {
           bool newState = !isAutoAppUpdateCheckEnabled;
           if (auto *settings = getAppProperties().getUserSettings()) {
             settings->setValue("automaticUpdateChecks", newState);
             settings->saveIfNeeded();
           }
-          if (newState)
-            gitHubUpdater.doCheckNow();
+          if (newState && updaterToken != nullptr)
+            if (auto* u = updaterToken->load())
+              u->doCheckNow();
         });
     settingsmenu.addItem("Open at Login...", [] {
       if (attemptToEnableLoginItem())

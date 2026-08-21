@@ -61,6 +61,7 @@ PluginGraph::~PluginGraph()
 {
     graph.removeListener (this);
     graph.removeChangeListener (this);
+    closeAnyOpenPluginWindows();
     graph.clear();
 }
 
@@ -351,7 +352,7 @@ static void readBusLayoutFromXml (AudioProcessor::BusesLayout& busesLayout, Audi
 
             auto layout = e->getStringAttribute ("layout");
 
-            if (layout.isNotEmpty())
+            if (layout.isNotEmpty() && isPositiveAndBelow (busIdx, targetBuses.size()))
                 targetBuses.getReference (busIdx) = AudioChannelSet::fromAbbreviatedString (layout);
         }
     }

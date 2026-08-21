@@ -344,7 +344,7 @@ public:
                 fileToOpen.getFileNameWithoutExtension() + ") anyway?",
             nullptr,
             juce::ModalCallbackFunction::create([this, fileToOpen](int result) {
-              if (result == 1) // OK / Load
+              if (result == 1 && mainWindow != nullptr) // OK / Load
               {
                 mainWindow->loadPreset(fileToOpen);
               }

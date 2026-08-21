@@ -86,6 +86,9 @@ private:
 
         if (auto* combo = dynamic_cast<juce::ComboBox*> (comp))
         {
+            if (combo->isPopupActive())
+                return;
+
             if (auto* rootMenu = combo->getRootMenu())
             {
                 juce::PopupMenu filteredMenu;

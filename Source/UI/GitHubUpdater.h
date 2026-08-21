@@ -33,6 +33,8 @@ public:
         activeDownload.reset();
     }
 
+    std::shared_ptr<std::atomic<GitHubUpdater*>> getLifetimeToken() const { return threadState; }
+
     std::function<void(const juce::String& version, const juce::String& downloadUrl)> onUpdateAvailable;
 
     void checkForUpdates (bool isManualCheck = false)

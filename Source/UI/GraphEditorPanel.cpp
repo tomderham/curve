@@ -266,7 +266,10 @@ struct GraphEditorPanel::PluginComponent final : public Component,
             if (auto* processor = f->getProcessor())
             {
                 if (auto* bypassParam = processor->getBypassParameter())
-                    bypassParam->addListener (this);
+                {
+                    observedBypassParam = bypassParam;
+                    observedBypassParam->addListener (this);
+                }
 
                 setTooltip (getTooltipForProcessor (*processor));
             }
@@ -280,14 +283,8 @@ struct GraphEditorPanel::PluginComponent final : public Component,
 
     ~PluginComponent() override
     {
-        if (auto f = graph.graph.getNodeForId (pluginID))
-        {
-            if (auto* processor = f->getProcessor())
-            {
-                if (auto* bypassParam = processor->getBypassParameter())
-                    bypassParam->removeListener (this);
-            }
-        }
+        if (observedBypassParam != nullptr)
+            observedBypassParam->removeListener (this);
     }
 
     void mouseDown (const MouseEvent& e) override
@@ -632,6 +629,7 @@ struct GraphEditorPanel::PluginComponent final : public Component,
     DropShadowEffect shadow;
     std::unique_ptr<PopupMenu> menu;
     std::unique_ptr<FileChooser> fileChooser;
+    AudioProcessorParameter* observedBypassParam = nullptr;
     const String formatSuffix = getFormatSuffix (getProcessor());
 };
 
@@ -1304,6 +1302,12 @@ struct GraphDocumentComponent::PluginListBoxModel final : public ListBoxModel,
        #endif
     }
 
+    ~PluginListBoxModel() override
+    {
+        knownPlugins.removeChangeListener (this);
+        owner.removeMouseListener (this);
+    }
+
     int getNumRows() override
     {
         return knownPlugins.getNumTypes();
@@ -1525,7 +1529,8 @@ void GraphDocumentComponent::resized()
     if (statusBar != nullptr)
         statusBar->setBounds (r.removeFromBottom (statusBarHeight));
 
-    graphPanel->setBounds (r);
+    if (graphPanel != nullptr)
+        graphPanel->setBounds (r);
 
     checkAvailableWidth();
 }
@@ -1628,11 +1633,11 @@ void GraphDocumentComponent::itemDropped (const SourceDetails& details)
                                  .fromFirstOccurrenceOf ("PLUGIN: ", false, false)
                                  .getIntValue();
 
-    // must be a valid index!
-    jassert (isPositiveAndBelow (pluginTypeIndex, pluginList.getNumTypes()));
-
-    createNewPlugin (PluginDescriptionAndPreference { pluginList.getTypes()[pluginTypeIndex] },
-                     details.localPosition);
+    if (isPositiveAndBelow (pluginTypeIndex, pluginList.getNumTypes()))
+    {
+        createNewPlugin (PluginDescriptionAndPreference { pluginList.getTypes()[pluginTypeIndex] },
+                         details.localPosition);
+    }
 }
 
 void GraphDocumentComponent::showSidePanel (bool showSettingsPanel)

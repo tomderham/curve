@@ -862,7 +862,16 @@ void MainHostWindow::loadPreset(juce::File file)
         graphHolder->graph->setRestorePluginWindowsOnLoad (false);
         auto result = graphHolder->graph->loadFrom (file, true);
         if (result.wasOk())
+        {
             graphHolder->propagateDeviceSettingsToNodes();
+        }
+        else
+        {
+            juce::NativeMessageBox::showMessageBoxAsync (
+                juce::MessageBoxIconType::WarningIcon,
+                "Failed to Load Preset",
+                "Could not load the preset file:\n" + result.getErrorMessage());
+        }
 
         audioGraph.suspendProcessing (false);
 

@@ -51,8 +51,12 @@ public:
         updateTargetSettings();
 
        #if JUCE_MAC
-        sleepWakeNotifier = createMacOSSleepWakeNotifier ([this] (bool isWake)
+        auto aliveToken = isAlive;
+        sleepWakeNotifier = createMacOSSleepWakeNotifier ([this, aliveToken] (bool isWake)
         {
+            if (! aliveToken->load (std::memory_order_acquire))
+                return;
+
             if (isWake)
             {
                 consecutiveEnforceFailures = 0;
@@ -72,6 +76,11 @@ public:
 
     ~AudioResilienceManager() override
     {
+        if (isAlive)
+            isAlive->store (false, std::memory_order_release);
+        #if JUCE_MAC
+        sleepWakeNotifier.reset();
+        #endif
         deviceManager.removeChangeListener(this);
     }
 
@@ -323,6 +332,7 @@ private:
     bool isWarmedUp = false;
     bool isSuspended = false;
     bool wokeFromSleepFlag = false;
+    std::shared_ptr<std::atomic<bool>> isAlive = std::make_shared<std::atomic<bool>> (true);
    #if JUCE_MAC
     std::unique_ptr<MacOSSleepWakeNotifierBase> sleepWakeNotifier;
    #endif
