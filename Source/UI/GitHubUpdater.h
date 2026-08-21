@@ -77,10 +77,12 @@ public:
     {
         if (onDownloadProgress != nullptr)
         {
+            auto state = threadState;
             float p = (totalLength > 0) ? (float) bytesDownloaded / (float) totalLength : -1.0f;
-            juce::MessageManager::callAsync ([this, p] {
-                if (onDownloadProgress != nullptr)
-                    onDownloadProgress (p);
+            juce::MessageManager::callAsync ([state, p] {
+                if (auto* self = state->load())
+                    if (self->onDownloadProgress != nullptr)
+                        self->onDownloadProgress (p);
             });
         }
     }

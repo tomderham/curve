@@ -82,7 +82,7 @@ public:
 
         if (watchdogArmed.load(std::memory_order_relaxed)) {
           auto now = juce::Time::getMillisecondCounter();
-          if (now >= watchdogDeadline.load(std::memory_order_relaxed)) {
+          if (static_cast<juce::int32>(now - watchdogDeadline.load(std::memory_order_relaxed)) >= 0) {
             // Plugin hung or timed out for >15s; terminate immediately to
             // prevent zombie
             std::_Exit(1);

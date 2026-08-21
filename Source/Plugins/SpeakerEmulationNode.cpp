@@ -115,16 +115,13 @@ void SpeakerEmulationNode::releaseResources()
 void SpeakerEmulationNode::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
 {
     juce::ScopedNoDenormals noDenormals;
-    const auto totalNumInputChannels  = getTotalNumInputChannels();
-    const auto totalNumOutputChannels = getTotalNumOutputChannels();
+    if (isSuspended())
+        return;
+
     const auto numSamples = buffer.getNumSamples();
+    const auto numChannels = buffer.getNumChannels();
 
-    const int bufferChannels = buffer.getNumChannels();
-    for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
-        if (i < bufferChannels)
-            buffer.clear (i, 0, numSamples);
-
-    if (totalNumInputChannels < 2 || totalNumOutputChannels < 2 || numSamples == 0)
+    if (numSamples == 0 || numChannels < 2)
         return;
 
     const int maxCapacity = leftBuffer.getNumSamples();
