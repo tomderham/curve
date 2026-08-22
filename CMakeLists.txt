@@ -40,7 +40,8 @@ target_sources(Curve PRIVATE
     Source/Plugins/OutputInterfaceLoopbackNode.mm
     Source/UI/GraphEditorPanel.cpp
     Source/UI/LoginItemManager.mm
-    Source/UI/MainHostWindow.cpp)
+    Source/UI/MainHostWindow.cpp
+    Source/UI/PresetSaveDialog.cpp)
 
 target_compile_definitions(Curve PRIVATE
     JUCE_CONTENT_SHARING=1

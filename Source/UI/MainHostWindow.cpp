@@ -48,6 +48,7 @@
 #include "MainHostWindow.h"
 #include "AudioResilienceManager.h"
 #include "FilteredAudioDeviceSelectorComponent.h"
+#include "PresetSaveDialog.h"
 #include "../Plugins/InternalPlugins.h"
 #include "../Plugins/OutputInterfaceLoopbackNode.h"
 
@@ -888,8 +889,33 @@ void MainHostWindow::loadPreset(juce::File file)
 
 void MainHostWindow::saveAsPreset()
 {
-    if (graphHolder != nullptr && graphHolder->graph != nullptr)
-        graphHolder->graph->saveAsInteractiveAsync (true, nullptr);
+    if (graphHolder == nullptr || graphHolder->graph == nullptr)
+        return;
+
+    juce::Process::makeForegroundProcess();
+
+    auto* dialogComp = new PresetSaveDialog (*graphHolder->graph);
+    dialogComp->setSize (480, 420);
+
+    DialogWindow::LaunchOptions o;
+    o.content.setOwned (dialogComp);
+    o.dialogTitle                   = "Save Preset";
+    o.componentToCentreAround       = (isOnDesktop() && isVisible()) ? this : nullptr;
+    o.dialogBackgroundColour        = getLookAndFeel().findColour (ResizableWindow::backgroundColourId);
+    o.escapeKeyTriggersCloseButton  = true;
+    o.useNativeTitleBar             = false;
+    o.resizable                     = false;
+
+    auto* w = o.launchAsync();
+    juce::Component::SafePointer<juce::DialogWindow> safeWindow (w);
+    dialogComp->setCloseCallback ([safeWindow]
+    {
+        if (safeWindow != nullptr)
+        {
+            safeWindow->exitModalState (0);
+            safeWindow->setVisible (false);
+        }
+    });
 }
 
 void MainHostWindow::showPluginListWindow()
