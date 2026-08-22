@@ -61,6 +61,42 @@ namespace LoginItemManager
     }
 }
 
+class MacOSDisplayChangeNotifier final : public MacOSDisplayChangeNotifierBase
+{
+public:
+    explicit MacOSDisplayChangeNotifier (std::function<void()> callbackIn)
+        : callback (std::move (callbackIn))
+    {
+        NSNotificationCenter* center = [NSNotificationCenter defaultCenter];
+        observer = [center addObserverForName: NSApplicationDidChangeScreenParametersNotification
+                                       object: nil
+                                        queue: [NSOperationQueue mainQueue]
+                                   usingBlock: ^(NSNotification*) {
+            if (callback)
+                callback();
+        }];
+    }
+
+    ~MacOSDisplayChangeNotifier() override
+    {
+        if (observer != nil)
+        {
+            [[NSNotificationCenter defaultCenter] removeObserver: observer];
+            observer = nil;
+        }
+    }
+
+private:
+    std::function<void()> callback;
+    id observer = nil;
+};
+
+std::unique_ptr<MacOSDisplayChangeNotifierBase> createMacOSDisplayChangeNotifier (std::function<void()> callback)
+{
+    return std::make_unique<MacOSDisplayChangeNotifier> (std::move (callback));
+}
+
+
 #else
 
 namespace LoginItemManager

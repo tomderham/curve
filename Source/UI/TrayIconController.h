@@ -70,16 +70,40 @@ inline bool attemptToEnableLoginItem() {
   return enabled;
 }
 
-class TrayIconController : public juce::SystemTrayIconComponent {
+class TrayIconController : public juce::SystemTrayIconComponent,
+                           private juce::Timer {
 public:
   // Pass a reference to the window so we can control it
   TrayIconController(MainHostWindow &windowToControl,
                      GitHubUpdater &gitHubUpdaterToControl)
       : mainWindow(windowToControl), gitHubUpdater(gitHubUpdaterToControl) {
+    refreshIcon();
+
+   #if JUCE_MAC
+    displayChangeNotifier = createMacOSDisplayChangeNotifier([this] {
+      // Re-apply icon immediately and schedule a debounced refresh
+      // after display reconfiguration settles so the icon appears on newly connected screens.
+      juce::MessageManager::callAsync([safeSelf = juce::Component::SafePointer<TrayIconController>(this)] {
+        if (auto *self = safeSelf.getComponent()) {
+          self->refreshIcon();
+          self->startTimer(250);
+        }
+      });
+    });
+   #endif
+  }
+
+  void refreshIcon() {
     setIconImage(getImageFromAssets("juce_icon.png"),
                  getImageFromAssets("juce_icon_template.png"));
     setIconTooltip("Curve");
   }
+
+  void timerCallback() override {
+    stopTimer();
+    refreshIcon();
+  }
+
 
   void mouseUp(const juce::MouseEvent &) override {
     // Leave this empty to prevent double-firing
@@ -267,4 +291,8 @@ private:
   GitHubUpdater &gitHubUpdater;
   bool isMenuOpen = false;
   juce::uint32 lastMenuDismissTime = 0;
+ #if JUCE_MAC
+  std::unique_ptr<MacOSDisplayChangeNotifierBase> displayChangeNotifier;
+ #endif
 };
+

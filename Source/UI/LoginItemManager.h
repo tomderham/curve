@@ -43,3 +43,12 @@ namespace LoginItemManager
     /** Opens System Settings to the Login Items & Extensions pane. */
     void openSystemSettingsLoginItemsPane();
 }
+
+#if JUCE_MAC
+struct MacOSDisplayChangeNotifierBase
+{
+    virtual ~MacOSDisplayChangeNotifierBase() = default;
+};
+std::unique_ptr<MacOSDisplayChangeNotifierBase> createMacOSDisplayChangeNotifier (std::function<void()> callback);
+#endif
+
