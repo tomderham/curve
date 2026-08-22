@@ -1,126 +1,96 @@
 # Curve
 
 Curve is a free, lightweight, background audio plugin host for macOS (Sonoma 14.2 and above), running natively on both Apple Silicon and Intel-based Macs.
-It runs in the macOS system menu bar and provides a stable way to run a chain of audio plugins with a focus on a fast, preset-based workflow and audio device resilience.
+It runs in the macOS system menu bar and provides a stable way to run a chain of audio plugins (effects and/or instruments) with a focus on a fast, preset-based workflow and audio device resilience.
 
-A primary use case for this app is to host equalizer (EQ) plugins for real-time headphone and speaker calibration, allowing you to apply system-wide audio correction without needing hardware-based solutions. Other use cases include always-active host for instrument plugins, which might be MIDI enabled. See the examples below.
+A primary use case for this app is to host equalizer (EQ) plugins for real-time headphone and/or speaker calibration, allowing you to apply system-wide audio correction without needing hardware-based solutions or additional loopback drivers. Other use cases include always-active host for instrument plugins, which might be MIDI enabled. See the examples below.
 
 ## Features
 
-- Supported plugin formats: Audio Units (AU) and VST3.
+- Supported external plugin formats: Audio Units (AU) and VST3.
 - Universal 2 Binary, natively supporting both Apple Silicon and Intel based macOS Macs.
 - Stable plugin hosting based on latest JUCE reference library.
-- Discrete menu bar app with quick preset change control
-- Automatic handling of preferred audio interfaces, recovery after audio interface disconnect/reconnect and device sleep, etc
-- Native support for using system-wide audio as an input
-- Create, save and quickly load presets comprising an arbitrary chain of plugins.
+- Discrete menu bar app with quick preset change control; create, load and save presets comprising an arbitrary chain of plugins.
+- Automatic handling of preferred audio interfaces, recovery after audio interface disconnect/reconnect and device sleep, etc.
 - Full control over audio device settings, including channel selection on input and output interfaces, sample rate, and buffer latency.
+- Native bit-perfect loopback support (without additional drivers); also an (optional) feature to force system audio output to the loopback.
+- Native (internal) plugins for headphone crosstalk and studio monitor emulation when using headphones.
+- Native (internal) utility plugins for gain, phase inversion and tapped audio recording to wav file.
+
 
 ## Using the Curve app
 
 For most users, the easiest way to get started is to download the pre-built `Curve.app` from the latest [GitHub Release](https://github.com/tomderham/curve/releases).
-Simply copy the downloaded app to your Applications folder and open. If security warnings or other errors are displayed, see the troubleshooting notes below.
+Simply copy the downloaded app to your Applications folder and open.
 
-When the app opens, its icon will be added to the macOS menu bar as shown below. (You will not see any open windows, or any task bar icon).
+When the app opens, its icon will be added to the macOS menu bar as shown below. On very first use, the editor window should open, but otherwise you will not see any open windows, or any task bar icon. Curve's menu can be accessed either from the menu bar icon, or (when open) from the burger icon at the top left of the editor window.
 </br>
 <img width="37" height="29" alt="Screenshot 2026-02-08 at 12 03 19 AM" src="https://github.com/user-attachments/assets/4d7738ad-f9ca-4b98-9c4e-c98b868ae126" />
 
 On first use, the following steps are recommended:
 
-- Click on the menu bar icon, select Settings -> 'Plugin manager'.
+- If you plan to use third-party plugins with Curve, select Settings -> 'Plug-In Manager'.
   - Click Options... button at bottom left of the dialog, and select 'Scan for new or updated AudioUnit plug-ins'. The scan process may take a while, and you might be asked to allow permission for Curve to access folders that the plugins being scanned are using.
   - Then, if you intend to also use VST3 plugins with Curve, repeat the process by clicking 'Scan for new or updated VST3 plug-ins'.
-  - Once the scan is complete, the dialog should show a list of plugins installed on your device, including both macOS system plugins (e.g. AUNBandEQ that is often used for headphone/speaker EQ calibration) and third-party plugins.
+  - Once the scan is complete, the dialog should show a list of plugins installed on your device, including both macOS system plugins and third-party plugins.
   - Close the dialog box (red cross at top left).
-- Click on the menu bar icon again, select Settings -> 'Audio settings'.
-  - Select the Output and Input audio interfaces (see Loopback interfaces section below) and corresponding channels, and the desired sample rate and buffer latency.
-  - On a modern Mac, 96000 Hz sample rate and 256 samples (2.7 ms latency) should work fine.
+  - Note: If you only plan to use macOS system plugins (such as AUBandEQ parametric EQ), you can completely skip this step.
+- Next, select Settings -> 'Audio Settings'.
+  - Select the Output audio interface and (unless you are using the loopback feature) the Input audio interface, select the corresponding channels, and the desired sample rate and buffer latency.
   - If you intend to use MIDI-controlled plugins, select the MIDI interface(s) you want to use.
   - Close the dialog (red cross at top left).
-- You can now create a preset. Click on the menu bar icon again, select 'Show Editor'.
-  - By default, you should see the Audio Input and Audio Output nodes, each with some green dots that correspond to the channels you enabled in Audio settings. If you want to use the System Audio Input node (e.g. instead of the Audio Input node), right click on the background of the Editor window to add it. You can also right click on nodes to delete them if you are not using them. (If you're not using System Audio Input, then make sure its node is not present in the Editor to avoid unwanted side effects).
-  - Next, right click the background of the Editor window - the list of installed plugins will show. Select a plugin you want to use, and a corresponding node will appear with inputs at the top and outputs at the bottom. If the number of inputs and outputs is not what you want, right click the node and select 'Configure Audio I/O' to correct it.
-  - Then, connect channel(s) on the audio input (or system audio input) and audio output nodes to inputs and output on the plugin by clicking a green dot on one node and dragging a connecting line to a green dot on another node. Some simple examples are shown below, where the two channels (L/R) of the audio input (or the system audio capture) are sent to an AUNBandEQ node, and the two channels (L/R) of the EQ output are sent to the first two channels of the audio output. You can of course add additional plugin nodes and connect them together however you wish.
+- You can now create a preset. If the editor window is not already open, click on the menu bar icon and select 'Show Editor'.
+  - When opening the app for the first time, you should see the Audio Input, Interface Loopback (in) and Audio Output nodes, each with some green dots that correspond to the channels you enabled in Audio settings. Nodes can be removed by right clicking them. Audio and MIDI I/O nodes can be added by right clicking the background of the Editor window. If you are not using the Interface Loopback node in a given preset (see examples below), remove it or at least ensure its pins are not connected (otherwise it can cause unexpected muting).
+  - Next, to add plugins, right click the background of the Editor window and select a plugin. Select a plugin you want to use, and a corresponding node will appear with inputs at the top and outputs at the bottom. The 'Plugins' menu (right below Audio I/O and MIDI I/O) contains some useful internal plugins - see Internal plugins section below. Below that menu, all other scanned plugins can be found, organized by manufacturer. If the number of input and output pins for a given plugin is not what you want, right click the node and select 'Configure Audio I/O' to correct it.
+  - Then, connect channel(s) on either the Audio Input or the Interface Loopback to inputs on the plugin, and connect channel(s) on the output of the plugin to the Audio Output. This is done by clicking a green dot on one node and dragging a connecting line to a green dot on another node. You can of course add additional plugin nodes and connect them together however you wish. If you are using the Interface Loopback node as the input, see the section on Loopback interfaces below.
+  - Note: There is some loop-prevention handling, but you should obviously take care with crazy configurations that could cause hardware (or ear) damage.
   - If using MIDI controlled plugins (effects or instruments), add MIDI I/O nodes and connect them to the corresponding MIDI I/O of the plugins.
-  - To open the editor of a plugin (e.g. to set the desired EQ in AUNBandEQ), simply double click on the plugin box. To save the preset, click the menu bar icon and select 'Save as preset'. It should default to the correct preset folder but it's good to double check (it should be ~/Library/Application Support/Curve/Presets/ where ~/Library is the user specific library at /Users/your_user_name/Library). Choose a suitable name and save the preset. The editor window can be hidden using red close (top left) or selecting 'Hide Editor' from the app menu.
-  - If you want to modify a preset later, first load the preset, make the changes, 'Save as preset' and select the existing file name. Note that changes to presets are *not* saved unless you explicitly use 'Save as preset'. You can repeat the process to create multiple presets. You can rename presets by manually changing their filenames in the preset folder using Finder.
+  - To open the editor of a plugin (e.g. to set the desired EQ in AUNBandEQ), simply double click on the plugin box. To save the preset, click the menu bar icon and select 'Save as preset'. Note the preset folder is ~/Library/Application Support/Curve/Presets/ where ~/Library is the user specific library at /Users/your_user_name/Library). Choose a suitable name and save the preset. The editor window can be hidden using red close (top left) or selecting 'Hide Editor' from the app menu.
+  - If you want to modify a preset later, first load the preset, make the changes, 'Save as preset', select the existing file name and 'Replace'. Note that changes to presets are *not* saved unless you explicitly use 'Save as preset'. You can repeat the process to create multiple presets. You can rename or delete presets in the Save as dialog or using Finder in the preset folder.
   - If you click on the menu bar icon again, you should now see the list of presets you have created - simply click on them to instantly switch between them. The currently selected preset has a check mark.
-  - By switching between plugins, you can switch between different settings of the same plugin(s), or switch between completely different (combinations of) plugins, and/or switch between different audio interface channel routings. For example, you might have one preset that does EQ correction and sends audio to output channels connected to headphones, and another preset that does different EQ correction and sends audio to output channels connected to monitor speakers - see the screenshots below.
-- If you want the app to automatically load each time you log on, simply add it to your macOS login items under System Settings -> General -> Login Items & Extensions -> Open at Login (click the + icon and select Curve).
-- If you want the app to automatically check for updates, ensure Settings -> 'Auto check for app updates" is checked.
+  - By switching between plugins, you can switch between different settings of the same plugin(s), or switch between completely different (combinations of) plugins, and/or switch between different audio interface channel routings.
+- If you want the app to automatically check for updates (recommended), ensure Settings -> 'Auto check for app updates" is checked.
+- If you want the app to automatically open when you login to macOS, and didn't accept the dialog on initial open, click Settings -> "Open at Login...". (No checkbox will be shown, but the app should appear in "Open at Login" items in macOS System Settings).
 
 <img width="282" height="338" alt="MainMenu" src="https://github.com/user-attachments/assets/899a10a6-071f-45e0-ab74-0988ea2d8695" />
 <img width="282" height="338" alt="AudioSettings" src="https://github.com/user-attachments/assets/09f7eace-a963-40a3-9709-a286135bab95" />
 <br>
-<img width="375" height="338" alt="Preset1" src="https://github.com/user-attachments/assets/812e36cc-6048-4d78-a5a0-c71b818b835f" />
-<img width="375" height="338" alt="Preset2" src="https://github.com/user-attachments/assets/9ad02aaf-f49e-4aeb-9813-ca0b473519a4" />
-<img width="375" height="338" alt="Preset3" src="https://github.com/user-attachments/assets/04b028b1-72cd-4e67-a606-d1e2ed298643" />
+<img width="740" height="578" alt="Preset 1" src="https://github.com/user-attachments/assets/d03977ae-2191-47b3-b9ff-99206a4a813d" />
+<img width="740" height="578" alt="Preset 2" src="https://github.com/user-attachments/assets/9a57d5fe-b416-4b4e-86cd-c9f4b30a5e1b" />
+<img width="740" height="578" alt="Preset 3" src="https://github.com/user-attachments/assets/42b1d05f-b8b8-4bba-8fb2-8e07245f3725" />
 
 
-### Loopback interfaces
+## Loopback interfaces
 
 In some use cases, it is desirable to redirect the audio output of an app (e.g. Logic Pro) or the macOS system output to the input of Curve, in order to apply audio plugins (e.g. EQ) to the audio before it is sent to real output devices (such as headphones or speakers).
 
-Some audio interface vendors (such as RME) provide a native loopback feature to enable this. For example, using RME Totalmix's Loopback function, you can redirect a pair of output channels to a spare pair of input channels. You would then configure Curve to use those input channels as its inputs, and configure (some of) the 'software playback' channels as Curve's output channels. Finally, in Totalmix you would assign the software playback channel(s) to the desired hardware outputs.
+If your audio interface provides a native loopback feature, this is usually the best choice since it minimizes latency imparted by the loopback. For example, using RME Totalmix's Loopback function, you can redirect a pair of output channels to a spare pair of input channels. You would then configure Curve to use those input channels as its inputs (using the Audio Input node), and configure (some of) the 'software playback' channels as Curve's output channels. Finally, in Totalmix you would assign the software playback channel(s) to the desired hardware outputs. Curve's Interface Loopback node would not be used in this case.
 
-Alternatively, you can use the native System Audio input node in Curve. Simply add the node to your Editor (typically, instead of the audio input node of your audio interface) and connect it to the input of your plugin chain. The "raw" system audio output will be muted while this is enabled, so that (if you wish) macOS audio output can be set to the same interface as Curve's output interface. Note that, in some cases, the audio might be resampled in this case (due to CoreAudio's behavior in synchronizing the "tapped" system audio to the output interface), and/or the volume might be reduced (if so, any simple gain plugin, or AUNBandEQ, can be used to compensate the volume) - so the other options might be preferred if bit-perfect behavior is important.
+Alternatively, you can use the native Interface Loopback (in) node in Curve. Simply use this node instead of the Audio Input node as the input for your preset chain. No additional software or driver installation is needed. This node receives the redirected bit-perfect audio that would otherwise have been sent to the output audio interface you configured in Curve.
+If you always want macOS system output to be redirected to the Interface Loopback, check Settings -> 'Force macOS System Audio to loopback'. With this enabled, Curve will enforce macOS system audio output to be the selected audio interface in Curve's audio settings.
 
-Another alternative is to use a software based loopback driver. A popular free option is [BlackHole](https://github.com/ExistentialAudio/BlackHole). For simplicity and efficiency, just install the 2Ch (2 channel) version unless you need more.
-Once Blackhole is installed, a new interface will appear in macOS audio settings. You can configure your DAW and/or macOS system audio to output to Blackhole, instead of the real hardware outputs. Then, in Curve, you set Blackhole as the input audio interface, and set the real hardware output as the output audio interface. If the sample rate of the Blackhole interface is the same as that of the real output interface, this approach should avoid any resampling.
+Notes for nerds - The audio channels of 'Stream 0' (the primary stream) of the selected output audio interface are redirected to the loopback node when its pins are connected. Therefore, the 'direct' audio for those channels does not reach the actual output device. However, if some of the audio interface's channels are assigned to a different stream, they would be unaffected. The allocation of output channels to streams is usually determined by the audio interface driver.
+
+## Internal plugins
+
+Curve provides the following native plugins for use within Curve, accessible from the 'Plugins' menu
+- Parametric EQ - A convenience shortcut to Apple's AUNBandEQ (multi-band parametric EQ, often used for calibration EQ) (multi-channel)
+- Headphone Crossfeed - Crossfeed processor for natural soundstage imaging when monitoring with headphones (stereo)
+- Headphone Speaker Emulation - Mid-field studio speaker emulation processor (including crossfeed) for monitoring with headphones (stereo)
+- Gain - Volume trim and mute toggle utility (multi-channel)
+- Invert Phase - Negates polarity of audio signal on each channel (multi-channel)
+- Audio Recorder - Audio recorder utility, saves WAV files to Desktop (multi-channel)
 
 
-### Troubleshooting macOS Security Warnings
-
-The release builds are notarized and should install without issues. But in the event macOS shows a security warning when you first try to run the app, the solution depends on your version of macOS (including Sonoma/Tahoe) and your security settings.
-
-**Scenario 1: You see a warning that the developer cannot be verified.**
-
-If you see a dialog saying `"Curve.app" can’t be opened because the developer cannot be verified.`, you have two options:
-
-*   **Option A (Recommended): Right-Click to Open**
-    1.  Right-click (or hold `Control` and click) on the `Curve.app` icon and select **Open** from the menu.
-    2.  A new dialog will appear that is similar to the first, but this time it includes an **Open** button. Click it.
-    3.  This grants a permanent exception for the app, and you can open it normally from now on.
-
-*   **Option B: Use System Settings**
-    1.  Double-click `Curve.app` normally. You will see the warning and be unable to proceed. Click "Cancel".
-    2.  Open **System Settings**.
-    3.  Go to **Privacy & Security**.
-    4.  Scroll down and you will see a message about `"Curve.app"` being blocked. Click the **Open Anyway** button.
-
-**Scenario 2: You see an error that the app is "damaged".**
-
-If you see a more severe error message saying `"Curve.app" is damaged and can’t be opened. You should move it to the Trash.`, this is macOS's strictest security check. To fix this, you must manually remove the "quarantine" attribute that your web browser attached to the file upon download.
-
-1.  Move `Curve.app` to your `/Applications` folder.
-2.  Open the `Terminal` application (you can find it in `/Applications/Utilities`).
-3.  Run the following command:
-    ```sh
-    xattr -cr /Applications/Curve.app
-    ```
-4.  After running this command, the app will no longer be quarantined and should open without any warnings. This `xattr` command completely bypasses the security checks mentioned in Scenario 1.
-
-### Uninstallation
-
-It is sufficient to simply delete Curve app from /Applications (or drag it to Trash).
-But if you want to completely uninstall all traces of Curve, additionally do the following:
-1. delete the file: ~/Library/Preferences/Curve.settings
-2. delete the file: ~/Library/Preferences/com.thomasderham.curve.plist
-3. delete the folder: ~/Library/Caches/Curve
-4. delete the folder: ~/Library/Caches/com.thomasderham.curve
-5. delete the folder: ~/Library/HTTPCaches/com.thomasderham.curve
-6. delete the folder: ~/Library/Application Support/Curve (note - this contains the presets folder, so back it up first if you might need it later)
-7. from terminal, run: tccutil reset Microphone com.thomasderham.curve (note - this will remove the grant of microphone permissions to Curve)
-
-## Building from source code on macOS
+# Building from source code on macOS
 
 Please note that this project is licensed under the AGPLv3, as it is derived from the JUCE framework. Ensure that your use of this code and any derivative works complies with the terms of this license and includes the necessary copyright notices.
 
 The CMake build process is configured to produce a Universal 2 Binary for macOS by default.
 
-This application is a customized version of the `AudioPluginHost` example provided with the JUCE framework. Many thanks to the JUCE developers for making this framework and the reference host application available under open source license.
+This application was developed based on the `AudioPluginHost` example provided with the JUCE framework. Many thanks to the JUCE developers for making this framework and the reference host application available under open source license.
 
-### Prerequisites
+## Prerequisites
 
 Before you begin, ensure you have the following installed:
 
@@ -134,11 +104,11 @@ Before you begin, ensure you have the following installed:
     brew install cmake
     ```
 
-### Build Instructions
+## Build Instructions
 
 The project is built using CMake. It is not necessary to use Projucer or Xcode IDE. These instructions assume you are at the root of the repository.
 
-1.  **Create a build directory:
+1.  **Create a build directory:**
     ```sh
     mkdir -p build
     ```
@@ -147,13 +117,10 @@ The project is built using CMake. It is not necessary to use Projucer or Xcode I
     cd build
     cmake .. -DCMAKE_BUILD_TYPE=Release && cmake --build .
     ```
-3.  **Code sign the application:** Even if you are only running the newly built binary locally, explicit code signing is essential to avoid various issues with macOS privacy permissions (e.g. persistent microphone permissions dialogs). The minimal requirement for ad-hoc code signing is to run:
-    ```sh
-    sudo codesign -fs - ./Curve_artefacts/Release/Curve.app
-    ```
-4.  **Run the application:** You can run the app directly, but it is better to copy/move it to your computer's `/Applications` folder.
+3.  **Run the application:** You can run the app directly, but it is better to copy/move it to your computer's `/Applications` folder. The CMake script attempts to code-sign the binary with the necessary entitlements, but if you find the binary fails to run or there are issues with persistent macOS privacy permissions, double-check that your code-signing setup is correct.
 
     To open it from the terminal:
     ```sh
     open ./Curve.app
     ```
+
