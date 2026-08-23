@@ -50,5 +50,7 @@ struct MacOSDisplayChangeNotifierBase
     virtual ~MacOSDisplayChangeNotifierBase() = default;
 };
 std::unique_ptr<MacOSDisplayChangeNotifierBase> createMacOSDisplayChangeNotifier (std::function<void()> callback);
+void forceRefreshMacOSStatusItem (void* nativeHandle);
+void removeMacOSStatusItem (void* nativeHandle);
 #endif
 

@@ -20,6 +20,8 @@
 #import <AppKit/AppKit.h>
 #import <ServiceManagement/ServiceManagement.h>
 
+#include <vector>
+
 namespace LoginItemManager
 {
     Status getStatus()
@@ -61,39 +63,124 @@ namespace LoginItemManager
     }
 }
 
+#import <CoreGraphics/CoreGraphics.h>
+
 class MacOSDisplayChangeNotifier final : public MacOSDisplayChangeNotifierBase
 {
 public:
     explicit MacOSDisplayChangeNotifier (std::function<void()> callbackIn)
         : callback (std::move (callbackIn))
     {
-        NSNotificationCenter* center = [NSNotificationCenter defaultCenter];
-        observer = [center addObserverForName: NSApplicationDidChangeScreenParametersNotification
-                                       object: nil
-                                        queue: [NSOperationQueue mainQueue]
-                                   usingBlock: ^(NSNotification*) {
-            if (callback)
-                callback();
-        }];
+        CGDisplayRegisterReconfigurationCallback (displayReconfigurationCallback, this);
+
+        auto addObserver = [this] (NSNotificationCenter* center, NSNotificationName name)
+        {
+            if (center == nil || name == nil)
+                return;
+
+            id obs = [center addObserverForName: name
+                                         object: nil
+                                          queue: [NSOperationQueue mainQueue]
+                                     usingBlock: ^(NSNotification*) {
+                triggerCallback();
+            }];
+
+            if (obs != nil)
+                observers.push_back ({ center, obs });
+        };
+
+        // Screen configuration / resolution changes
+        NSNotificationCenter* defaultCenter = [NSNotificationCenter defaultCenter];
+        addObserver (defaultCenter, NSApplicationDidChangeScreenParametersNotification);
+
+        // Sleep / wake / spaces / session change notifications
+        NSNotificationCenter* wsCenter = [[NSWorkspace sharedWorkspace] notificationCenter];
+        addObserver (wsCenter, NSWorkspaceScreensDidSleepNotification);
+        addObserver (wsCenter, NSWorkspaceScreensDidWakeNotification);
+        addObserver (wsCenter, NSWorkspaceDidWakeNotification);
+        addObserver (wsCenter, NSWorkspaceSessionDidBecomeActiveNotification);
+        addObserver (wsCenter, NSWorkspaceActiveSpaceDidChangeNotification);
     }
 
     ~MacOSDisplayChangeNotifier() override
     {
-        if (observer != nil)
+        CGDisplayRemoveReconfigurationCallback (displayReconfigurationCallback, this);
+
+        for (auto& entry : observers)
         {
-            [[NSNotificationCenter defaultCenter] removeObserver: observer];
-            observer = nil;
+            if (entry.center != nil && entry.observer != nil)
+                [entry.center removeObserver: entry.observer];
         }
+        observers.clear();
+    }
+
+    void triggerCallback()
+    {
+        if (callback)
+            callback();
     }
 
 private:
+    static void displayReconfigurationCallback (CGDirectDisplayID, CGDisplayChangeSummaryFlags flags, void* userInfo)
+    {
+        if (flags & kCGDisplayBeginConfigurationFlag)
+            return;
+
+        auto* notifier = static_cast<MacOSDisplayChangeNotifier*> (userInfo);
+        if (notifier != nullptr)
+        {
+            dispatch_async (dispatch_get_main_queue(), ^{
+                notifier->triggerCallback();
+            });
+        }
+    }
+
+    struct ObserverEntry
+    {
+        NSNotificationCenter* center = nil;
+        id observer = nil;
+    };
+
     std::function<void()> callback;
-    id observer = nil;
+    std::vector<ObserverEntry> observers;
 };
 
 std::unique_ptr<MacOSDisplayChangeNotifierBase> createMacOSDisplayChangeNotifier (std::function<void()> callback)
 {
     return std::make_unique<MacOSDisplayChangeNotifier> (std::move (callback));
+}
+
+void forceRefreshMacOSStatusItem (void* nativeHandle)
+{
+    if (nativeHandle == nullptr)
+        return;
+
+    NSStatusItem* statusItem = (__bridge NSStatusItem*) nativeHandle;
+    if (statusItem != nil)
+    {
+        if (NSStatusBarButton* button = [statusItem button])
+        {
+            [button setNeedsDisplay: YES];
+            [[button window] displayIfNeeded];
+        }
+
+        // Toggling visibility forces macOS WindowServer / AppKit to re-anchor and clone
+        // the status item across all active display menu bars if the space configuration changed.
+        [statusItem setVisible: NO];
+        [statusItem setVisible: YES];
+    }
+}
+
+void removeMacOSStatusItem (void* nativeHandle)
+{
+    if (nativeHandle == nullptr)
+        return;
+
+    NSStatusItem* statusItem = (__bridge NSStatusItem*) nativeHandle;
+    if (statusItem != nil)
+    {
+        [[NSStatusBar systemStatusBar] removeStatusItem: statusItem];
+    }
 }
 
 

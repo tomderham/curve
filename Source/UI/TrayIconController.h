@@ -81,14 +81,7 @@ public:
 
    #if JUCE_MAC
     displayChangeNotifier = createMacOSDisplayChangeNotifier([this] {
-      // Re-apply icon immediately and schedule a debounced refresh
-      // after display reconfiguration settles so the icon appears on newly connected screens.
-      juce::MessageManager::callAsync([safeSelf = juce::Component::SafePointer<TrayIconController>(this)] {
-        if (auto *self = safeSelf.getComponent()) {
-          self->refreshIcon();
-          self->startTimer(250);
-        }
-      });
+      handleDisplayOrWakeChange();
     });
    #endif
   }
@@ -99,9 +92,44 @@ public:
     setIconTooltip("Curve");
   }
 
+  void recreateStatusItem() {
+    if (isMenuOpen)
+      return;
+
+   #if JUCE_MAC
+    // Explicitly unregister old NSStatusItem from NSStatusBar so it is cleanly removed
+    // from all menu bars and does not linger as a greyed-out/zombie placeholder.
+    removeMacOSStatusItem (getNativeHandle());
+   #endif
+
+    // Reset JUCE's internal Pimpl holder
+    setIconImage({}, {});
+
+    // Allocates a fresh NSStatusItem, which macOS registers across all currently active display menu bars.
+    refreshIcon();
+  }
+
+  void handleDisplayOrWakeChange() {
+    juce::MessageManager::callAsync([safeSelf = juce::Component::SafePointer<TrayIconController>(this)] {
+      if (auto *self = safeSelf.getComponent()) {
+        // Debounce: wait 3.5s for display geometry and Thunderbolt link training to stabilize,
+        // then recreate the status item ONCE. Any subsequent display events in this window
+        // reset the timer, ensuring a single clean update with zero icon flashing.
+        self->startTimer(3500);
+      }
+    });
+  }
+
   void timerCallback() override {
     stopTimer();
-    refreshIcon();
+
+    if (isMenuOpen) {
+      // If user is currently interacting with the menu, retry shortly after
+      startTimer(1500);
+      return;
+    }
+
+    recreateStatusItem();
   }
 
 
