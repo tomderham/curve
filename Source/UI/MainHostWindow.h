@@ -48,6 +48,7 @@
 
 #include "../Plugins/PluginGraph.h"
 #include "GraphEditorPanel.h"
+#include "../Calibration/OnlineCalibrationModels.h"
 
 
 //==============================================================================
@@ -127,11 +128,19 @@ public:
     void saveAsPreset();
     void showPluginListWindow();
     void loadPreset (juce::File);
+    void showOnlineCalibrationDialogForCreation (juce::Point<int> pos);
+    void showOnlineCalibrationDialogForNode (juce::AudioProcessorGraph::Node* node);
+    void applyCalibrationProfileAtLocation (const CalibrationProfile& profile, juce::Point<int> pos);
+    void importCalibrationFileForCreation (juce::Point<int> pos);
+    void importCalibrationFileForNode (juce::AudioProcessorGraph::Node* node);
     juce::AudioDeviceManager& getDeviceManager() { return deviceManager; }
     void showAboutBox();
     void showUpdateBanner (const juce::String& version, const juce::String& downloadUrl);
     void showAppMenu (juce::Component* target = nullptr);
     std::function<void (juce::Component*)> onShowAppMenu;
+
+    static constexpr int onlineCalibrationCreateMenuID = 0x50000;
+    static constexpr int importCalibrationCreateMenuID = 0x50001;
 
 private:
     //==============================================================================

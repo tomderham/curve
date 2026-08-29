@@ -81,6 +81,9 @@ public:
     //==============================================================================
     void showPopupMenu (Point<int> position);
 
+    /** Returns the AudioProcessorGraph node located under the given panel coordinate, if any. */
+    AudioProcessorGraph::Node::Ptr getNodeAt (Point<int> position) const;
+
     //==============================================================================
     void beginConnectorDrag (AudioProcessorGraph::NodeAndChannel source,
                              AudioProcessorGraph::NodeAndChannel dest,

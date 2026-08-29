@@ -41,8 +41,10 @@ target_sources(Curve PRIVATE
     Source/UI/GraphEditorPanel.cpp
     Source/UI/LoginItemManager.mm
     Source/UI/MainHostWindow.cpp
-    Source/UI/PresetSaveDialog.cpp)
-
+    Source/UI/PresetSaveDialog.cpp
+    Source/Calibration/AUNBandEQConverter.mm
+    Source/Calibration/AutoEQDataManager.cpp
+    Source/UI/OnlineCalibrationDialog.cpp)
 target_compile_definitions(Curve PRIVATE
     JUCE_CONTENT_SHARING=1
     JUCE_DISABLE_CAUTIOUS_PARAMETER_ID_CHECKING=1

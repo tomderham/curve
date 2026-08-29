@@ -204,6 +204,39 @@ private:
 };
 
 //==============================================================================
+class CurveLookAndFeel : public juce::LookAndFeel_V4
+{
+public:
+    CurveLookAndFeel()
+    {
+        setColour (juce::PopupMenu::backgroundColourId, juce::Colour (0xff222222));
+        setColour (juce::PopupMenu::textColourId, juce::Colours::white);
+        setColour (juce::PopupMenu::highlightedBackgroundColourId, juce::Colour (0xff0066cc));
+        setColour (juce::PopupMenu::highlightedTextColourId, juce::Colours::white);
+        setColour (juce::PopupMenu::headerTextColourId, juce::Colour (0xff999999));
+    }
+
+    void drawPopupMenuItem (juce::Graphics& g, const juce::Rectangle<int>& area,
+                            const bool isSeparator, const bool isActive,
+                            const bool isHighlighted, const bool isTicked,
+                            const bool hasSubMenu, const juce::String& text,
+                            const juce::String& shortcutKeyText,
+                            const juce::Drawable* icon, const juce::Colour* const textColourToUse) override
+    {
+        if (isSeparator)
+        {
+            auto r = area.reduced (8, 0);
+            g.setColour (juce::Colour (0xff484848)); // Solid, crisp, visible separator line
+            g.fillRect (r.getX(), area.getCentreY(), r.getWidth(), 1);
+            return;
+        }
+
+        juce::LookAndFeel_V4::drawPopupMenuItem (g, area, isSeparator, isActive, isHighlighted, isTicked,
+                                                hasSubMenu, text, shortcutKeyText, icon, textColourToUse);
+    }
+};
+
+//==============================================================================
 class PluginHostApp final : public JUCEApplication, private AsyncUpdater {
 public:
   PluginHostApp() = default;
@@ -215,6 +248,9 @@ public:
       storedScannerSubprocess = std::move(scannerSubprocess);
       return;
     }
+
+    customLookAndFeel = std::make_unique<CurveLookAndFeel>();
+    juce::LookAndFeel::setDefaultLookAndFeel (customLookAndFeel.get());
 
     // initialise our settings file..
 
@@ -419,7 +455,8 @@ public:
     githubUpdater = nullptr;
     mainWindow = nullptr;
     appProperties = nullptr;
-    LookAndFeel::setDefaultLookAndFeel(nullptr);
+    juce::LookAndFeel::setDefaultLookAndFeel(nullptr);
+    customLookAndFeel = nullptr;
   }
 
   void suspended() override {
@@ -468,6 +505,7 @@ public:
 
 private:
   std::unique_ptr<MainHostWindow> mainWindow;
+  std::unique_ptr<CurveLookAndFeel> customLookAndFeel;
   std::unique_ptr<PluginScannerSubprocess> storedScannerSubprocess;
   std::unique_ptr<GitHubUpdater> githubUpdater;
   std::unique_ptr<AudioResilienceManager> resilienceManager;

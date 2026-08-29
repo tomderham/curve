@@ -49,6 +49,8 @@
 #include "AudioResilienceManager.h"
 #include "FilteredAudioDeviceSelectorComponent.h"
 #include "PresetSaveDialog.h"
+#include "OnlineCalibrationDialog.h"
+#include "../Calibration/AUNBandEQConverter.h"
 #include "../Plugins/InternalPlugins.h"
 #include "../Plugins/OutputInterfaceLoopbackNode.h"
 
@@ -555,29 +557,87 @@ void MainHostWindow::addPluginsToMenu (PopupMenu& m)
         PopupMenu midiIOMenu;
         PopupMenu pluginsMenu;
 
-        // Add Parametric EQ (AUNBandEQ) shortcut first in Plugins
-        for (const auto& desc : knownPluginList.getTypes())
+        // Group 1: Parametric EQ items (First 2)
+        auto auDesc = AUNBandEQConverter::findAUNBandEQ (knownPluginList);
+
+        if (auDesc.has_value())
         {
-            if (desc.fileOrIdentifier.containsIgnoreCase (",nbeq,appl"))
+            pluginDescriptionsAndPreference.add (PluginDescriptionAndPreference { *auDesc, PluginDescriptionAndPreference::UseARA::no });
+            const auto menuID = pluginDescriptionsAndPreference.size() - 1 + menuIDBase;
+            pluginsMenu.addItem (menuID, "Parametric EQ", true, false);
+        }
+        else
+        {
+            pluginsMenu.addItem (0, "Parametric EQ", false, false);
+        }
+        pluginsMenu.addItem (onlineCalibrationCreateMenuID, "Parametric EQ (import from AutoEQ...)", true, false);
+        pluginsMenu.addItem (importCalibrationCreateMenuID, "Parametric EQ (import from file...)", true, false);
+
+        // Separator 1: separates first 2 from next 2
+        pluginsMenu.addSeparator();
+
+        std::set<size_t> addedInternalIndices;
+
+        // Helper lambda to add internal plugin by exact name
+        auto addInternalByName = [&] (const juce::String& name)
+        {
+            for (size_t idx = 0; idx < internalTypes.size(); ++idx)
             {
-                pluginDescriptionsAndPreference.add (PluginDescriptionAndPreference { desc, PluginDescriptionAndPreference::UseARA::no });
-                const auto menuID = pluginDescriptionsAndPreference.size() - 1 + menuIDBase;
-                pluginsMenu.addItem (menuID, "Parametric EQ (AUNBandEQ)", true, false);
-                break;
+                if (internalTypes[idx].name.equalsIgnoreCase (name))
+                {
+                    pluginsMenu.addItem ((int) idx + 1, internalTypes[idx].name);
+                    addedInternalIndices.insert (idx);
+                    return;
+                }
+            }
+        };
+
+        // Group 2: Headphone Processing items (Next 2)
+        addInternalByName ("Headphone Crossfeed");
+        addInternalByName ("Headphone Speaker Emulation");
+
+        // Separator 2: separates next 2 from final 3
+        pluginsMenu.addSeparator();
+
+        // Group 3: Utility plugins (Final 3)
+        addInternalByName ("Gain");
+        addInternalByName ("Invert Phase");
+        addInternalByName ("Audio Recorder");
+
+        // Catch-all: add any future internal plugins not explicitly categorized
+        bool addedExtra = false;
+        for (size_t idx = 0; idx < internalTypes.size(); ++idx)
+        {
+            if (addedInternalIndices.find (idx) != addedInternalIndices.end())
+                continue;
+
+            const auto& t = internalTypes[idx];
+            if (t.category == "Plugins")
+            {
+                if (! addedExtra)
+                {
+                    pluginsMenu.addSeparator();
+                    addedExtra = true;
+                }
+                pluginsMenu.addItem ((int) idx + 1, t.name);
+                addedInternalIndices.insert (idx);
             }
         }
 
+        // Populate Audio I/O and MIDI I/O submenus
         for (size_t idx = 0; idx < internalTypes.size(); ++idx)
         {
             const auto& t = internalTypes[idx];
             const int itemID = (int) idx + 1;
 
-            if (t.category == "Plugins")
-                pluginsMenu.addItem (itemID, t.name);
-            else if (t.name.containsIgnoreCase ("MIDI"))
+            if (t.name.containsIgnoreCase ("MIDI"))
+            {
                 midiIOMenu.addItem (itemID, t.name);
-            else
+            }
+            else if (t.category == "Audio I/O" || t.name.containsIgnoreCase ("Audio Input") || t.name.containsIgnoreCase ("Audio Output") || t.name.containsIgnoreCase ("Loopback"))
+            {
                 audioIOMenu.addItem (itemID, t.name);
+            }
         }
 
         if (audioIOMenu.getNumItems() > 0)
@@ -809,14 +869,30 @@ void MainHostWindow::filesDropped (const StringArray& files, int x, int y)
                         parent->loadPreset (firstFile);
                 });
             }
+            return;
         }
-        else
+
+        // Check for Calibration / Parametric EQ / Measurement text files (.txt, .csv, .tsv, .eq)
+        if (files.size() == 1 && firstFile.hasFileExtension ("txt;csv;tsv;eq"))
+        {
+            auto profile = AutoEQDataManager::parseCalibrationFile (firstFile);
+            if (profile.has_value() && ! profile->bands.empty())
+            {
+                auto pos = graphHolder->graphPanel != nullptr
+                             ? graphHolder->graphPanel->getLocalPoint (this, Point<int> (x, y))
+                             : graphHolder->getLocalPoint (this, Point<int> (x, y));
+                applyCalibrationProfileAtLocation (*profile, pos);
+                return;
+            }
+        }
        #endif
         {
             OwnedArray<PluginDescription> typesFound;
             knownPluginList.scanAndAddDragAndDroppedFiles (formatManager, files, typesFound);
 
-            auto pos = graphHolder->getLocalPoint (this, Point<int> (x, y));
+            auto pos = graphHolder->graphPanel != nullptr
+                         ? graphHolder->graphPanel->getLocalPoint (this, Point<int> (x, y))
+                         : graphHolder->getLocalPoint (this, Point<int> (x, y));
 
             for (int i = 0; i < jmin (5, typesFound.size()); ++i)
                 if (auto* desc = typesFound.getUnchecked (i))
@@ -914,6 +990,326 @@ void MainHostWindow::saveAsPreset()
         {
             safeWindow->exitModalState (0);
             safeWindow->setVisible (false);
+        }
+    });
+}
+
+void MainHostWindow::showOnlineCalibrationDialogForCreation (Point<int> pos)
+{
+    auto auDesc = AUNBandEQConverter::findAUNBandEQ (knownPluginList);
+    if (! auDesc.has_value())
+    {
+        juce::NativeMessageBox::showMessageBoxAsync (
+            juce::MessageBoxIconType::WarningIcon,
+            "AUNBandEQ Not Found",
+            "Apple's Parametric EQ (AUNBandEQ) audio unit was not found on this system.");
+        return;
+    }
+
+    if (graphHolder == nullptr || graphHolder->graph == nullptr)
+        return;
+
+    auto& pluginGraph = *(graphHolder->graph);
+
+    double normX = 0.5;
+    double normY = 0.5;
+    if (graphHolder->graphPanel != nullptr)
+    {
+        normX = juce::jlimit (0.05, 0.95, (double) pos.x / (double) graphHolder->graphPanel->getWidth());
+        normY = juce::jlimit (0.05, 0.95, (double) pos.y / (double) graphHolder->graphPanel->getHeight());
+    }
+
+    String errorMessage;
+    auto instance = formatManager.createPluginInstance (*auDesc,
+                                                        pluginGraph.graph.getSampleRate(),
+                                                        pluginGraph.graph.getBlockSize(),
+                                                        errorMessage);
+    if (instance == nullptr)
+    {
+        juce::NativeMessageBox::showMessageBoxAsync (
+            juce::MessageBoxIconType::WarningIcon,
+            "Failed to Create Parametric EQ",
+            errorMessage);
+        return;
+    }
+
+    instance->enableAllBuses();
+    auto node = pluginGraph.graph.addNode (std::move (instance));
+    if (node == nullptr)
+        return;
+
+    node->properties.set ("x", normX);
+    node->properties.set ("y", normY);
+    node->properties.set ("useARA", false);
+    pluginGraph.changed();
+
+    AudioProcessorGraph::NodeID newNodeId = node->nodeID;
+
+    juce::Process::makeForegroundProcess();
+
+    auto* dialogComp = new OnlineCalibrationDialog (OnlineCalibrationDialog::Mode::createNewNode);
+    dialogComp->setSize (760, 520);
+
+    DialogWindow::LaunchOptions o;
+    o.content.setOwned (dialogComp);
+    o.dialogTitle                   = "Online Headphone Calibration - Create EQ";
+    o.componentToCentreAround       = (isOnDesktop() && isVisible()) ? this : nullptr;
+    o.dialogBackgroundColour        = getLookAndFeel().findColour (ResizableWindow::backgroundColourId);
+    o.escapeKeyTriggersCloseButton  = true;
+    o.useNativeTitleBar             = false;
+    o.resizable                     = true;
+
+    o.launchAsync();
+    SafePointer<MainHostWindow> safeThis (this);
+
+    // Instant Audition: update newly created node each time a profile loads
+    dialogComp->setAuditionCallback ([safeThis, newNodeId] (const CalibrationProfile& profile)
+    {
+        if (safeThis == nullptr || safeThis->graphHolder == nullptr || safeThis->graphHolder->graph == nullptr)
+            return;
+
+        auto targetNode = safeThis->graphHolder->graph->graph.getNodeForId (newNodeId);
+        if (targetNode != nullptr && targetNode->getProcessor() != nullptr)
+        {
+            AUNBandEQConverter::applyProfileToAUNBandEQ (targetNode->getProcessor(), profile);
+            safeThis->graphHolder->graph->changed();
+        }
+    });
+
+    dialogComp->setCompletionCallback ([safeThis, newNodeId] (bool confirmed, const std::optional<CalibrationProfile>& finalProfile)
+    {
+        if (safeThis != nullptr && safeThis->graphHolder != nullptr && safeThis->graphHolder->graph != nullptr)
+        {
+            if (! confirmed)
+            {
+                // User cancelled: delete the newly created node
+                safeThis->graphHolder->graph->graph.removeNode (newNodeId);
+                safeThis->graphHolder->graph->changed();
+            }
+            else if (finalProfile.has_value())
+            {
+                auto targetNode = safeThis->graphHolder->graph->graph.getNodeForId (newNodeId);
+                if (targetNode != nullptr && targetNode->getProcessor() != nullptr)
+                {
+                    if (finalProfile->name.isNotEmpty())
+                        targetNode->properties.set ("customNodeName", finalProfile->name);
+                    AUNBandEQConverter::applyProfileToAUNBandEQ (targetNode->getProcessor(), *finalProfile);
+                    safeThis->graphHolder->graph->changed();
+                }
+            }
+        }
+    });
+}
+
+void MainHostWindow::showOnlineCalibrationDialogForNode (AudioProcessorGraph::Node* node)
+{
+    if (node == nullptr || node->getProcessor() == nullptr)
+        return;
+
+    AudioProcessorGraph::NodeID nodeID = node->nodeID;
+
+    // Snapshot initial processor state for rollback on Cancel
+    juce::MemoryBlock initialPluginState;
+    node->getProcessor()->getStateInformation (initialPluginState);
+
+    juce::Process::makeForegroundProcess();
+
+    auto* dialogComp = new OnlineCalibrationDialog (OnlineCalibrationDialog::Mode::configureExistingNode);
+    dialogComp->setSize (760, 520);
+
+    DialogWindow::LaunchOptions o;
+    o.content.setOwned (dialogComp);
+    o.dialogTitle                   = "Online Headphone Calibration - Configure EQ";
+    o.componentToCentreAround       = (isOnDesktop() && isVisible()) ? this : nullptr;
+    o.dialogBackgroundColour        = getLookAndFeel().findColour (ResizableWindow::backgroundColourId);
+    o.escapeKeyTriggersCloseButton  = true;
+    o.useNativeTitleBar             = false;
+    o.resizable                     = true;
+
+    o.launchAsync();
+    SafePointer<MainHostWindow> safeThis (this);
+
+    // Instant Audition: update existing node each time a profile loads
+    dialogComp->setAuditionCallback ([safeThis, nodeID] (const CalibrationProfile& profile)
+    {
+        if (safeThis == nullptr || safeThis->graphHolder == nullptr || safeThis->graphHolder->graph == nullptr)
+            return;
+
+        auto targetNode = safeThis->graphHolder->graph->graph.getNodeForId (nodeID);
+        if (targetNode != nullptr && targetNode->getProcessor() != nullptr)
+        {
+            AUNBandEQConverter::applyProfileToAUNBandEQ (targetNode->getProcessor(), profile);
+            safeThis->graphHolder->graph->changed();
+        }
+    });
+
+    dialogComp->setCompletionCallback ([safeThis, nodeID, initialPluginState] (bool confirmed, const std::optional<CalibrationProfile>& finalProfile)
+    {
+        if (safeThis != nullptr && safeThis->graphHolder != nullptr && safeThis->graphHolder->graph != nullptr)
+        {
+            auto targetNode = safeThis->graphHolder->graph->graph.getNodeForId (nodeID);
+            if (targetNode != nullptr && targetNode->getProcessor() != nullptr)
+            {
+                if (! confirmed)
+                {
+                    // User cancelled: restore original node configuration and update GUI with smooth crossfade
+                    safeThis->graphHolder->startPresetTransition();
+                    AUNBandEQConverter::restoreAUNBandEQState (targetNode->getProcessor(), initialPluginState);
+                    safeThis->graphHolder->graph->changed();
+                    safeThis->graphHolder->endPresetTransition();
+                }
+                else if (finalProfile.has_value())
+                {
+                    safeThis->graphHolder->startPresetTransition();
+                    if (finalProfile->name.isNotEmpty())
+                        targetNode->properties.set ("customNodeName", finalProfile->name);
+                    AUNBandEQConverter::applyProfileToAUNBandEQ (targetNode->getProcessor(), *finalProfile);
+                    safeThis->graphHolder->graph->changed();
+                    safeThis->graphHolder->endPresetTransition();
+                }
+            }
+        }
+    });
+}
+
+void MainHostWindow::applyCalibrationProfileAtLocation (const CalibrationProfile& profile, Point<int> pos)
+{
+    if (graphHolder == nullptr || graphHolder->graph == nullptr)
+        return;
+
+    auto& pluginGraph = *(graphHolder->graph);
+
+    // 1. Check if dropped directly on an existing AUNBandEQ node
+    AudioProcessorGraph::Node::Ptr targetNode = nullptr;
+    if (graphHolder->graphPanel != nullptr)
+    {
+        targetNode = graphHolder->graphPanel->getNodeAt (pos);
+        if (targetNode != nullptr && ! AUNBandEQConverter::isAUNBandEQ (targetNode->getProcessor()))
+            targetNode = nullptr; // Only apply EQ directly if dropped onto an EQ node
+    }
+
+    if (targetNode != nullptr)
+    {
+        graphHolder->startPresetTransition();
+        AUNBandEQConverter::applyProfileToAUNBandEQ (targetNode->getProcessor(), profile);
+        if (profile.name.isNotEmpty())
+            targetNode->properties.set ("customNodeName", profile.name);
+        pluginGraph.changed();
+        graphHolder->endPresetTransition();
+        return;
+    }
+
+    // 2. Otherwise create a new AUNBandEQ node at pos
+    auto auDesc = AUNBandEQConverter::findAUNBandEQ (knownPluginList);
+    if (! auDesc.has_value())
+    {
+        juce::NativeMessageBox::showMessageBoxAsync (
+            juce::MessageBoxIconType::WarningIcon,
+            "Parametric EQ Not Found",
+            "Apple's Parametric EQ (AUNBandEQ) audio unit was not found on this system.");
+        return;
+    }
+
+    double normX = 0.5, normY = 0.5;
+    if (graphHolder->graphPanel != nullptr && graphHolder->graphPanel->getWidth() > 0)
+    {
+        normX = juce::jlimit (0.05, 0.95, (double) pos.x / (double) graphHolder->graphPanel->getWidth());
+        normY = juce::jlimit (0.05, 0.95, (double) pos.y / (double) graphHolder->graphPanel->getHeight());
+    }
+
+    String errorMessage;
+    auto instance = formatManager.createPluginInstance (*auDesc,
+                                                        pluginGraph.graph.getSampleRate(),
+                                                        pluginGraph.graph.getBlockSize(),
+                                                        errorMessage);
+    if (instance != nullptr)
+    {
+        instance->enableAllBuses();
+        auto newNode = pluginGraph.graph.addNode (std::move (instance));
+        if (newNode != nullptr)
+        {
+            newNode->properties.set ("x", normX);
+            newNode->properties.set ("y", normY);
+            newNode->properties.set ("useARA", false);
+            if (profile.name.isNotEmpty())
+                newNode->properties.set ("customNodeName", profile.name);
+            AUNBandEQConverter::applyProfileToAUNBandEQ (newNode->getProcessor(), profile);
+            pluginGraph.changed();
+        }
+    }
+}
+
+void MainHostWindow::importCalibrationFileForCreation (Point<int> pos)
+{
+    auto chooser = std::make_shared<juce::FileChooser> (
+        "Import Calibration / EQ File",
+        juce::File::getSpecialLocation (juce::File::userHomeDirectory),
+        "*.txt;*.csv;*.tsv;*.eq");
+
+    auto flags = juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles;
+    SafePointer<MainHostWindow> safeThis (this);
+
+    chooser->launchAsync (flags, [safeThis, chooser, pos] (const juce::FileChooser& fc)
+    {
+        auto file = fc.getResult();
+        if (file.existsAsFile() && safeThis != nullptr)
+        {
+            auto profile = AutoEQDataManager::parseCalibrationFile (file);
+            if (profile.has_value())
+            {
+                safeThis->applyCalibrationProfileAtLocation (*profile, pos);
+            }
+            else
+            {
+                juce::NativeMessageBox::showMessageBoxAsync (
+                    juce::MessageBoxIconType::WarningIcon,
+                    "Invalid Calibration File",
+                    "Could not parse parametric EQ filters or frequency response measurement points from this file.");
+            }
+        }
+    });
+}
+
+void MainHostWindow::importCalibrationFileForNode (juce::AudioProcessorGraph::Node* node)
+{
+    if (node == nullptr)
+        return;
+
+    auto chooser = std::make_shared<juce::FileChooser> (
+        "Import Calibration / EQ File",
+        juce::File::getSpecialLocation (juce::File::userHomeDirectory),
+        "*.txt;*.csv;*.tsv;*.eq");
+
+    auto flags = juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles;
+    SafePointer<MainHostWindow> safeThis (this);
+    auto nodeId = node->nodeID;
+
+    chooser->launchAsync (flags, [safeThis, chooser, nodeId] (const juce::FileChooser& fc)
+    {
+        auto file = fc.getResult();
+        if (file.existsAsFile() && safeThis != nullptr && safeThis->graphHolder != nullptr && safeThis->graphHolder->graph != nullptr)
+        {
+            auto profile = AutoEQDataManager::parseCalibrationFile (file);
+            if (profile.has_value())
+            {
+                auto& pluginGraph = *(safeThis->graphHolder->graph);
+                if (auto* targetNode = pluginGraph.graph.getNodeForId (nodeId))
+                {
+                    safeThis->graphHolder->startPresetTransition();
+                    AUNBandEQConverter::applyProfileToAUNBandEQ (targetNode->getProcessor(), *profile);
+                    if (profile->name.isNotEmpty())
+                        targetNode->properties.set ("customNodeName", profile->name);
+                    pluginGraph.changed();
+                    safeThis->graphHolder->endPresetTransition();
+                }
+            }
+            else
+            {
+                juce::NativeMessageBox::showMessageBoxAsync (
+                    juce::MessageBoxIconType::WarningIcon,
+                    "Invalid Calibration File",
+                    "Could not parse parametric EQ filters or frequency response measurement points from this file.");
+            }
         }
     });
 }

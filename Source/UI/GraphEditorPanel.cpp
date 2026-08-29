@@ -50,6 +50,8 @@
 #include "../Plugins/InternalPlugins.h"
 #include "MainHostWindow.h"
 #include "../Plugins/OutputInterfaceLoopbackNode.h"
+#include "../Calibration/AUNBandEQConverter.h"
+#include "../Calibration/AutoEQDataManager.h"
 
 //==============================================================================
 #if JUCE_IOS
@@ -439,15 +441,23 @@ struct GraphEditorPanel::PluginComponent final : public Component,
 
         w = jmax (w, (jmax (numIns, numOuts) + 1) * 20);
 
-        const auto textWidth = GlyphArrangement::getStringWidthInt (font, processor.getName());
+        String displayName = processor.getName();
+        if (auto* node = graph.graph.getNodeForId (pluginID))
+        {
+            auto customName = node->properties.getWithDefault ("customNodeName", juce::String()).toString();
+            if (customName.isNotEmpty())
+                displayName = customName;
+        }
+
+        const auto textWidth = GlyphArrangement::getStringWidthInt (font, displayName);
         w = jmax (w, 16 + jmin (textWidth, 300));
         if (textWidth > 300)
             h = 100;
 
         setSize (w, h);
 
-        String finalName = processor.getName();
-        if (formatSuffix != " (Internal)")
+        String finalName = displayName;
+        if (formatSuffix != " (Internal)" && ! finalName.contains (formatSuffix))
             finalName += formatSuffix;
         setName (finalName);
         setTooltip (getTooltipForProcessor (processor));
@@ -511,12 +521,33 @@ struct GraphEditorPanel::PluginComponent final : public Component,
 
             repaint();
         });
+        menu->addItem ("Rename This Node", [this]
+        {
+            promptRenameNode();
+        });
 
         menu->addSeparator();
         if (auto* proc = getProcessor())
         {
             if (proc->hasEditor())
                 menu->addItem ("Show Plug-in GUI", [this] { showWindow (PluginWindow::Type::normal); });
+
+            if (AUNBandEQConverter::isAUNBandEQ (proc))
+            {
+                menu->addItem ("Import EQ from AutoEQ...", [this]
+                {
+                    if (auto* mainWin = findParentComponentOfClass<MainHostWindow>())
+                        if (auto* node = graph.graph.getNodeForId (pluginID))
+                            mainWin->showOnlineCalibrationDialogForNode (node);
+                });
+
+                menu->addItem ("Import EQ from file...", [this]
+                {
+                    if (auto* mainWin = findParentComponentOfClass<MainHostWindow>())
+                        if (auto* node = graph.graph.getNodeForId (pluginID))
+                            mainWin->importCalibrationFileForNode (node);
+                });
+            }
 
            #if JUCE_PLUGINHOST_ARA && (JUCE_MAC || JUCE_WINDOWS || JUCE_LINUX)
             if (auto* instance = dynamic_cast<AudioPluginInstance*> (proc))
@@ -538,6 +569,44 @@ struct GraphEditorPanel::PluginComponent final : public Component,
        #endif
 
         menu->showMenuAsync (PopupMenu::Options{}.withTargetScreenArea (Rectangle<int>{}.withPosition (localPointToGlobal (localPos))));
+    }
+
+    void promptRenameNode()
+    {
+        auto* node = graph.graph.getNodeForId (pluginID);
+        if (node == nullptr || node->getProcessor() == nullptr)
+            return;
+
+        juce::String currentName = node->properties.getWithDefault ("customNodeName", juce::String()).toString();
+        if (currentName.isEmpty())
+            currentName = node->getProcessor()->getName();
+
+        auto* alert = new juce::AlertWindow ("Rename Node",
+                                             "Enter a new name for this node:",
+                                             juce::AlertWindow::QuestionIcon);
+        alert->addTextEditor ("nodeName", currentName, "Name:");
+        alert->addButton ("OK", 1, juce::KeyPress (juce::KeyPress::returnKey));
+        alert->addButton ("Cancel", 0, juce::KeyPress (juce::KeyPress::escapeKey));
+
+        juce::Component::SafePointer<PluginComponent> safeThis (this);
+        alert->enterModalState (true, juce::ModalCallbackFunction::create ([safeThis, alert] (int result)
+        {
+            if (result == 1 && safeThis != nullptr)
+            {
+                auto rawName = alert->getTextEditorContents ("nodeName").trim();
+                if (auto* targetNode = safeThis->graph.graph.getNodeForId (safeThis->pluginID))
+                {
+                    if (rawName.isNotEmpty())
+                        targetNode->properties.set ("customNodeName", rawName);
+                    else
+                        targetNode->properties.remove ("customNodeName");
+
+                    safeThis->update();
+                    safeThis->graph.changed();
+                    safeThis->graph.graph.sendChangeMessage();
+                }
+            }
+        }), true);
     }
 
     void showWindow (PluginWindow::Type type)
@@ -935,6 +1004,17 @@ GraphEditorPanel::PluginComponent* GraphEditorPanel::getComponentForPlugin (Audi
     return nullptr;
 }
 
+AudioProcessorGraph::Node::Ptr GraphEditorPanel::getNodeAt (Point<int> pos) const
+{
+    for (auto* fc : nodes)
+    {
+        if (fc != nullptr && fc->getBounds().contains (pos))
+            return graph.graph.getNodeForId (fc->pluginID);
+    }
+
+    return nullptr;
+}
+
 GraphEditorPanel::ConnectorComponent* GraphEditorPanel::getComponentForConnection (const AudioProcessorGraph::Connection& conn) const
 {
     for (auto* cc : connectors)
@@ -1021,8 +1101,20 @@ void GraphEditorPanel::showPopupMenu (Point<int> localMousePos)
                              ModalCallbackFunction::create ([this, localMousePos] (int r)
                                                             {
                                                                 if (auto* mainWin = findParentComponentOfClass<MainHostWindow>())
-                                                                    if (const auto chosen = mainWin->getChosenType (r))
+                                                                {
+                                                                    if (r == MainHostWindow::onlineCalibrationCreateMenuID)
+                                                                    {
+                                                                        mainWin->showOnlineCalibrationDialogForCreation (localMousePos);
+                                                                    }
+                                                                    else if (r == MainHostWindow::importCalibrationCreateMenuID)
+                                                                    {
+                                                                        mainWin->importCalibrationFileForCreation (localMousePos);
+                                                                    }
+                                                                    else if (const auto chosen = mainWin->getChosenType (r))
+                                                                    {
                                                                         createNewPlugin (*chosen, localMousePos);
+                                                                    }
+                                                                }
                                                             }));
     }
 }
