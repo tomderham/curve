@@ -94,9 +94,39 @@ public:
         }
     }
 
+    void setAlwaysEnforceSampleRate (bool enforce)
+    {
+        alwaysEnforceSampleRate = enforce;
+
+        if (alwaysEnforceSampleRate)
+        {
+            if (auto* currentDevice = deviceManager.getCurrentAudioDevice())
+            {
+                targetSampleRate = currentDevice->getCurrentSampleRate();
+                if (cachedAudioState != nullptr && targetSampleRate > 0.0)
+                {
+                    cachedAudioState->setAttribute ("audioDeviceRate", targetSampleRate);
+                    if (auto* settings = getUserSettings())
+                    {
+                        settings->setValue ("audioDeviceState", cachedAudioState.get());
+                        settings->saveIfNeeded();
+                    }
+                }
+            }
+        }
+    }
+
+    bool isAlwaysEnforcingSampleRate() const
+    {
+        return alwaysEnforceSampleRate;
+    }
+
     void updateTargetSettings()
     {
         auto* settings = getUserSettings();
+        if (settings != nullptr)
+            alwaysEnforceSampleRate = settings->getBoolValue ("enforceSampleRate", false);
+
         auto savedState = (settings != nullptr) ? settings->getXmlValue ("audioDeviceState") : nullptr;
         if (savedState != nullptr)
         {
@@ -126,6 +156,23 @@ public:
                     targetSampleRate = 0.0;
                     targetBufferSize = 0;
                     cachedAudioState = nullptr;
+                }
+            }
+        }
+
+        if (! alwaysEnforceSampleRate)
+        {
+            if (auto* currentDevice = deviceManager.getCurrentAudioDevice())
+            {
+                targetSampleRate = currentDevice->getCurrentSampleRate();
+                if (cachedAudioState != nullptr && targetSampleRate > 0.0)
+                {
+                    cachedAudioState->setAttribute ("audioDeviceRate", targetSampleRate);
+                    if (auto* userSettings = getUserSettings())
+                    {
+                        userSettings->setValue ("audioDeviceState", cachedAudioState.get());
+                        userSettings->saveIfNeeded();
+                    }
                 }
             }
         }
@@ -251,6 +298,17 @@ public:
 
             if (autoSync)
                 OutputInterfaceLoopbackNode::syncSystemOutputDevice (targetOutputDeviceName);
+
+            if (OutputInterfaceLoopbackNode::isAnyTapActiveInGraph())
+            {
+                bool healthy = OutputInterfaceLoopbackNode::ensureTapHealthy (targetOutputDeviceName,
+                                                                              currentDevice->getCurrentSampleRate(),
+                                                                              currentDevice->getCurrentBufferSizeSamples());
+                if (! healthy)
+                    startTimer (1000);
+                else
+                    startTimer (5000);
+            }
            #endif
 
             return;
@@ -318,10 +376,19 @@ public:
 
         bool isOutputMatching = (currentSetup.outputDeviceName == targetOutputDeviceName);
         bool isInputMatching  = (targetInputDeviceName.isEmpty() || currentSetup.inputDeviceName == targetInputDeviceName);
-        bool isRateMatching   = (targetSampleRate <= 0.0 || std::abs (currentDevice->getCurrentSampleRate() - targetSampleRate) < 1.0);
         bool isBufferMatching = (targetBufferSize <= 0 || currentDevice->getCurrentBufferSizeSamples() == targetBufferSize);
 
-        return isOutputMatching && isInputMatching && isRateMatching && isBufferMatching;
+        if (! isOutputMatching || ! isInputMatching || ! isBufferMatching)
+            return false;
+
+        if (alwaysEnforceSampleRate)
+        {
+            bool isRateMatching = (targetSampleRate <= 0.0 || std::abs (currentDevice->getCurrentSampleRate() - targetSampleRate) < 1.0);
+            if (! isRateMatching)
+                return false;
+        }
+
+        return true;
     }
 
 private:
@@ -349,6 +416,7 @@ private:
     juce::String targetOutputDeviceName;
     double targetSampleRate = 0.0;
     int targetBufferSize = 0;
+    bool alwaysEnforceSampleRate = false;
     std::unique_ptr<juce::XmlElement> cachedAudioState;
 
     void scanDevices()
@@ -382,8 +450,11 @@ private:
 
         if (savedState != nullptr)
         {
-            if (targetSampleRate > 0.0)
+            if (alwaysEnforceSampleRate && targetSampleRate > 0.0)
                 savedState->setAttribute ("audioDeviceRate", targetSampleRate);
+            else if (! alwaysEnforceSampleRate)
+                savedState->removeAttribute ("audioDeviceRate");
+
             if (targetBufferSize > 0)
                 savedState->setAttribute ("audioDeviceBufferSize", targetBufferSize);
         }
@@ -404,6 +475,15 @@ private:
             // Adapt targets to actual hardware capabilities to prevent repeated enforcement cycles
             targetSampleRate = lastSampleRate;
             targetBufferSize = lastBufferSize;
+
+           #if JUCE_MAC
+            if (OutputInterfaceLoopbackNode::isAnyTapActiveInGraph())
+            {
+                OutputInterfaceLoopbackNode::ensureTapHealthy (targetOutputDeviceName,
+                                                               currentDevice->getCurrentSampleRate(),
+                                                               currentDevice->getCurrentBufferSizeSamples());
+            }
+           #endif
 
             if (onConfigRestored != nullptr)
             {

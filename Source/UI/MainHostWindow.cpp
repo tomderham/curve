@@ -780,8 +780,7 @@ void MainHostWindow::showAudioSettings()
                                                                         0, 256,
                                                                         true, true,
                                                                         true, false);
-
-    audioSettingsComp->setSize (500, 450);
+    audioSettingsComp->setSize (500, 520);
 
     DialogWindow::LaunchOptions o;
     o.content.setOwned (audioSettingsComp);

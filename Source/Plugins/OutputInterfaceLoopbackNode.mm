@@ -159,6 +159,8 @@ static CFStringRef getDeviceUID (AudioObjectID devID)
     return NULL;
 }
 
+
+
 static std::atomic<int> activeTapCount { 0 };
 
 //==============================================================================
@@ -172,6 +174,7 @@ struct SharedTapSession {
     juce::String currentDeviceName;
     double currentSampleRate = 0.0;
     NSString* activeTapUUIDString = nil;
+
     
     juce::SpinLock listenerLock;
     static constexpr size_t maxListeners = 8;
@@ -270,6 +273,47 @@ struct SharedTapSession {
         }
     }
 
+    bool isTapHealthy (const juce::String& targetDevice, double sampleRate)
+    {
+        const juce::ScopedLock sl (lock);
+        if (tapID == 0 || aggregateDeviceID == 0 || ioProcID == nullptr)
+        {
+            return false;
+        }
+
+        if (sampleRate > 0.0 && std::abs (currentSampleRate - sampleRate) >= 1.0)
+        {
+            return false;
+        }
+
+        juce::String resolvedName = targetDevice;
+        if (resolvedName.isEmpty())
+        {
+            if (auto* settings = getUserSettings())
+                if (auto savedState = settings->getXmlValue ("audioDeviceState"))
+                    resolvedName = savedState->getStringAttribute ("audioOutputDeviceName");
+        }
+
+        if (resolvedName.isNotEmpty() && currentDeviceName.isNotEmpty() && currentDeviceName != resolvedName)
+        {
+            return false;
+        }
+
+        AudioObjectPropertyAddress runProp = {
+            kAudioDevicePropertyDeviceIsRunning,
+            kAudioObjectPropertyScopeGlobal,
+            kAudioObjectPropertyElementMain
+        };
+        UInt32 isRunning = 0;
+        UInt32 runSize = sizeof (isRunning);
+        if (AudioObjectGetPropertyData (aggregateDeviceID, &runProp, 0, NULL, &runSize, &isRunning) != noErr || isRunning == 0)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
     bool ensureInitialized (const juce::String& targetDeviceName, double sampleRate, int samplesPerBlock)
     {
         const juce::ScopedLock sl (lock);
@@ -282,7 +326,17 @@ struct SharedTapSession {
                     resolvedName = savedState->getStringAttribute ("audioOutputDeviceName");
         }
 
-        if (tapID != 0 && aggregateDeviceID != 0 && currentDeviceName == resolvedName
+        bool isRunning = false;
+        if (aggregateDeviceID != 0)
+        {
+            UInt32 runningVal = 0;
+            UInt32 rSize = sizeof (runningVal);
+            AudioObjectPropertyAddress rProp = { kAudioDevicePropertyDeviceIsRunning, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
+            if (AudioObjectGetPropertyData (aggregateDeviceID, &rProp, 0, NULL, &rSize, &runningVal) == noErr)
+                isRunning = (runningVal != 0);
+        }
+
+        if (isRunning && tapID != 0 && aggregateDeviceID != 0 && currentDeviceName == resolvedName
             && sampleRate > 0.0 && std::abs (currentSampleRate - sampleRate) < 1.0)
         {
             return true;
@@ -342,14 +396,16 @@ struct SharedTapSession {
                 {
                     Float64 physRate = 0.0;
                     UInt32 rateSize = sizeof(physRate);
-                    for (int retry = 0; retry < 15; ++retry)
+                    int retriesDone = 0;
+                    for (int retry = 0; retry < 40; ++retry)
                     {
+                        retriesDone = retry + 1;
                         if (AudioObjectGetPropertyData (outputDevID, &srProp, 0, NULL, &rateSize, &physRate) == noErr)
                         {
                             if (std::abs (physRate - sampleRate) < 1.0)
                                 break;
                         }
-                        [NSThread sleepForTimeInterval:0.020];
+                        [NSThread sleepForTimeInterval:0.025];
                     }
                 }
 
@@ -409,8 +465,9 @@ struct SharedTapSession {
 
                 CFRelease(outputUID);
 
-                Float64 targetSampleRate = (sampleRate > 0.0) ? sampleRate : 44100.0;
-                AudioObjectSetPropertyData(aggregateDeviceID, &srProp, 0, NULL, sizeof(Float64), &targetSampleRate);
+                // Note: Do NOT set sample rate on the aggregate device.
+                // It automatically and perfectly inherits the hardware rate of its MainSubDevice!
+                // Calling setPropertyData for sample rate on the aggregate device disconnects the tap stream.
 
                 UInt32 targetBufferSize = (UInt32) juce::jlimit (64, 1024, samplesPerBlock > 0 ? samplesPerBlock : 128);
                 AudioObjectPropertyAddress bsProp = { kAudioDevicePropertyBufferFrameSize, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
@@ -421,8 +478,8 @@ struct SharedTapSession {
                     juce::ignoreUnused(inNow, inInputTime, outOutputData, inOutputTime);
 
                     if (inInputData == nullptr || inInputData->mNumberBuffers == 0) return;
-                    UInt32 numBuffers = inInputData->mNumberBuffers;
 
+                    UInt32 numBuffers = inInputData->mNumberBuffers;
                     const ::AudioBuffer& tapBuffer = inInputData->mBuffers[numBuffers - 1];
 
                     int tapChannelCount = 0;
@@ -457,7 +514,15 @@ struct SharedTapSession {
 
                 OSStatus ioProcErr = AudioDeviceCreateIOProcIDWithBlock(&ioProcID, aggregateDeviceID, NULL, ioBlock);
                 if (ioProcErr == noErr) {
-                    OSStatus startErr = AudioDeviceStart(aggregateDeviceID, ioProcID);
+                    OSStatus startErr = noErr;
+                    for (int startRetry = 0; startRetry < 5; ++startRetry)
+                    {
+                        startErr = AudioDeviceStart(aggregateDeviceID, ioProcID);
+                        if (startErr == noErr)
+                            break;
+                        [NSThread sleepForTimeInterval:0.040];
+                    }
+
                     if (startErr == noErr) {
                         currentDeviceName = resolvedName;
                         currentSampleRate = sampleRate;
@@ -605,12 +670,46 @@ void OutputInterfaceLoopbackNode::warmUpTap (const juce::String& targetDevice, d
 #endif
 }
 
+bool OutputInterfaceLoopbackNode::ensureTapHealthy (const juce::String& targetDevice, double sampleRate, int bufferSize)
+{
+#if JUCE_MAC
+    if (@available(macOS 14.2, *))
+    {
+        auto& session = getSharedTapSession();
+        if (! session.isTapHealthy (targetDevice, sampleRate))
+        {
+            if (session.ensureInitialized (targetDevice, sampleRate, bufferSize))
+            {
+                session.updateMuteBehavior (OutputInterfaceLoopbackNode::isAnyTapActiveInGraph());
+                const juce::SpinLock::ScopedLockType sl (session.listenerLock);
+                for (size_t i = 0; i < session.numListeners; ++i)
+                {
+                    if (auto* node = session.listeners[i])
+                    {
+                        node->isCapturing.store (true, std::memory_order_release);
+                        node->isPrimed.store (false, std::memory_order_release);
+                    }
+                }
+                return true;
+            }
+            return false;
+        }
+        return true;
+    }
+#else
+    juce::ignoreUnused (targetDevice, sampleRate, bufferSize);
+#endif
+    return false;
+}
+
 void OutputInterfaceLoopbackNode::syncSystemOutputDevice (const juce::String& targetDeviceName)
 {
 #if JUCE_MAC
     AudioObjectID targetID = findDeviceID (targetDeviceName);
     if (targetID == kAudioObjectUnknown)
+    {
         return;
+    }
 
     AudioObjectPropertyAddress defaultOutputAddress = {
         kAudioHardwarePropertyDefaultOutputDevice,
@@ -622,7 +721,9 @@ void OutputInterfaceLoopbackNode::syncSystemOutputDevice (const juce::String& ta
     if (AudioObjectGetPropertyData (kAudioObjectSystemObject, &defaultOutputAddress, 0, NULL, &curSize, &currentDefault) == noErr)
     {
         if (currentDefault != targetID)
+        {
             AudioObjectSetPropertyData (kAudioObjectSystemObject, &defaultOutputAddress, 0, NULL, sizeof (AudioObjectID), &targetID);
+        }
     }
 #endif
 }
