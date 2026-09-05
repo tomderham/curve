@@ -48,6 +48,7 @@
 
 #include <JuceHeader.h>
 #include "../Plugins/PluginGraph.h"
+#include "../AudioDiagnostics.h"
 
 class MainHostWindow;
 
@@ -150,6 +151,7 @@ public:
     {
         player.audioDeviceAboutToStart (device);
         double sr = (device != nullptr) ? device->getCurrentSampleRate() : 44100.0;
+        currentSampleRate.store (sr, std::memory_order_relaxed);
         fadeGain.reset (sr, 0.02);
         fadeGain.setCurrentAndTargetValue (1.0f);
         targetGain.store (1.0f, std::memory_order_relaxed);
@@ -185,9 +187,21 @@ public:
                                            int numSamples,
                                            const AudioIODeviceCallbackContext& context) override
     {
+        auto startTicks = juce::Time::getHighResolutionTicks();
+
         player.audioDeviceIOCallbackWithContext (inputChannelData, numInputChannels,
                                                  outputChannelData, numOutputChannels,
                                                  numSamples, context);
+
+        auto endTicks = juce::Time::getHighResolutionTicks();
+        double elapsedSec = juce::Time::highResolutionTicksToSeconds (endTicks - startTicks);
+        uint32_t elapsedUs = static_cast<uint32_t> (elapsedSec * 1000000.0);
+
+        double sr = currentSampleRate.load (std::memory_order_relaxed);
+        if (sr <= 0.0) sr = 48000.0;
+        uint32_t deadlineUs = static_cast<uint32_t> ((numSamples / sr) * 1000000.0);
+
+        AudioDiagnostics::getInstance().recordCallbackTiming (elapsedUs, deadlineUs);
 
         float target = targetGain.load (std::memory_order_acquire);
         if (std::abs (fadeGain.getTargetValue() - target) > 0.0001f)
@@ -238,6 +252,7 @@ private:
     juce::LinearSmoothedValue<float> fadeGain { 1.0f };
     std::atomic<float> targetGain { 1.0f };
     std::atomic<bool> isFadedOut { false };
+    std::atomic<double> currentSampleRate { 44100.0 };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FadingAudioProcessorPlayer)
 };
@@ -251,7 +266,8 @@ private:
 class GraphDocumentComponent final : public Component,
                                      public DragAndDropTarget,
                                      public DragAndDropContainer,
-                                     private ChangeListener
+                                     private ChangeListener,
+                                     private AsyncUpdater
 {
 public:
     GraphDocumentComponent (AudioPluginFormatManager& formatManager,
@@ -320,6 +336,7 @@ private:
 
     //==============================================================================
     void changeListenerCallback (ChangeBroadcaster*) override;
+    void handleAsyncUpdate() override;
 
     void init();
     void checkAvailableWidth();

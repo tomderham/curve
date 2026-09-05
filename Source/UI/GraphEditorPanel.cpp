@@ -260,9 +260,6 @@ struct GraphEditorPanel::PluginComponent final : public Component,
 {
     PluginComponent (GraphEditorPanel& p, AudioProcessorGraph::NodeID id)  : panel (p), graph (p.graph), pluginID (id)
     {
-        shadow.setShadowProperties (DropShadow (Colours::black.withAlpha (0.5f), 3, { 0, 1 }));
-        setComponentEffect (&shadow);
-
         if (auto f = graph.graph.getNodeForId (pluginID))
         {
             if (auto* processor = f->getProcessor())
@@ -379,6 +376,9 @@ struct GraphEditorPanel::PluginComponent final : public Component,
 
         g.setColour (boxColour);
         g.fillRect (boxArea.toFloat());
+
+        g.setColour (findColour (TextEditor::outlineColourId).withAlpha (0.6f));
+        g.drawRect (boxArea.toFloat(), 1.0f);
 
         g.setColour (findColour (TextEditor::textColourId));
         g.setFont (font);
@@ -695,7 +695,6 @@ struct GraphEditorPanel::PluginComponent final : public Component,
     Point<int> originalPos, originalTouchPos;
     Font font = FontOptions { 13.0f, Font::bold };
     int numIns = 0, numOuts = 0;
-    DropShadowEffect shadow;
     std::unique_ptr<PopupMenu> menu;
     std::unique_ptr<FileChooser> fileChooser;
     AudioProcessorParameter* observedBypassParam = nullptr;
@@ -1651,6 +1650,8 @@ void GraphDocumentComponent::releaseGraph()
         graph->removeChangeListener (this);
     }
 
+    cancelPendingUpdate();
+
     graphPlayer.setProcessor (nullptr);
     graph = nullptr;
 }
@@ -1772,6 +1773,11 @@ bool GraphDocumentComponent::closeAnyOpenPluginWindows()
 void GraphDocumentComponent::changeListenerCallback (ChangeBroadcaster*)
 {
     updateMidiOutput();
+    triggerAsyncUpdate();
+}
+
+void GraphDocumentComponent::handleAsyncUpdate()
+{
     propagateDeviceSettingsToNodes();
 }
 

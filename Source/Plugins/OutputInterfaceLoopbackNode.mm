@@ -14,6 +14,7 @@
 #define DONT_SET_USING_JUCE_NAMESPACE 1
 #include "OutputInterfaceLoopbackNode.h"
 #include "../UI/AudioResilienceManager.h"
+#include "../AudioDiagnostics.h"
 
 #if JUCE_MAC
 #import <Foundation/Foundation.h>
@@ -181,6 +182,9 @@ struct SharedTapSession {
     std::array<OutputInterfaceLoopbackNode*, maxListeners> listeners {};
     size_t numListeners = 0;
     
+    std::atomic<juce::uint32> sessionStartTimeMs { 0 };
+    std::atomic<juce::uint32> lastBufferDeliveredTimeMs { 0 };
+
     SharedTapSession() = default;
     
     void addListener (OutputInterfaceLoopbackNode* node)
@@ -237,8 +241,12 @@ struct SharedTapSession {
             if (AudioObjectGetPropertyData (tapID, &descProp, 0, NULL, &size, &curDescRef) == noErr && curDescRef != NULL)
             {
                 CATapDescription* curDesc = (CATapDescription*) curDescRef;
-                curDesc.muteBehavior = shouldBeActive ? CATapMutedWhenTapped : CATapUnmuted;
-                AudioObjectSetPropertyData (tapID, &descProp, 0, NULL, sizeof (curDesc), &curDesc);
+                CATapMuteBehavior targetBehavior = shouldBeActive ? CATapMutedWhenTapped : CATapUnmuted;
+                if (curDesc.muteBehavior != targetBehavior)
+                {
+                    curDesc.muteBehavior = targetBehavior;
+                    AudioObjectSetPropertyData (tapID, &descProp, 0, NULL, sizeof (curDesc), &curDesc);
+                }
                 CFRelease (curDescRef);
             }
         }
@@ -247,8 +255,12 @@ struct SharedTapSession {
     void stopAndDestroy()
     {
         const juce::ScopedLock sl (lock);
+        CURVE_AUDIO_LOG ("[SharedTapSession] stopAndDestroy executed! (tapID=%u, aggID=%u, ioProc=%p)",
+                         tapID, aggregateDeviceID, ioProcID);
         currentDeviceName.clear();
         currentSampleRate = 0.0;
+        sessionStartTimeMs.store (0, std::memory_order_relaxed);
+        lastBufferDeliveredTimeMs.store (0, std::memory_order_relaxed);
         
         if (ioProcID != nullptr && aggregateDeviceID != 0)
         {
@@ -273,16 +285,19 @@ struct SharedTapSession {
         }
     }
 
-    bool isTapHealthy (const juce::String& targetDevice, double sampleRate)
+    bool isTapHealthyInternal (const juce::String& targetDevice, double sampleRate)
     {
-        const juce::ScopedLock sl (lock);
         if (tapID == 0 || aggregateDeviceID == 0 || ioProcID == nullptr)
         {
+            CURVE_AUDIO_LOG ("[TapHealth FAIL] Missing handles: tapID=%u, aggID=%u, ioProc=%p",
+                             tapID, aggregateDeviceID, ioProcID);
             return false;
         }
 
         if (sampleRate > 0.0 && std::abs (currentSampleRate - sampleRate) >= 1.0)
         {
+            CURVE_AUDIO_LOG ("[TapHealth FAIL] SampleRate mismatch: current=%.1f, expected=%.1f",
+                             currentSampleRate, sampleRate);
             return false;
         }
 
@@ -296,6 +311,8 @@ struct SharedTapSession {
 
         if (resolvedName.isNotEmpty() && currentDeviceName.isNotEmpty() && currentDeviceName != resolvedName)
         {
+            CURVE_AUDIO_LOG ("[TapHealth FAIL] Device mismatch: current='%s', resolved='%s'",
+                             currentDeviceName.toRawUTF8(), resolvedName.toRawUTF8());
             return false;
         }
 
@@ -306,15 +323,56 @@ struct SharedTapSession {
         };
         UInt32 isRunning = 0;
         UInt32 runSize = sizeof (isRunning);
-        if (AudioObjectGetPropertyData (aggregateDeviceID, &runProp, 0, NULL, &runSize, &isRunning) != noErr || isRunning == 0)
+        OSStatus runErr = AudioObjectGetPropertyData (aggregateDeviceID, &runProp, 0, NULL, &runSize, &isRunning);
+        if (runErr != noErr || isRunning == 0)
         {
+            CURVE_AUDIO_LOG ("[TapHealth FAIL] Aggregate device not running: err=%d, isRunning=%u",
+                             (int)runErr, isRunning);
             return false;
+        }
+
+        // Verify tap object is still valid in coreaudiod
+        AudioObjectPropertyAddress descProp = {
+            kAudioTapPropertyDescription,
+            kAudioObjectPropertyScopeGlobal,
+            kAudioObjectPropertyElementMain
+        };
+        CFTypeRef curDescRef = NULL;
+        UInt32 descSize = sizeof (curDescRef);
+        OSStatus descErr = AudioObjectGetPropertyData (tapID, &descProp, 0, NULL, &descSize, &curDescRef);
+        if (descErr != noErr || curDescRef == NULL)
+        {
+            CURVE_AUDIO_LOG ("[TapHealth FAIL] Tap description query failed: err=%d, curDescRef=%p",
+                             (int)descErr, curDescRef);
+            return false;
+        }
+        CFRelease (curDescRef);
+
+        // Frame delivery watchdog: if the device has been running for >2.5 seconds,
+        // verify that ioBlock has received frames from the tap in the past 2.0 seconds.
+        auto now = juce::Time::getMillisecondCounter();
+        auto started = sessionStartTimeMs.load (std::memory_order_relaxed);
+        if (started > 0 && (now - started) > 2500)
+        {
+            auto lastBuffer = lastBufferDeliveredTimeMs.load (std::memory_order_acquire);
+            if (lastBuffer == 0 || (now - lastBuffer) > 2000)
+            {
+                CURVE_AUDIO_LOG ("[TapHealth FAIL] Watchdog triggered! now=%u, started=%u, lastBuffer=%u (elapsed=%u ms > 2000 ms)",
+                                 now, started, lastBuffer, (now - lastBuffer));
+                return false;
+            }
         }
 
         return true;
     }
 
-    bool ensureInitialized (const juce::String& targetDeviceName, double sampleRate, int samplesPerBlock)
+    bool isTapHealthy (const juce::String& targetDevice, double sampleRate)
+    {
+        const juce::ScopedLock sl (lock);
+        return isTapHealthyInternal (targetDevice, sampleRate);
+    }
+
+    bool ensureInitialized (const juce::String& targetDeviceName, double sampleRate, int samplesPerBlock, bool forceReinit = false)
     {
         const juce::ScopedLock sl (lock);
 
@@ -326,21 +384,15 @@ struct SharedTapSession {
                     resolvedName = savedState->getStringAttribute ("audioOutputDeviceName");
         }
 
-        bool isRunning = false;
-        if (aggregateDeviceID != 0)
-        {
-            UInt32 runningVal = 0;
-            UInt32 rSize = sizeof (runningVal);
-            AudioObjectPropertyAddress rProp = { kAudioDevicePropertyDeviceIsRunning, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
-            if (AudioObjectGetPropertyData (aggregateDeviceID, &rProp, 0, NULL, &rSize, &runningVal) == noErr)
-                isRunning = (runningVal != 0);
-        }
+        CURVE_AUDIO_LOG ("[SharedTapSession] ensureInitialized: target='%s', sr=%.1f, bs=%d, forceReinit=%d",
+                         resolvedName.toRawUTF8(), sampleRate, samplesPerBlock, (int)forceReinit);
 
-        if (isRunning && tapID != 0 && aggregateDeviceID != 0 && currentDeviceName == resolvedName
-            && sampleRate > 0.0 && std::abs (currentSampleRate - sampleRate) < 1.0)
+        if (! forceReinit && isTapHealthyInternal (resolvedName, sampleRate))
         {
             return true;
         }
+
+        stopAndDestroy();
 
         if (@available(macOS 14.2, *))
         {
@@ -396,10 +448,8 @@ struct SharedTapSession {
                 {
                     Float64 physRate = 0.0;
                     UInt32 rateSize = sizeof(physRate);
-                    int retriesDone = 0;
                     for (int retry = 0; retry < 40; ++retry)
                     {
-                        retriesDone = retry + 1;
                         if (AudioObjectGetPropertyData (outputDevID, &srProp, 0, NULL, &rateSize, &physRate) == noErr)
                         {
                             if (std::abs (physRate - sampleRate) < 1.0)
@@ -478,6 +528,11 @@ struct SharedTapSession {
                     juce::ignoreUnused(inNow, inInputTime, outOutputData, inOutputTime);
 
                     if (inInputData == nullptr || inInputData->mNumberBuffers == 0) return;
+                    if (inInputData == nullptr || inInputData->mNumberBuffers == 0)
+                    {
+                        AudioDiagnostics::getInstance().recordTapEmpty();
+                        return;
+                    }
 
                     UInt32 numBuffers = inInputData->mNumberBuffers;
                     const ::AudioBuffer& tapBuffer = inInputData->mBuffers[numBuffers - 1];
@@ -503,12 +558,31 @@ struct SharedTapSession {
                         }
                         int numSamples = static_cast<int> (minBytes / sizeof(float));
                         if (numSamples > 0)
+                        {
+                            selfSession->lastBufferDeliveredTimeMs.store (juce::Time::getMillisecondCounter(), std::memory_order_release);
+                            AudioDiagnostics::getInstance().recordTapDelivery (numSamples, clampedChannels);
                             selfSession->broadcastAudio (channelPointers, clampedChannels, numSamples);
+                        }
+                        else
+                        {
+                            AudioDiagnostics::getInstance().recordTapEmpty();
+                        }
                     } else if (tapBuffer.mNumberChannels >= 1 && tapBuffer.mData != nullptr && tapBuffer.mDataByteSize > 0) {
                         int inChannels = static_cast<int> (tapBuffer.mNumberChannels);
                         const float* interleavedData = static_cast<const float*>(tapBuffer.mData);
                         int numSamples = static_cast<int> (tapBuffer.mDataByteSize / (tapBuffer.mNumberChannels * sizeof(float)));
-                        selfSession->broadcastAudioInterleaved (interleavedData, inChannels, numSamples);
+                        if (numSamples > 0)
+                        {
+                            selfSession->lastBufferDeliveredTimeMs.store (juce::Time::getMillisecondCounter(), std::memory_order_release);
+                            AudioDiagnostics::getInstance().recordTapDelivery (numSamples, inChannels);
+                            selfSession->broadcastAudioInterleaved (interleavedData, inChannels, numSamples);
+                        }
+                        else
+                        {
+                            AudioDiagnostics::getInstance().recordTapEmpty();
+                        }
+                    } else {
+                        AudioDiagnostics::getInstance().recordTapEmpty();
                     }
                 };
 
@@ -524,6 +598,8 @@ struct SharedTapSession {
                     }
 
                     if (startErr == noErr) {
+                        sessionStartTimeMs.store (juce::Time::getMillisecondCounter(), std::memory_order_release);
+                        lastBufferDeliveredTimeMs.store (juce::Time::getMillisecondCounter(), std::memory_order_release);
                         currentDeviceName = resolvedName;
                         currentSampleRate = sampleRate;
                         return true;
@@ -678,7 +754,9 @@ bool OutputInterfaceLoopbackNode::ensureTapHealthy (const juce::String& targetDe
         auto& session = getSharedTapSession();
         if (! session.isTapHealthy (targetDevice, sampleRate))
         {
-            if (session.ensureInitialized (targetDevice, sampleRate, bufferSize))
+            CURVE_AUDIO_LOG ("[TapHealth] ensureTapHealthy: tap UNHEALTHY for '%s' @ %.1f. Calling ensureInitialized(forceReinit=true)...",
+                             targetDevice.toRawUTF8(), sampleRate);
+            if (session.ensureInitialized (targetDevice, sampleRate, bufferSize, true /* forceReinit */))
             {
                 session.updateMuteBehavior (OutputInterfaceLoopbackNode::isAnyTapActiveInGraph());
                 const juce::SpinLock::ScopedLockType sl (session.listenerLock);
@@ -963,6 +1041,7 @@ void OutputInterfaceLoopbackNode::processBlock (juce::AudioBuffer<float>& buffer
     if (currentReady > maxCushion)
     {
         int dropCount = currentReady - (numSamplesNeeded * 2);
+        AudioDiagnostics::getInstance().recordFifoCushionDrop (currentReady, maxCushion, dropCount);
         int start1, size1, start2, size2;
         fifo.prepareToRead (dropCount, start1, size1, start2, size2);
         fifo.finishedRead (size1 + size2);
@@ -1016,6 +1095,7 @@ void OutputInterfaceLoopbackNode::processBlock (juce::AudioBuffer<float>& buffer
 
             if (willUnderrun)
             {
+                AudioDiagnostics::getInstance().recordFifoUnderrun (numSamplesNeeded, numSamplesToRead);
                 int fade = juce::jmin (fadeSamples, numSamplesToRead);
                 for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
                     buffer.applyGainRamp (ch, numSamplesToRead - fade, fade, 1.0f, 0.0f);
@@ -1026,6 +1106,7 @@ void OutputInterfaceLoopbackNode::processBlock (juce::AudioBuffer<float>& buffer
     }
     else
     {
+        AudioDiagnostics::getInstance().recordFifoUnderrun (numSamplesNeeded, 0);
         hadUnderrunLastBlock.store (true, std::memory_order_relaxed);
         isPrimed.store (false, std::memory_order_relaxed); // Re-arm hysteresis on starvation
     }

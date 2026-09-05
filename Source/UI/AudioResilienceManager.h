@@ -307,7 +307,7 @@ public:
                 if (! healthy)
                     startTimer (1000);
                 else
-                    startTimer (5000);
+                    startTimer (2000);
             }
            #endif
 

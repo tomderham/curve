@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 project(Curve VERSION 1.2.0)
+project(Curve VERSION 1.2.1)
 
 set(CMAKE_OSX_DEPLOYMENT_TARGET "14.2" CACHE STRING "Minimum macOS version" FORCE)
 set(CMAKE_OSX_SYSROOT "macosx" CACHE STRING "Use the latest installed macOS SDK")
@@ -30,6 +31,7 @@ juce_add_gui_app(Curve
 juce_generate_juce_header(Curve)
 
 target_sources(Curve PRIVATE
+    Source/AudioDiagnostics.h
     Source/HostStartup.cpp
     Source/Plugins/AudioRecorderNode.cpp
     Source/Plugins/CrossfeedNode.cpp

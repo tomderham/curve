@@ -56,6 +56,7 @@
 #include "UI/GitHubUpdater.h"
 #include "UI/LoginItemManager.h"
 #include "UI/TrayIconController.h"
+#include "AudioDiagnostics.h"
 
 
 #if !(JUCE_PLUGINHOST_VST || JUCE_PLUGINHOST_VST3 || JUCE_PLUGINHOST_AU)
@@ -279,6 +280,7 @@ public:
       presetsDir.createDirectory();
 
     mainWindow.reset(new MainHostWindow());
+    AudioDiagnostics::getInstance().start();
 
     // Show editor window on first launch; hide initially on subsequent launches
     bool isFirstLaunch = false;
