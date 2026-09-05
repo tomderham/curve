@@ -9,6 +9,8 @@ set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64")
 add_compile_definitions(MAC_OS_X_VERSION_MIN_REQUIRED=140200)
 add_compile_options(-Wno-deprecated-declarations)
 
+option(ENABLE_AUDIO_DIAGNOSTICS "Enable internal audio diagnostic logging and telemetry" OFF)
+
 add_subdirectory(JUCE)
 
 juce_add_gui_app(Curve
@@ -50,6 +52,7 @@ target_sources(Curve PRIVATE
     Source/Calibration/AutoEQDataManager.cpp
     Source/UI/OnlineCalibrationDialog.cpp)
 target_compile_definitions(Curve PRIVATE
+    ENABLE_AUDIO_DIAGNOSTICS=$<BOOL:${ENABLE_AUDIO_DIAGNOSTICS}>
     JUCE_CONTENT_SHARING=1
     JUCE_DISABLE_CAUTIOUS_PARAMETER_ID_CHECKING=1
     JUCE_GLOBAL_MODULE_SETTINGS_INCLUDED=1

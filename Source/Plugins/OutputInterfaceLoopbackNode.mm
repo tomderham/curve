@@ -527,7 +527,6 @@ struct SharedTapSession {
                 AudioDeviceIOBlock ioBlock = ^(const AudioTimeStamp *inNow, const AudioBufferList *inInputData, const AudioTimeStamp *inInputTime, AudioBufferList *outOutputData, const AudioTimeStamp *inOutputTime) {
                     juce::ignoreUnused(inNow, inInputTime, outOutputData, inOutputTime);
 
-                    if (inInputData == nullptr || inInputData->mNumberBuffers == 0) return;
                     if (inInputData == nullptr || inInputData->mNumberBuffers == 0)
                     {
                         AudioDiagnostics::getInstance().recordTapEmpty();

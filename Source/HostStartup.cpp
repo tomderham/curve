@@ -250,6 +250,9 @@ public:
       return;
     }
 
+    // Early initialization of audio diagnostics on the message thread before any audio hardware or devices start
+    AudioDiagnostics::initializeEarly();
+
     customLookAndFeel = std::make_unique<CurveLookAndFeel>();
     juce::LookAndFeel::setDefaultLookAndFeel (customLookAndFeel.get());
 
@@ -280,7 +283,6 @@ public:
       presetsDir.createDirectory();
 
     mainWindow.reset(new MainHostWindow());
-    AudioDiagnostics::getInstance().start();
 
     // Show editor window on first launch; hide initially on subsequent launches
     bool isFirstLaunch = false;

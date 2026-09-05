@@ -35,6 +35,14 @@ public:
         return instance;
     }
 
+    // Early initialization from the message thread during app startup.
+    // Guarantees singleton construction, log file creation, and timer setup
+    // occur off the real-time audio thread before any audio device starts.
+    static void initializeEarly()
+    {
+        getInstance().start();
+    }
+
     void start()
     {
         if (! isTimerRunning())
@@ -247,6 +255,7 @@ private:
     };
     std::array<EventEntry, maxEvents> events {};
     std::atomic<uint32_t> eventWriteIdx { 0 };
+    uint32_t eventReadIdx = 0;
 };
 #else
 #define CURVE_AUDIO_LOG(...) do {} while (0)
@@ -259,6 +268,7 @@ public:
         return instance;
     }
 
+    static void initializeEarly() {}
     void start() {}
     void recordCallbackTiming (uint32_t, uint32_t) {}
     void recordFifoUnderrun (int, int) {}
