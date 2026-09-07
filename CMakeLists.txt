@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 project(Curve VERSION 1.2.0)
 project(Curve VERSION 1.2.1)
+project(Curve VERSION 1.2.2)
 
 set(CMAKE_OSX_DEPLOYMENT_TARGET "14.2" CACHE STRING "Minimum macOS version" FORCE)
 set(CMAKE_OSX_SYSROOT "macosx" CACHE STRING "Use the latest installed macOS SDK")
@@ -48,6 +49,8 @@ target_sources(Curve PRIVATE
     Source/UI/LoginItemManager.mm
     Source/UI/MainHostWindow.cpp
     Source/UI/PresetSaveDialog.cpp
+    Source/UI/SystemSleepManager.h
+    Source/UI/SystemSleepManager.mm
     Source/Calibration/AUNBandEQConverter.mm
     Source/Calibration/AutoEQDataManager.cpp
     Source/UI/OnlineCalibrationDialog.cpp)

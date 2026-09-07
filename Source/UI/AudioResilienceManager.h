@@ -19,6 +19,7 @@ juce::PropertiesFile* getUserSettings();
 
 #if JUCE_MAC
 #include "../Plugins/OutputInterfaceLoopbackNode.h"
+#include "SystemSleepManager.h"
 struct MacOSSleepWakeNotifierBase
 {
     virtual ~MacOSSleepWakeNotifierBase() = default;
@@ -26,11 +27,18 @@ struct MacOSSleepWakeNotifierBase
 std::unique_ptr<MacOSSleepWakeNotifierBase> createMacOSSleepWakeNotifier (std::function<void(bool)> callback);
 #endif
 
-class AudioResilienceManager : private juce::Timer,
+class AudioResilienceManager : private juce::MultiTimer,
                                private juce::ChangeListener
 {
 public:
     using ConfigRestoredCallback = std::function<void()>;
+
+    enum TimerIds
+    {
+        timerPeriodicHealthCheck = 1,
+        timerDebouncedResilience = 2,
+        timerWakeRecovery        = 3
+    };
 
     AudioResilienceManager(juce::AudioDeviceManager& dm, ConfigRestoredCallback callback = nullptr)
         : deviceManager(dm), onConfigRestored(callback)
@@ -61,17 +69,25 @@ public:
             {
                 consecutiveEnforceFailures = 0;
                 wokeFromSleepFlag = true;
+                wakeRecoveryStartTimeMs = juce::Time::getMillisecondCounter();
                 setSuspended (false);
+                SystemSleepManager::applyCurrentSetting();
                 doResilience();
+                // Schedule wake recovery checks to allow USB/Thunderbolt/Bluetooth peripherals time to enumerate
+                startTimer (timerWakeRecovery, 350);
+                startTimer (timerDebouncedResilience, 200);
             }
             else
             {
+                stopTimer (timerWakeRecovery);
+                stopTimer (timerDebouncedResilience);
                 setSuspended (true);
+                OutputInterfaceLoopbackNode::teardownTap();
             }
         });
        #endif
 
-        startTimer(5000);
+        startTimer (timerPeriodicHealthCheck, 5000);
     }
 
     ~AudioResilienceManager() override
@@ -81,6 +97,9 @@ public:
         #if JUCE_MAC
         sleepWakeNotifier.reset();
         #endif
+        stopTimer (timerPeriodicHealthCheck);
+        stopTimer (timerDebouncedResilience);
+        stopTimer (timerWakeRecovery);
         deviceManager.removeChangeListener(this);
     }
 
@@ -212,14 +231,20 @@ public:
         // Hardware topology changed (e.g. USB plug/unplug): reset backoff so we immediately attempt configuration
         consecutiveEnforceFailures = 0;
 
-        // update the cached target device names
+        // Update cached target settings
         updateTargetSettings();
 
-        // Scan for newly added/removed hardware devices
+        // If target output device was abruptly disconnected, tear down immediately to avoid zombie tap
         scanDevices();
+        if (! isDeviceAvailable (targetOutputDeviceName, false, false))
+        {
+            stopTimer (timerDebouncedResilience);
+            forceNullDevice();
+            return;
+        }
 
-        // call doResilience
-        doResilience();
+        // Debounce incoming changes (200ms) to coalesce rapid property cascades
+        startTimer (timerDebouncedResilience, 200);
 
         // Notify listeners asynchronously when device properties change
         if (devicePropertiesChanged && isDeviceActive && onConfigRestored != nullptr)
@@ -232,17 +257,69 @@ public:
     }
 
     // Timer callback runs every 5s for periodic health checks
-    void timerCallback() override
+    void timerCallback (int timerId) override
     {
         if (isSuspended) return;
-        if (!isWarmedUp)
+
+        if (timerId == timerWakeRecovery)
         {
-            isWarmedUp = true;
-            startTimer (5000);
+            scanDevices();
+            bool isPresent = isDeviceAvailable (targetOutputDeviceName, false, false)
+                          && isDeviceAvailable (targetInputDeviceName, true, false);
+
+            auto now = juce::Time::getMillisecondCounter();
+            bool timedOut = (now - wakeRecoveryStartTimeMs) > 4000;
+
+            if (isPresent || timedOut)
+            {
+                stopTimer (timerWakeRecovery);
+                stopTimer (timerDebouncedResilience);
+                doResilience();
+            }
+            else
+            {
+                // Peripheral not yet enumerated; retry in 500ms
+                startTimer (timerWakeRecovery, 500);
+            }
             return;
         }
 
-        doResilience();
+        if (timerId == timerDebouncedResilience)
+        {
+            stopTimer (timerDebouncedResilience);
+
+            // If wake recovery is active and device not yet present, let wake recovery continue
+            if (wokeFromSleepFlag && isTimerRunning (timerWakeRecovery))
+            {
+                scanDevices();
+                if (! (isDeviceAvailable (targetOutputDeviceName, false, false)
+                       && isDeviceAvailable (targetInputDeviceName, true, false)))
+                {
+                    return;
+                }
+                stopTimer (timerWakeRecovery);
+            }
+
+            doResilience();
+            return;
+        }
+
+        if (timerId == timerPeriodicHealthCheck)
+        {
+            if (!isWarmedUp)
+            {
+                isWarmedUp = true;
+                startTimer (timerPeriodicHealthCheck, 2500);
+                return;
+            }
+
+            // Skip periodic check if a debounced update or wake recovery is pending
+            if (isTimerRunning (timerDebouncedResilience) || isTimerRunning (timerWakeRecovery))
+                return;
+
+            doResilience();
+            return;
+        }
     }
 
     void doResilience()
@@ -305,9 +382,9 @@ public:
                                                                               currentDevice->getCurrentSampleRate(),
                                                                               currentDevice->getCurrentBufferSizeSamples());
                 if (! healthy)
-                    startTimer (1000);
+                    startTimer (timerPeriodicHealthCheck, 1000);
                 else
-                    startTimer (2000);
+                    startTimer (timerPeriodicHealthCheck, 2500);
             }
            #endif
 
@@ -323,7 +400,10 @@ public:
         {
             // Allow USB/Thunderbolt interfaces time to enumerate immediately on system wake
             if (wokeFromSleep)
+            {
+                wokeFromSleepFlag = true;
                 return;
+            }
 
             if (currentDevice != nullptr)
                 forceNullDevice();
@@ -343,7 +423,7 @@ public:
         // Apply configuration immediately on wake
         if (wokeFromSleep)
         {
-            enforceConfiguration(cachedAudioState.get());
+            enforceConfiguration (cachedAudioState.get(), true /* forceTapReinit on wake */);
             return;
         }
 
@@ -399,6 +479,7 @@ private:
     bool isWarmedUp = false;
     bool isSuspended = false;
     bool wokeFromSleepFlag = false;
+    juce::uint32 wakeRecoveryStartTimeMs = 0;
     std::shared_ptr<std::atomic<bool>> isAlive = std::make_shared<std::atomic<bool>> (true);
    #if JUCE_MAC
     std::unique_ptr<MacOSSleepWakeNotifierBase> sleepWakeNotifier;
@@ -440,7 +521,7 @@ private:
         return false;
     }
 
-    void enforceConfiguration(juce::XmlElement* savedState)
+    void enforceConfiguration(juce::XmlElement* savedState, bool forceTapReinit = false)
     {
         if (isRestarting) return;
         isRestarting = true;
@@ -481,7 +562,8 @@ private:
             {
                 OutputInterfaceLoopbackNode::ensureTapHealthy (targetOutputDeviceName,
                                                                currentDevice->getCurrentSampleRate(),
-                                                               currentDevice->getCurrentBufferSizeSamples());
+                                                               currentDevice->getCurrentBufferSizeSamples(),
+                                                               forceTapReinit);
             }
            #endif
 
@@ -507,6 +589,9 @@ private:
         isRestarting = true;
         // Close audio device to maintain silence when target hardware is disconnected
         deviceManager.closeAudioDevice();
+       #if JUCE_MAC
+        OutputInterfaceLoopbackNode::teardownTap();
+       #endif
         isRestarting = false;
     }
 

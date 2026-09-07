@@ -56,7 +56,10 @@ public:
     static void syncSystemOutputDevice (const juce::String& name);
     static bool isAnyTapActiveInGraph();
     static void warmUpTap (const juce::String& targetDevice, double sampleRate, int bufferSize = 128);
-    static bool ensureTapHealthy (const juce::String& targetDevice, double sampleRate, int bufferSize = 128);
+    static bool ensureTapHealthy (const juce::String& targetDevice, double sampleRate, int bufferSize = 128, bool forceReinit = false);
+    static bool isTapHealthy (const juce::String& targetDevice, double sampleRate);
+    static void teardownTap();
+    void resetBuffers();
 
     // Lets the tap's own real-time thread join the same audio workgroup as the main
     // output device's IO thread, so the OS scheduler treats them as one deadline chain.

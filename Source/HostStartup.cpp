@@ -55,6 +55,7 @@
 #include "UI/AudioResilienceManager.h"
 #include "UI/GitHubUpdater.h"
 #include "UI/LoginItemManager.h"
+#include "UI/SystemSleepManager.h"
 #include "UI/TrayIconController.h"
 #include "AudioDiagnostics.h"
 
@@ -270,6 +271,10 @@ public:
         "lastShutdownClean", true);
     appProperties->getUserSettings()->setValue("lastShutdownClean", false);
     appProperties->getUserSettings()->saveIfNeeded();
+
+   #if JUCE_MAC
+    SystemSleepManager::applyCurrentSetting();
+   #endif
 
     // create presets folder if it doesn't exist
     auto appDataDir =

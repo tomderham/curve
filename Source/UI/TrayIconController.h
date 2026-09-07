@@ -15,6 +15,7 @@
 #include "GraphEditorPanel.h"
 #include "LoginItemManager.h"
 #include "MainHostWindow.h"
+#include "SystemSleepManager.h"
 
 inline std::unique_ptr<InputStream>
 createAssetInputStream(const char *resourcePath) {
@@ -218,11 +219,14 @@ public:
                                       bool includeVisibilityToggle = false) {
     bool isAutoAppUpdateCheckEnabled = true;
     bool isAutoSyncSoundEnabled = true;
+    bool isPreventSleepEnabled = false;
     if (auto *settings = getAppProperties().getUserSettings()) {
       isAutoAppUpdateCheckEnabled =
           settings->getBoolValue("automaticUpdateChecks", true);
       isAutoSyncSoundEnabled =
           settings->getBoolValue("autoSyncSystemOutput", true);
+      isPreventSleepEnabled =
+          settings->getBoolValue("preventSystemSleep", false);
     }
 
     juce::Component::SafePointer<MainHostWindow> safeWindow (&mainWindow);
@@ -249,6 +253,16 @@ public:
           if (auto* w = safeWindow.getComponent())
             if (w->graphHolder != nullptr)
               w->graphHolder->propagateDeviceSettingsToNodes();
+        });
+    settingsmenu.addItem(
+        "Prevent macOS from automatically sleeping", true, isPreventSleepEnabled,
+        [isPreventSleepEnabled] {
+          bool newState = !isPreventSleepEnabled;
+          if (auto *settings = getAppProperties().getUserSettings()) {
+            settings->setValue("preventSystemSleep", newState);
+            settings->saveIfNeeded();
+          }
+          SystemSleepManager::setPreventSystemSleep(newState);
         });
     settingsmenu.addSeparator();
 #endif
