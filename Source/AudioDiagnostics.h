@@ -16,9 +16,7 @@
 #include <cstdarg>
 #include <cstring>
 
-#if JUCE_MAC
 #include <os/log.h>
-#endif
 
 #ifndef ENABLE_AUDIO_DIAGNOSTICS
 #define ENABLE_AUDIO_DIAGNOSTICS 0
@@ -149,10 +147,8 @@ private:
             std::fflush (logFile);
         }
         std::fprintf (stderr, "=== Curve Audio Diagnostics Started ===\n");
-       #if JUCE_MAC
         static os_log_t curveLog = os_log_create ("com.thomasderham.curve", "audio");
         os_log_with_type (curveLog, OS_LOG_TYPE_DEFAULT, "=== Curve Audio Diagnostics Started ===");
-       #endif
     }
 
     ~AudioDiagnostics() override
@@ -226,10 +222,8 @@ private:
             std::fflush (logFile);
         }
         std::fprintf (stderr, "[CurveAudio] [%s] %s\n", timeStr.toRawUTF8(), msg);
-       #if JUCE_MAC
         static os_log_t curveLog = os_log_create ("com.thomasderham.curve", "audio");
         os_log_with_type (curveLog, OS_LOG_TYPE_DEFAULT, "[%{public}s] %{public}s", timeStr.toRawUTF8(), msg);
-       #endif
     }
 
     std::FILE* logFile = nullptr;

@@ -16,7 +16,6 @@
 #include "../UI/AudioResilienceManager.h"
 #include "../AudioDiagnostics.h"
 
-#if JUCE_MAC
 #import <Foundation/Foundation.h>
 #import <AppKit/AppKit.h>
 #import <CoreAudio/CoreAudio.h>
@@ -75,13 +74,11 @@ std::unique_ptr<MacOSSleepWakeNotifierBase> createMacOSSleepWakeNotifier (std::f
 {
     return std::make_unique<MacOSSleepWakeNotifier> (std::move (callback));
 }
-#endif
 
 using namespace juce;
 
 juce::PropertiesFile* getUserSettings();
 
-#if JUCE_MAC
 static AudioObjectID findDeviceID (const juce::String& targetNameOrUID)
 {
     if (targetNameOrUID.isEmpty())
@@ -433,11 +430,9 @@ struct SharedTapSession {
 
         stopAndDestroy();
 
-        if (@available(macOS 14.2, *))
+        @autoreleasepool 
         {
-            @autoreleasepool 
-            {
-                if (tapID != 0 || aggregateDeviceID != 0)
+            if (tapID != 0 || aggregateDeviceID != 0)
                 {
                     if (ioProcID != nullptr && aggregateDeviceID != 0)
                     {
@@ -502,10 +497,18 @@ struct SharedTapSession {
 
                 if (tapID == 0)
                 {
+                    // Prefer a device-scoped tap tied directly to outputUID stream 0.
+                    // This ensures the tap only captures audio destined for the configured interface,
+                    // shares that physical device's clock domain (allowing kAudioSubTapDriftCompensationKey: @NO),
+                    // preserves the native channel format, and restricts CATapMutedWhenTapped to outputUID.
                     CATapDescription *tapDesc = [[[CATapDescription alloc] initExcludingProcesses:@[ @(myProcessObjectID) ]
                                                                                      andDeviceUID:(__bridge NSString*)outputUID
                                                                                        withStream:0] autorelease];
                     if (!tapDesc) {
+                        // Fallback: If device-scoped tap creation fails (e.g. virtual interfaces or drivers
+                        // that do not expose an explicit hardware stream 0), fall back to a stereo global tap.
+                        // Note: Global taps capture system-wide audio across all devices and force a stereo mixdown;
+                        // in this fallback scenario, Curve relies on syncSystemOutputDevice to align system audio.
                         tapDesc = [[[CATapDescription alloc] initStereoGlobalTapButExcludeProcesses:@[ @(myProcessObjectID) ]] autorelease];
                     }
 
@@ -515,7 +518,6 @@ struct SharedTapSession {
                     }
 
                     tapDesc.UUID = [NSUUID UUID];
-                    tapDesc.muteBehavior = (activeTapCount.load (std::memory_order_relaxed) > 0) ? CATapMutedWhenTapped : CATapUnmuted;
                     tapDesc.muteBehavior = targetMute;
 
                     OSStatus tapErr = AudioHardwareCreateProcessTap(tapDesc, &tapID);
@@ -653,7 +655,6 @@ struct SharedTapSession {
                     if (aggregateDeviceID != 0) { AudioHardwareDestroyAggregateDevice (aggregateDeviceID); aggregateDeviceID = 0; }
                 }
             }
-        }
         return false;
     }
 };
@@ -663,7 +664,6 @@ static SharedTapSession& getSharedTapSession()
     static SharedTapSession s_session;
     return s_session;
 }
-#endif
 
 //==============================================================================
 OutputInterfaceLoopbackNode::OutputInterfaceLoopbackNode()
@@ -677,25 +677,18 @@ OutputInterfaceLoopbackNode::OutputInterfaceLoopbackNode()
 
     isActiveInGraph.store (true, std::memory_order_release);
     activeTapCount.fetch_add (1, std::memory_order_relaxed);
-#if JUCE_MAC
-    if (@available(macOS 14.2, *))
-        getSharedTapSession().updateMuteBehavior (true);
-#endif
+    getSharedTapSession().updateMuteBehavior (true);
 }
 
 OutputInterfaceLoopbackNode::~OutputInterfaceLoopbackNode()
 {
-#if JUCE_MAC
     getSharedTapSession().removeListener (this);
-#endif
 
     if (isActiveInGraph.load (std::memory_order_relaxed))
         activeTapCount.fetch_sub (1, std::memory_order_relaxed);
 
-#if JUCE_MAC
     if (activeTapCount.load (std::memory_order_relaxed) <= 0)
         getSharedTapSession().updateMuteBehavior (false);
-#endif
 }
 
 void OutputInterfaceLoopbackNode::setTargetOutputDeviceName (const juce::String& name)
@@ -703,14 +696,12 @@ void OutputInterfaceLoopbackNode::setTargetOutputDeviceName (const juce::String&
     if (targetOutputDeviceName != name)
     {
         targetOutputDeviceName = name;
-#if JUCE_MAC
         auto& session = getSharedTapSession();
         if (session.currentDeviceName.isNotEmpty() && session.currentDeviceName != name && session.tapID != 0)
         {
             session.stopAndDestroy();
             refreshCapture();
         }
-#endif
     }
 }
 
@@ -739,12 +730,7 @@ void OutputInterfaceLoopbackNode::setActiveState (bool shouldBeActive)
     else
         activeTapCount.fetch_sub (1, std::memory_order_relaxed);
 
-#if JUCE_MAC
-    if (@available(macOS 14.2, *))
-    {
-        getSharedTapSession().updateMuteBehavior (activeTapCount.load (std::memory_order_relaxed) > 0);
-    }
-#endif
+    getSharedTapSession().updateMuteBehavior (activeTapCount.load (std::memory_order_relaxed) > 0);
 
     if (shouldBeActive)
     {
@@ -763,12 +749,7 @@ void OutputInterfaceLoopbackNode::setActiveState (bool shouldBeActive)
 
 void OutputInterfaceLoopbackNode::updateGlobalMuteBehavior()
 {
-#if JUCE_MAC
-    if (@available(macOS 14.2, *))
-    {
-        getSharedTapSession().updateMuteBehavior (activeTapCount.load (std::memory_order_relaxed) > 0);
-    }
-#endif
+    getSharedTapSession().updateMuteBehavior (activeTapCount.load (std::memory_order_relaxed) > 0);
 }
 
 bool OutputInterfaceLoopbackNode::isAnyTapActiveInGraph()
@@ -778,72 +759,46 @@ bool OutputInterfaceLoopbackNode::isAnyTapActiveInGraph()
 
 void OutputInterfaceLoopbackNode::warmUpTap (const juce::String& targetDevice, double sampleRate, int bufferSize)
 {
-#if JUCE_MAC
-    if (@available(macOS 14.2, *))
-    {
-        auto& session = getSharedTapSession();
-        session.ensureInitialized (targetDevice, sampleRate, bufferSize);
-        session.updateMuteBehavior (OutputInterfaceLoopbackNode::isAnyTapActiveInGraph());
-    }
-#endif
+    auto& session = getSharedTapSession();
+    session.ensureInitialized (targetDevice, sampleRate, bufferSize);
+    session.updateMuteBehavior (OutputInterfaceLoopbackNode::isAnyTapActiveInGraph());
 }
 
 bool OutputInterfaceLoopbackNode::ensureTapHealthy (const juce::String& targetDevice, double sampleRate, int bufferSize, bool forceReinit)
 {
-#if JUCE_MAC
-    if (@available(macOS 14.2, *))
+    auto& session = getSharedTapSession();
+    if (forceReinit || ! session.isTapHealthy (targetDevice, sampleRate))
     {
-        auto& session = getSharedTapSession();
-        if (forceReinit || ! session.isTapHealthy (targetDevice, sampleRate))
+        CURVE_AUDIO_LOG ("[TapHealth] ensureTapHealthy: tap UNHEALTHY/FORCED (force=%d) for '%s' @ %.1f. Calling ensureInitialized(forceReinit=true)...",
+                         (int)forceReinit, targetDevice.toRawUTF8(), sampleRate);
+        if (session.ensureInitialized (targetDevice, sampleRate, bufferSize, true /* forceReinit */))
         {
-            CURVE_AUDIO_LOG ("[TapHealth] ensureTapHealthy: tap UNHEALTHY/FORCED (force=%d) for '%s' @ %.1f. Calling ensureInitialized(forceReinit=true)...",
-                             (int)forceReinit, targetDevice.toRawUTF8(), sampleRate);
-            if (session.ensureInitialized (targetDevice, sampleRate, bufferSize, true /* forceReinit */))
+            session.updateMuteBehavior (OutputInterfaceLoopbackNode::isAnyTapActiveInGraph());
+            const juce::SpinLock::ScopedLockType sl (session.listenerLock);
+            for (size_t i = 0; i < session.numListeners; ++i)
             {
-                session.updateMuteBehavior (OutputInterfaceLoopbackNode::isAnyTapActiveInGraph());
-                const juce::SpinLock::ScopedLockType sl (session.listenerLock);
-                for (size_t i = 0; i < session.numListeners; ++i)
+                if (auto* node = session.listeners[i])
                 {
-                    if (auto* node = session.listeners[i])
-                    {
-                        node->resetBuffers();
-                        node->isCapturing.store (true, std::memory_order_release);
-                        node->isPrimed.store (false, std::memory_order_release);
-                    }
+                    node->resetBuffers();
+                    node->isCapturing.store (true, std::memory_order_release);
+                    node->isPrimed.store (false, std::memory_order_release);
                 }
-                return true;
             }
-            return false;
+            return true;
         }
-        return true;
+        return false;
     }
-#else
-    juce::ignoreUnused (targetDevice, sampleRate, bufferSize, forceReinit);
-#endif
-    return false;
+    return true;
 }
 
 bool OutputInterfaceLoopbackNode::isTapHealthy (const juce::String& targetDevice, double sampleRate)
 {
-#if JUCE_MAC
-    if (@available(macOS 14.2, *))
-    {
-        return getSharedTapSession().isTapHealthy (targetDevice, sampleRate);
-    }
-#else
-    juce::ignoreUnused (targetDevice, sampleRate);
-#endif
-    return false;
+    return getSharedTapSession().isTapHealthy (targetDevice, sampleRate);
 }
 
 void OutputInterfaceLoopbackNode::teardownTap()
 {
-#if JUCE_MAC
-    if (@available(macOS 14.2, *))
-    {
-        getSharedTapSession().stopAndDestroy();
-    }
-#endif
+    getSharedTapSession().stopAndDestroy();
 }
 
 void OutputInterfaceLoopbackNode::resetBuffers()
@@ -857,7 +812,6 @@ void OutputInterfaceLoopbackNode::resetBuffers()
 
 void OutputInterfaceLoopbackNode::syncSystemOutputDevice (const juce::String& targetDeviceName)
 {
-#if JUCE_MAC
     AudioObjectID targetID = findDeviceID (targetDeviceName);
     if (targetID == kAudioObjectUnknown)
     {
@@ -878,7 +832,6 @@ void OutputInterfaceLoopbackNode::syncSystemOutputDevice (const juce::String& ta
             AudioObjectSetPropertyData (kAudioObjectSystemObject, &defaultOutputAddress, 0, NULL, sizeof (AudioObjectID), &targetID);
         }
     }
-#endif
 }
 
 void OutputInterfaceLoopbackNode::setAudioWorkgroup (const juce::AudioWorkgroup& workgroup)
@@ -901,9 +854,7 @@ bool OutputInterfaceLoopbackNode::isBusesLayoutSupported (const BusesLayout& lay
 
 void OutputInterfaceLoopbackNode::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-#if JUCE_MAC
     getSharedTapSession().removeListener (this);
-#endif
 
     {
         // Lock only around buffer reset so hot-swapping does not block the audio thread
@@ -915,24 +866,16 @@ void OutputInterfaceLoopbackNode::prepareToPlay (double sampleRate, int samplesP
     }
     resetBuffers();
 
-#if JUCE_MAC
     auto& session = getSharedTapSession();
     session.addListener (this);
-
-    if (@available(macOS 14.2, *))
-    {
-        session.ensureInitialized (targetOutputDeviceName, sampleRate, samplesPerBlock);
-        session.updateMuteBehavior (OutputInterfaceLoopbackNode::isAnyTapActiveInGraph());
-        isCapturing.store (true, std::memory_order_release);
-    }
-#endif
+    session.ensureInitialized (targetOutputDeviceName, sampleRate, samplesPerBlock);
+    session.updateMuteBehavior (OutputInterfaceLoopbackNode::isAnyTapActiveInGraph());
+    isCapturing.store (true, std::memory_order_release);
 }
 
 void OutputInterfaceLoopbackNode::releaseResources()
 {
-#if JUCE_MAC
     getSharedTapSession().removeListener (this);
-#endif
 
     // Reset buffer tracking without destroying the underlying OS CoreAudio tap stream.
     juce::ScopedLock lock (getCallbackLock());

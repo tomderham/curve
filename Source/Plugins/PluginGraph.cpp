@@ -38,11 +38,6 @@
 #include "InternalPlugins.h"
 #include "../UI/GraphEditorPanel.h"
 
-static std::unique_ptr<ScopedDPIAwarenessDisabler> makeDPIAwarenessDisablerForPlugin (const PluginDescription& desc)
-{
-    return shouldAutoScalePlugin (desc) ? std::make_unique<ScopedDPIAwarenessDisabler>()
-                                        : nullptr;
-}
 
 //==============================================================================
 PluginGraph::PluginGraph (AudioPluginFormatManager& fm, KnownPluginList& kpl)
@@ -87,13 +82,12 @@ AudioProcessorGraph::Node::Ptr PluginGraph::getNodeForName (const String& name) 
 
 void PluginGraph::addPlugin (const PluginDescriptionAndPreference& desc, Point<double> pos)
 {
-    std::shared_ptr<ScopedDPIAwarenessDisabler> dpiDisabler = makeDPIAwarenessDisablerForPlugin (desc.pluginDescription);
     juce::WeakReference<PluginGraph> weakSelf (this);
 
     formatManager.createPluginInstanceAsync (desc.pluginDescription,
                                              graph.getSampleRate(),
                                              graph.getBlockSize(),
-                                             [weakSelf, pos, dpiDisabler, useARA = desc.useARA] (std::unique_ptr<AudioPluginInstance> instance, const String& error)
+                                             [weakSelf, pos, useARA = desc.useARA] (std::unique_ptr<AudioPluginInstance> instance, const String& error)
                                              {
                                                  if (auto* self = weakSelf.get())
                                                      self->addPluginCallback (std::move (instance), error, pos, useARA);
@@ -164,13 +158,9 @@ PluginWindow* PluginGraph::getOrCreateWindowFor (AudioProcessorGraph::Node* node
 {
     jassert (node != nullptr);
 
-   #if JUCE_IOS || JUCE_ANDROID
-    closeAnyOpenPluginWindows();
-   #else
     for (auto* w : activePluginWindows)
         if (w->node.get() == node && w->type == type)
             return w;
-   #endif
 
     if (auto* processor = node->getProcessor())
     {
@@ -186,7 +176,6 @@ PluginWindow* PluginGraph::getOrCreateWindowFor (AudioProcessorGraph::Node* node
                 return nullptr;
             }
 
-            auto localDpiDisabler = makeDPIAwarenessDisablerForPlugin (description);
             return activePluginWindows.add (new PluginWindow (node,
                                                               type,
                                                               activePluginWindows,
@@ -456,8 +445,6 @@ void PluginGraph::createNodeFromXml (const XmlElement& xml, bool restorePluginWi
         {
             String errorMessage;
 
-            auto localDpiDisabler = makeDPIAwarenessDisablerForPlugin (description.pluginDescription);
-
             auto instance = formatManager.createPluginInstance (description.pluginDescription,
                                                                 graph.getSampleRate(),
                                                                 graph.getBlockSize(),
@@ -581,10 +568,4 @@ void PluginGraph::restoreFromXml (const XmlElement& xml, bool restorePluginWindo
 
     graph.removeIllegalConnections();
     changed();
-}
-
-File PluginGraph::getDefaultGraphDocumentOnMobile()
-{
-    auto persistantStorageLocation = File::getSpecialLocation (File::userApplicationDataDirectory);
-    return persistantStorageLocation.getChildFile ("state.filtergraph");
 }

@@ -112,8 +112,6 @@ public:
     void setLastDocumentOpened (const File& file) override;
     File getSuggestedSaveAsFile (const File& defaultFile) override;
 
-    static File getDefaultGraphDocumentOnMobile();
-
     //==============================================================================
     AudioProcessorGraph graph;
 

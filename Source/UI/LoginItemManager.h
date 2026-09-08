@@ -44,7 +44,6 @@ namespace LoginItemManager
     void openSystemSettingsLoginItemsPane();
 }
 
-#if JUCE_MAC
 struct MacOSDisplayChangeNotifierBase
 {
     virtual ~MacOSDisplayChangeNotifierBase() = default;
@@ -52,5 +51,4 @@ struct MacOSDisplayChangeNotifierBase
 std::unique_ptr<MacOSDisplayChangeNotifierBase> createMacOSDisplayChangeNotifier (std::function<void()> callback);
 void forceRefreshMacOSStatusItem (void* nativeHandle);
 void removeMacOSStatusItem (void* nativeHandle);
-#endif
 

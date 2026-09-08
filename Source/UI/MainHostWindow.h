@@ -56,34 +56,12 @@ namespace CommandIDs
 {
     static const int showPluginListEditor   = 0x30100;
     static const int showAudioSettings      = 0x30200;
-    static const int allWindowsForward      = 0x30400;
-    static const int autoScalePluginWindows = 0x30600;
 }
 
 //==============================================================================
 ApplicationCommandManager& getCommandManager();
 ApplicationProperties& getAppProperties();
 PropertiesFile* getUserSettings();
-
-//==============================================================================
-enum class AutoScale
-{
-    scaled,
-    unscaled,
-    useDefault
-};
-
-constexpr bool autoScaleOptionAvailable =
-    #if JUCE_WINDOWS && JUCE_WIN_PER_MONITOR_DPI_AWARE
-     true;
-    #else
-     false;
-    #endif
-
-AutoScale getAutoScaleValueForPlugin (const String&);
-void setAutoScaleValueForPlugin (const String&, AutoScale);
-bool shouldAutoScalePlugin (const PluginDescription&);
-void addPluginAutoScaleOptionsSubMenu (AudioPluginInstance*, PopupMenu&);
 
 constexpr const char* processUID = "juceaudiopluginhost";
 
@@ -143,10 +121,6 @@ public:
     static constexpr int importCalibrationCreateMenuID = 0x50001;
 
 private:
-    //==============================================================================
-    static bool isAutoScalePluginWindowsEnabled();
-
-    static void updateAutoScaleMenuItem (ApplicationCommandInfo& info);
 
     //==============================================================================
     AudioDeviceManager deviceManager;

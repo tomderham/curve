@@ -17,7 +17,6 @@
 
 juce::PropertiesFile* getUserSettings();
 
-#if JUCE_MAC
 #include "../Plugins/OutputInterfaceLoopbackNode.h"
 #include "SystemSleepManager.h"
 struct MacOSSleepWakeNotifierBase
@@ -25,7 +24,6 @@ struct MacOSSleepWakeNotifierBase
     virtual ~MacOSSleepWakeNotifierBase() = default;
 };
 std::unique_ptr<MacOSSleepWakeNotifierBase> createMacOSSleepWakeNotifier (std::function<void(bool)> callback);
-#endif
 
 class AudioResilienceManager : private juce::MultiTimer,
                                private juce::ChangeListener
@@ -58,7 +56,6 @@ public:
         lastTimeCheckWallClock = juce::Time::getCurrentTime().toMilliseconds();
         updateTargetSettings();
 
-       #if JUCE_MAC
         auto aliveToken = isAlive;
         sleepWakeNotifier = createMacOSSleepWakeNotifier ([this, aliveToken] (bool isWake)
         {
@@ -85,7 +82,6 @@ public:
                 OutputInterfaceLoopbackNode::teardownTap();
             }
         });
-       #endif
 
         startTimer (timerPeriodicHealthCheck, 5000);
     }
@@ -94,9 +90,7 @@ public:
     {
         if (isAlive)
             isAlive->store (false, std::memory_order_release);
-        #if JUCE_MAC
         sleepWakeNotifier.reset();
-        #endif
         stopTimer (timerPeriodicHealthCheck);
         stopTimer (timerDebouncedResilience);
         stopTimer (timerWakeRecovery);
@@ -343,13 +337,6 @@ public:
         bool wokeFromSleep = wokeFromSleepFlag;
         wokeFromSleepFlag = false;
 
-       #if ! JUCE_MAC
-        juce::uint32 elapsedMonotonic = nowMonotonic - lastTimeCheckMonotonic;
-        juce::int64 elapsedWallClock = nowWallClock - lastTimeCheckWallClock;
-        if (! wokeFromSleep)
-            wokeFromSleep = (elapsedWallClock > (juce::int64) elapsedMonotonic + 4000);
-       #endif
-
         lastTimeCheckMonotonic = nowMonotonic;
         lastTimeCheckWallClock = nowWallClock;
 
@@ -368,7 +355,6 @@ public:
             disconnectedCheckCount = 0;
             consecutiveEnforceFailures = 0;
 
-           #if JUCE_MAC
             bool autoSync = true;
             if (auto* settings = getUserSettings())
                 autoSync = settings->getBoolValue ("autoSyncSystemOutput", true);
@@ -386,7 +372,6 @@ public:
                 else
                     startTimer (timerPeriodicHealthCheck, 2500);
             }
-           #endif
 
             return;
         }
@@ -481,9 +466,7 @@ private:
     bool wokeFromSleepFlag = false;
     juce::uint32 wakeRecoveryStartTimeMs = 0;
     std::shared_ptr<std::atomic<bool>> isAlive = std::make_shared<std::atomic<bool>> (true);
-   #if JUCE_MAC
     std::unique_ptr<MacOSSleepWakeNotifierBase> sleepWakeNotifier;
-   #endif
     int disconnectedCheckCount = 0;
     int consecutiveEnforceFailures = 0;
     juce::uint32 lastEnforceFailureTime = 0;
@@ -557,7 +540,6 @@ private:
             targetSampleRate = lastSampleRate;
             targetBufferSize = lastBufferSize;
 
-           #if JUCE_MAC
             if (OutputInterfaceLoopbackNode::isAnyTapActiveInGraph())
             {
                 OutputInterfaceLoopbackNode::ensureTapHealthy (targetOutputDeviceName,
@@ -565,7 +547,6 @@ private:
                                                                currentDevice->getCurrentBufferSizeSamples(),
                                                                forceTapReinit);
             }
-           #endif
 
             if (onConfigRestored != nullptr)
             {
@@ -589,9 +570,7 @@ private:
         isRestarting = true;
         // Close audio device to maintain silence when target hardware is disconnected
         deviceManager.closeAudioDevice();
-       #if JUCE_MAC
         OutputInterfaceLoopbackNode::teardownTap();
-       #endif
         isRestarting = false;
     }
 

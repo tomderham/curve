@@ -272,9 +272,7 @@ public:
     appProperties->getUserSettings()->setValue("lastShutdownClean", false);
     appProperties->getUserSettings()->saveIfNeeded();
 
-   #if JUCE_MAC
     SystemSleepManager::applyCurrentSetting();
-   #endif
 
     // create presets folder if it doesn't exist
     auto appDataDir =
@@ -353,7 +351,6 @@ public:
       }
     }));
 
-    commandManager.registerAllCommandsForTarget(this);
     commandManager.registerAllCommandsForTarget(mainWindow.get());
 
     // Defer plugin loading to an async update so instantiation happens once the
@@ -364,9 +361,6 @@ public:
   void handleAsyncUpdate() override {
     File fileToOpen;
 
-#if JUCE_ANDROID || JUCE_IOS
-    fileToOpen = PluginGraph::getDefaultGraphDocumentOnMobile();
-#else
     for (int i = 0; i < getCommandLineParameterArray().size(); ++i) {
       fileToOpen = File::getCurrentWorkingDirectory().getChildFile(
           getCommandLineParameterArray()[i]);
@@ -374,7 +368,6 @@ public:
       if (fileToOpen.existsAsFile())
         break;
     }
-#endif
 
     if (!fileToOpen.existsAsFile()) {
       RecentlyOpenedFilesList recentFiles;
@@ -468,13 +461,7 @@ public:
     customLookAndFeel = nullptr;
   }
 
-  void suspended() override {
-#if JUCE_ANDROID || JUCE_IOS
-    if (auto graph = mainWindow->graphHolder.get())
-      if (auto ioGraph = graph->graph.get())
-        ioGraph->saveDocument(PluginGraph::getDefaultGraphDocumentOnMobile());
-#endif
-  }
+  void suspended() override {}
 
   void systemRequestedQuit() override {
     if (appProperties != nullptr) {
@@ -488,12 +475,6 @@ public:
       JUCEApplicationBase::quit();
   }
 
-  bool backButtonPressed() override {
-    if (mainWindow->graphHolder != nullptr)
-      mainWindow->graphHolder->hideLastSidePanel();
-
-    return true;
-  }
 
   const String getApplicationName() override {
     return ProjectInfo::projectName;
@@ -541,137 +522,6 @@ AudioResilienceManager *getResilienceManager() {
   if (auto *app = dynamic_cast<PluginHostApp *>(JUCEApplication::getInstance()))
     return app->getResilienceManager();
   return nullptr;
-}
-
-//==============================================================================
-static AutoScale autoScaleFromString(StringRef str) {
-  if (str.isEmpty())
-    return AutoScale::useDefault;
-  if (str == CharPointer_ASCII{"0"})
-    return AutoScale::scaled;
-  if (str == CharPointer_ASCII{"1"})
-    return AutoScale::unscaled;
-
-  jassertfalse;
-  return AutoScale::useDefault;
-}
-
-static const char *autoScaleToString(AutoScale autoScale) {
-  if (autoScale == AutoScale::scaled)
-    return "0";
-  if (autoScale == AutoScale::unscaled)
-    return "1";
-
-  return {};
-}
-
-AutoScale getAutoScaleValueForPlugin(const String &identifier) {
-  if (identifier.isNotEmpty()) {
-    if (auto *settings = getUserSettings()) {
-      auto plugins =
-          StringArray::fromLines(settings->getValue("autoScalePlugins"));
-      plugins.removeEmptyStrings();
-
-      auto prefix = identifier + ":";
-      for (auto &plugin : plugins) {
-        if (plugin.startsWith(prefix))
-          return autoScaleFromString(plugin.substring(prefix.length()));
-      }
-    }
-  }
-
-  return AutoScale::useDefault;
-}
-
-void setAutoScaleValueForPlugin(const String &identifier, AutoScale s) {
-  auto *settings = getUserSettings();
-  if (settings == nullptr)
-    return;
-
-  auto plugins = StringArray::fromLines(settings->getValue("autoScalePlugins"));
-  plugins.removeEmptyStrings();
-
-  auto prefix = identifier + ":";
-  auto index = [prefix, plugins] {
-    auto it =
-        std::find_if(plugins.begin(), plugins.end(), [&](const String &str) {
-          return str.startsWith(prefix);
-        });
-
-    return (int)std::distance(plugins.begin(), it);
-  }();
-
-  if (s == AutoScale::useDefault && index != plugins.size()) {
-    plugins.remove(index);
-  } else {
-    auto str = identifier + ":" + autoScaleToString(s);
-
-    if (index != plugins.size())
-      plugins.getReference(index) = str;
-    else
-      plugins.add(str);
-  }
-
-  settings->setValue("autoScalePlugins", plugins.joinIntoString("\n"));
-  settings->saveIfNeeded();
-}
-
-static bool
-isAutoScaleAvailableForPlugin(const PluginDescription &description) {
-  return autoScaleOptionAvailable &&
-         (description.pluginFormatName.containsIgnoreCase("VST") ||
-          description.pluginFormatName.containsIgnoreCase("LV2"));
-}
-
-bool shouldAutoScalePlugin(const PluginDescription &description) {
-  if (!isAutoScaleAvailableForPlugin(description))
-    return false;
-
-  const auto scaleValue =
-      getAutoScaleValueForPlugin(description.fileOrIdentifier);
-  auto *settings = getUserSettings();
-
-  return (scaleValue == AutoScale::scaled ||
-          (scaleValue == AutoScale::useDefault && settings != nullptr &&
-           settings->getBoolValue("autoScalePluginWindows")));
-}
-
-void addPluginAutoScaleOptionsSubMenu(AudioPluginInstance *pluginInstance,
-                                      PopupMenu &menu) {
-  if (pluginInstance == nullptr)
-    return;
-
-  auto description = pluginInstance->getPluginDescription();
-
-  if (!isAutoScaleAvailableForPlugin(description))
-    return;
-
-  auto identifier = description.fileOrIdentifier;
-
-  PopupMenu autoScaleMenu;
-
-  autoScaleMenu.addItem(
-      "Default", true,
-      getAutoScaleValueForPlugin(identifier) == AutoScale::useDefault,
-      [identifier] {
-        setAutoScaleValueForPlugin(identifier, AutoScale::useDefault);
-      });
-
-  autoScaleMenu.addItem(
-      "Enabled", true,
-      getAutoScaleValueForPlugin(identifier) == AutoScale::scaled,
-      [identifier] {
-        setAutoScaleValueForPlugin(identifier, AutoScale::scaled);
-      });
-
-  autoScaleMenu.addItem(
-      "Disabled", true,
-      getAutoScaleValueForPlugin(identifier) == AutoScale::unscaled,
-      [identifier] {
-        setAutoScaleValueForPlugin(identifier, AutoScale::unscaled);
-      });
-
-  menu.addSubMenu("Auto-scale window", autoScaleMenu);
 }
 
 // Application entry point

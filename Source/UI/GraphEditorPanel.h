@@ -264,8 +264,6 @@ private:
     It also manages the graph itself, and plays it.
 */
 class GraphDocumentComponent final : public Component,
-                                     public DragAndDropTarget,
-                                     public DragAndDropContainer,
                                      private ChangeListener,
                                      private AsyncUpdater
 {
@@ -287,18 +285,9 @@ public:
     void releaseGraph();
 
     //==============================================================================
-    bool isInterestedInDragSource (const SourceDetails&) override;
-    void itemDropped (const SourceDetails&) override;
-
-    //==============================================================================
     std::unique_ptr<GraphEditorPanel> graphPanel;
 
     //==============================================================================
-    void showSidePanel (bool isSettingsPanel);
-    void hideLastSidePanel();
-
-    BurgerMenuComponent burgerMenu;
-
     void propagateDeviceSettingsToNodes();
 
     void startPresetTransition() { graphPlayer.startFadeOut(); }
@@ -309,7 +298,6 @@ public:
 private:
     //==============================================================================
     AudioDeviceManager& deviceManager;
-    KnownPluginList& pluginList;
 
     FadingAudioProcessorPlayer graphPlayer;
     MidiKeyboardState keyState;
@@ -321,25 +309,11 @@ private:
     struct TooltipBar;
     std::unique_ptr<TooltipBar> statusBar;
 
-    class TitleBarComponent;
-    std::unique_ptr<TitleBarComponent> titleBarComponent;
-
-    //==============================================================================
-    struct PluginListBoxModel;
-    std::unique_ptr<PluginListBoxModel> pluginListBoxModel;
-
-    ListBox pluginListBox;
-
-    SidePanel mobileSettingsSidePanel { "Settings", 300, true };
-    SidePanel pluginListSidePanel    { "Plugins", 250, false };
-    SidePanel* lastOpenedSidePanel = nullptr;
-
     //==============================================================================
     void changeListenerCallback (ChangeBroadcaster*) override;
     void handleAsyncUpdate() override;
 
     void init();
-    void checkAvailableWidth();
     void updateMidiOutput();
 
     //==============================================================================

@@ -80,11 +80,9 @@ public:
       : mainWindow(windowToControl), gitHubUpdater(gitHubUpdaterToControl) {
     refreshIcon();
 
-   #if JUCE_MAC
     displayChangeNotifier = createMacOSDisplayChangeNotifier([this] {
       handleDisplayOrWakeChange();
     });
-   #endif
   }
 
   void refreshIcon() {
@@ -97,11 +95,9 @@ public:
     if (isMenuOpen)
       return;
 
-   #if JUCE_MAC
     // Explicitly unregister old NSStatusItem from NSStatusBar so it is cleanly removed
     // from all menu bars and does not linger as a greyed-out/zombie placeholder.
     removeMacOSStatusItem (getNativeHandle());
-   #endif
 
     // Reset JUCE's internal Pimpl holder
     setIconImage({}, {});
@@ -241,7 +237,6 @@ public:
         w->showPluginListWindow();
     });
     settingsmenu.addSeparator();
-#if JUCE_MAC
     settingsmenu.addItem(
         "Force macOS System Audio to loopback", true, isAutoSyncSoundEnabled,
         [safeWindow, isAutoSyncSoundEnabled] {
@@ -265,7 +260,6 @@ public:
           SystemSleepManager::setPreventSystemSleep(newState);
         });
     settingsmenu.addSeparator();
-#endif
     auto updaterToken = gitHubUpdater.getLifetimeToken();
     settingsmenu.addItem("Check for Updates...", [updaterToken] {
       if (updaterToken != nullptr)
@@ -333,8 +327,6 @@ private:
   GitHubUpdater &gitHubUpdater;
   bool isMenuOpen = false;
   juce::uint32 lastMenuDismissTime = 0;
- #if JUCE_MAC
   std::unique_ptr<MacOSDisplayChangeNotifierBase> displayChangeNotifier;
- #endif
 };
 

@@ -11,9 +11,7 @@
 ==============================================================================
 */
 
-#if defined (__APPLE__)
 #include <CoreAudio/CoreAudio.h>
-#endif
 
 #include "SystemSleepManager.h"
 
@@ -23,7 +21,6 @@ namespace SystemSleepManager
 {
     void setPreventSystemSleep (bool preventSleep)
     {
-    #if JUCE_MAC
         AudioObjectPropertyAddress address = {
             kAudioHardwarePropertySleepingIsAllowed,
             kAudioObjectPropertyScopeGlobal,
@@ -32,9 +29,6 @@ namespace SystemSleepManager
         UInt32 sleepingAllowed = preventSleep ? 0 : 1;
         AudioObjectSetPropertyData (kAudioObjectSystemObject, &address, 0, nullptr,
                                     static_cast<UInt32> (sizeof (sleepingAllowed)), &sleepingAllowed);
-    #else
-        juce::ignoreUnused (preventSleep);
-    #endif
     }
 
     bool isPreventSystemSleepEnabled()

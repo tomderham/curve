@@ -198,19 +198,6 @@ public:
 
         setConstrainer (&constrainer);
 
-       #if JUCE_IOS || JUCE_ANDROID
-        const auto screenBounds = Desktop::getInstance().getDisplays().getTotalBounds (true).toFloat();
-        const auto scaleFactor = jmin ((screenBounds.getWidth()  - 50.0f) / (float) getWidth(),
-                                       (screenBounds.getHeight() - 50.0f) / (float) getHeight());
-
-        if (scaleFactor < 1.0f)
-        {
-            setSize ((int) (scaleFactor * (float) getWidth()),
-                     (int) (scaleFactor * (float) getHeight()));
-        }
-
-        setTopLeftPosition (20, 20);
-       #else
         auto savedX = (int) node->properties.getWithDefault (getLastXProp (type), Random::getSystemRandom().nextInt (500));
         auto savedY = (int) node->properties.getWithDefault (getLastYProp (type), Random::getSystemRandom().nextInt (500));
 
@@ -222,7 +209,6 @@ public:
         }
 
         setTopLeftPosition (savedX, savedY);
-       #endif
 
         node->properties.set (getOpenProp (type), true);
 
@@ -262,12 +248,7 @@ public:
 
     BorderSize<int> getBorderThickness() const override
     {
-       #if JUCE_IOS || JUCE_ANDROID
-        const int border = 10;
-        return { border, border, border, border };
-       #else
         return DocumentWindow::getBorderThickness();
-       #endif
     }
 
 private:

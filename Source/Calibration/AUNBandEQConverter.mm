@@ -2,10 +2,8 @@
 #include "AUNBandEQConverter.h"
 #include <cmath>
 
-#if JUCE_MAC
- #import <AudioToolbox/AudioToolbox.h>
- #import <AudioUnit/AudioUnit.h>
-#endif
+#import <AudioToolbox/AudioToolbox.h>
+#import <AudioUnit/AudioUnit.h>
 
 namespace AUNBandEQConverter
 {
@@ -101,7 +99,6 @@ namespace AUNBandEQConverter
 
         hasScanned = true;
 
-       #if JUCE_MAC
         juce::AudioUnitPluginFormat auFormat;
         auto auIdentifiers = auFormat.searchPathsForPlugins (juce::FileSearchPath(), false, false);
         for (const auto& id : auIdentifiers)
@@ -118,7 +115,6 @@ namespace AUNBandEQConverter
                 }
             }
         }
-       #endif
 
         return scanResult;
     }
@@ -144,7 +140,6 @@ namespace AUNBandEQConverter
         if (proc == nullptr)
             return false;
 
-       #if JUCE_MAC
         AudioUnit audioUnit = nullptr;
         if (auto* plugin = dynamic_cast<juce::AudioPluginInstance*> (proc))
         {
@@ -259,7 +254,6 @@ namespace AUNBandEQConverter
             proc->updateHostDisplay (juce::AudioProcessor::ChangeDetails().withParameterInfoChanged (true).withNonParameterStateChanged (true));
             return true;
         }
-       #endif
 
         return false;
     }
@@ -271,7 +265,6 @@ namespace AUNBandEQConverter
 
         proc->setStateInformation (state.getData(), (int) state.getSize());
 
-       #if JUCE_MAC
         AudioUnit audioUnit = nullptr;
         if (auto* plugin = dynamic_cast<juce::AudioPluginInstance*> (proc))
         {
@@ -292,7 +285,6 @@ namespace AUNBandEQConverter
             propEvent.mArgument.mProperty.mPropertyID = kProp_NumberOfBands;
             AUEventListenerNotify (nullptr, nullptr, &propEvent);
         }
-       #endif
 
         proc->updateHostDisplay (juce::AudioProcessor::ChangeDetails().withParameterInfoChanged (true).withNonParameterStateChanged (true));
         return true;

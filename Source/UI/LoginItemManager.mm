@@ -14,8 +14,6 @@
 #define DONT_SET_USING_JUCE_NAMESPACE 1
 #include "LoginItemManager.h"
 
-#if JUCE_MAC
-
 #import <Foundation/Foundation.h>
 #import <AppKit/AppKit.h>
 #import <ServiceManagement/ServiceManagement.h>
@@ -182,15 +180,3 @@ void removeMacOSStatusItem (void* nativeHandle)
         [[NSStatusBar systemStatusBar] removeStatusItem: statusItem];
     }
 }
-
-
-#else
-
-namespace LoginItemManager
-{
-    Status getStatus()                                              { return Status::unavailable; }
-    bool setEnabled (bool, juce::String& errorMessage)               { errorMessage = "Not supported on this platform."; return false; }
-    void openSystemSettingsLoginItemsPane()                          {}
-}
-
-#endif

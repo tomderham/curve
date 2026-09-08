@@ -355,13 +355,9 @@ MainHostWindow::MainHostWindow()
         deviceManager.setAudioDeviceSetup (setup, false);
     }
 
-   #if JUCE_IOS || JUCE_ANDROID
-    setFullScreen (true);
-   #else
     setResizable (true, false);
     setResizeLimits (500, 400, 10000, 10000);
     centreWithSize (800, 600);
-   #endif
 
     knownPluginList.setCustomScanner (std::make_unique<CustomPluginScanner>());
 
@@ -381,7 +377,6 @@ MainHostWindow::MainHostWindow()
         knownPluginList.recreateFromXml (*savedPluginList);
     }
 
-   #if JUCE_MAC
     // Populate Apple built-in AudioUnit plugins if missing from pluginList
     AudioUnitPluginFormat auFormat;
     auto auIdentifiers = auFormat.searchPathsForPlugins (FileSearchPath(), false, false);
@@ -406,7 +401,6 @@ MainHostWindow::MainHostWindow()
             }
         }
     }
-   #endif
 
     // Remove any cached known (internal) plugins from list
     auto types = knownPluginList.getTypes();
@@ -689,9 +683,7 @@ void MainHostWindow::getAllCommands (Array<CommandID>& commands)
 {
     const CommandID ids[] = {
                               CommandIDs::showPluginListEditor,
-                              CommandIDs::showAudioSettings,
-                              CommandIDs::allWindowsForward,
-                              CommandIDs::autoScalePluginWindows
+                              CommandIDs::showAudioSettings
                             };
 
     commands.addArray (ids, numElementsInArray (ids));
@@ -713,15 +705,6 @@ void MainHostWindow::getCommandInfo (const CommandID commandID, ApplicationComma
         result.addDefaultKeypress ('a', ModifierKeys::commandModifier);
         break;
 
-    case CommandIDs::allWindowsForward:
-        result.setInfo ("All Windows Forward", "Bring all plug-in windows forward", category, 0);
-        result.addDefaultKeypress ('w', ModifierKeys::commandModifier);
-        break;
-
-    case CommandIDs::autoScalePluginWindows:
-        updateAutoScaleMenuItem (result);
-        break;
-
     default:
         break;
     }
@@ -741,27 +724,6 @@ bool MainHostWindow::perform (const InvocationInfo& info)
     case CommandIDs::showAudioSettings:
         showAudioSettings();
         break;
-
-    case CommandIDs::autoScalePluginWindows:
-        if (auto* props = getAppProperties().getUserSettings())
-        {
-            auto newAutoScale = ! isAutoScalePluginWindowsEnabled();
-            props->setValue ("autoScalePluginWindows", var (newAutoScale));
-
-            ApplicationCommandInfo cmdInfo (info.commandID);
-            updateAutoScaleMenuItem (cmdInfo);
-        }
-        break;
-
-    case CommandIDs::allWindowsForward:
-    {
-        auto& desktop = Desktop::getInstance();
-
-        for (int i = 0; i < desktop.getNumComponents(); ++i)
-            desktop.getComponent (i)->toBehind (this);
-
-        break;
-    }
 
     default:
         return false;
@@ -851,7 +813,6 @@ void MainHostWindow::filesDropped (const StringArray& files, int x, int y)
 
     if (graphHolder != nullptr)
     {
-       #if ! (JUCE_ANDROID || JUCE_IOS)
         File firstFile { files[0] };
 
         if (files.size() == 1 && firstFile.hasFileExtension (PluginGraph::getFilenameSuffix()))
@@ -884,7 +845,7 @@ void MainHostWindow::filesDropped (const StringArray& files, int x, int y)
                 return;
             }
         }
-       #endif
+
         {
             OwnedArray<PluginDescription> typesFound;
             knownPluginList.scanAndAddDragAndDroppedFiles (formatManager, files, typesFound);
@@ -898,18 +859,6 @@ void MainHostWindow::filesDropped (const StringArray& files, int x, int y)
                     createPlugin (PluginDescriptionAndPreference { *desc }, pos);
         }
     }
-}
-
-bool MainHostWindow::isAutoScalePluginWindowsEnabled()
-{
-    // always auto-scale plugin windows
-    return true;
-}
-
-void MainHostWindow::updateAutoScaleMenuItem (ApplicationCommandInfo& info)
-{
-    info.setInfo ("Auto-Scale Plug-in Windows", {}, "General", 0);
-    info.setTicked (isAutoScalePluginWindowsEnabled());
 }
 
 void MainHostWindow::loadPreset(juce::File file)
