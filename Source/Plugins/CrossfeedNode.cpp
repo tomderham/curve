@@ -13,6 +13,7 @@
 */
 
 #include "CrossfeedNode.h"
+#include "../AudioConstants.h"
 
 namespace CrossfeedData
 {
@@ -363,7 +364,7 @@ bool CrossfeedNode::isBusesLayoutSupported (const BusesLayout& layouts) const
 void CrossfeedNode::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     if (sampleRate <= 0.0)
-        sampleRate = 44100.0;
+        sampleRate = Curve::AudioConstants::defaultSampleRate;
 
     const auto maxBlock = juce::jmax (1, samplesPerBlock);
 

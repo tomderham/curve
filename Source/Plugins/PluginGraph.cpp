@@ -37,6 +37,7 @@
 #include "PluginGraph.h"
 #include "InternalPlugins.h"
 #include "../UI/GraphEditorPanel.h"
+#include "../AudioConstants.h"
 
 
 //==============================================================================
@@ -215,8 +216,10 @@ File PluginGraph::getSuggestedSaveAsFile (const File& defaultFile)
 //==============================================================================
 static void preConfigureGraphChannels (AudioProcessorGraph& graph, const XmlElement* xml = nullptr)
 {
-    int numIns = 2;
-    int numOuts = 2;
+    using namespace Curve::AudioConstants;
+
+    int numIns = defaultNumChannels;
+    int numOuts = defaultNumChannels;
     double targetSampleRate = graph.getSampleRate();
     int targetBlockSize = graph.getBlockSize();
 
@@ -224,9 +227,6 @@ static void preConfigureGraphChannels (AudioProcessorGraph& graph, const XmlElem
     {
         if (auto state = settings->getXmlValue ("audioDeviceState"))
         {
-            // JUCE stores active channels as a radix-2 (binary) bitmask string.
-            // "11" in binary represents bits 0 and 1 enabled (standard Left & Right stereo).
-            constexpr auto defaultStereoBitmask = "11";
             juce::BigInteger inChans, outChans;
             inChans.parseString (state->getStringAttribute ("audioDeviceInChans", defaultStereoBitmask), 2);
             outChans.parseString (state->getStringAttribute ("audioDeviceOutChans", defaultStereoBitmask), 2);
@@ -235,10 +235,10 @@ static void preConfigureGraphChannels (AudioProcessorGraph& graph, const XmlElem
             numOuts = jmax (numOuts, outChans.getHighestBit() + 1, outChans.countNumberOfSetBits());
 
             if (targetSampleRate <= 0.0)
-                targetSampleRate = state->getDoubleAttribute ("audioDeviceRate", state->getDoubleAttribute ("sampleRate", 44100.0));
+                targetSampleRate = state->getDoubleAttribute ("audioDeviceRate", state->getDoubleAttribute ("sampleRate", defaultSampleRate));
 
             if (targetBlockSize <= 0)
-                targetBlockSize = state->getIntAttribute ("audioDeviceBufferSize", state->getIntAttribute ("bufferSize", 512));
+                targetBlockSize = state->getIntAttribute ("audioDeviceBufferSize", state->getIntAttribute ("bufferSize", defaultBufferSize));
         }
     }
 
@@ -257,15 +257,15 @@ static void preConfigureGraphChannels (AudioProcessorGraph& graph, const XmlElem
                 {
                     PluginDescription desc;
                     const bool loaded = desc.loadFromXml (*child);
-                    const bool isInternal = loaded && desc.pluginFormatName.equalsIgnoreCase ("Internal");
+                    const bool isInternal = loaded && desc.pluginFormatName.equalsIgnoreCase (internalPluginFormat);
 
-                    const bool isAudioOutput = isInternal && (desc.fileOrIdentifier.equalsIgnoreCase ("Audio Output")
-                                                           || desc.name.equalsIgnoreCase ("Audio Output")
-                                                           || desc.uniqueId == 0x724248cb);
+                    const bool isAudioOutput = isInternal && (desc.fileOrIdentifier.equalsIgnoreCase (audioOutputName)
+                                                           || desc.name.equalsIgnoreCase (audioOutputName)
+                                                           || desc.uniqueId == audioOutputUniqueId);
 
-                    const bool isAudioInput  = isInternal && (desc.fileOrIdentifier.equalsIgnoreCase ("Audio Input")
-                                                           || desc.name.equalsIgnoreCase ("Audio Input")
-                                                           || desc.uniqueId == 0x246006c0);
+                    const bool isAudioInput  = isInternal && (desc.fileOrIdentifier.equalsIgnoreCase (audioInputName)
+                                                           || desc.name.equalsIgnoreCase (audioInputName)
+                                                           || desc.uniqueId == audioInputUniqueId);
 
                     if (isAudioOutput)
                     {
@@ -335,10 +335,10 @@ static void preConfigureGraphChannels (AudioProcessorGraph& graph, const XmlElem
     numOuts = jmax (numOuts, graph.getTotalNumOutputChannels());
 
     if (targetSampleRate <= 0.0)
-        targetSampleRate = 44100.0;
+        targetSampleRate = defaultSampleRate;
 
     if (targetBlockSize <= 0)
-        targetBlockSize = 512;
+        targetBlockSize = defaultBufferSize;
 
     graph.setPlayConfigDetails (numIns, numOuts, targetSampleRate, targetBlockSize);
 }
@@ -357,9 +357,9 @@ void PluginGraph::newDocument()
 
     for (const auto& desc : internalFormat.getAllTypes())
     {
-        bool isAudioInput  = (desc.fileOrIdentifier == "Audio Input" || desc.name == "Audio Input");
-        bool isLoopback    = (desc.fileOrIdentifier == "OutputInterfaceLoopback" || desc.name == "Interface Loopback (In)" || desc.name == "Output Interface Loopback");
-        bool isAudioOutput = (desc.fileOrIdentifier == "Audio Output" || desc.name == "Audio Output");
+        bool isAudioInput  = (desc.fileOrIdentifier == Curve::AudioConstants::audioInputName || desc.name == Curve::AudioConstants::audioInputName);
+        bool isLoopback    = (desc.fileOrIdentifier == Curve::AudioConstants::loopbackIdentifier || desc.name == Curve::AudioConstants::loopbackName || desc.name == "Output Interface Loopback");
+        bool isAudioOutput = (desc.fileOrIdentifier == Curve::AudioConstants::audioOutputName || desc.name == Curve::AudioConstants::audioOutputName);
 
         if (isAudioInput || isLoopback || isAudioOutput)
         {

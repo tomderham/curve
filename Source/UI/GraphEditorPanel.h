@@ -49,6 +49,7 @@
 #include <JuceHeader.h>
 #include "../Plugins/PluginGraph.h"
 #include "../AudioDiagnostics.h"
+#include "../AudioConstants.h"
 
 class MainHostWindow;
 
@@ -150,7 +151,7 @@ public:
     void audioDeviceAboutToStart (AudioIODevice* device) override
     {
         player.audioDeviceAboutToStart (device);
-        double sr = (device != nullptr) ? device->getCurrentSampleRate() : 44100.0;
+        double sr = (device != nullptr) ? device->getCurrentSampleRate() : Curve::AudioConstants::defaultSampleRate;
         currentSampleRate.store (sr, std::memory_order_relaxed);
         fadeGain.reset (sr, 0.02);
         fadeGain.setCurrentAndTargetValue (1.0f);
@@ -198,7 +199,7 @@ public:
         uint32_t elapsedUs = static_cast<uint32_t> (elapsedSec * 1000000.0);
 
         double sr = currentSampleRate.load (std::memory_order_relaxed);
-        if (sr <= 0.0) sr = 48000.0;
+        if (sr <= 0.0) sr = Curve::AudioConstants::defaultSampleRate;
         uint32_t deadlineUs = static_cast<uint32_t> ((numSamples / sr) * 1000000.0);
 
         AudioDiagnostics::getInstance().recordCallbackTiming (elapsedUs, deadlineUs);
@@ -252,7 +253,7 @@ private:
     juce::LinearSmoothedValue<float> fadeGain { 1.0f };
     std::atomic<float> targetGain { 1.0f };
     std::atomic<bool> isFadedOut { false };
-    std::atomic<double> currentSampleRate { 44100.0 };
+    std::atomic<double> currentSampleRate { Curve::AudioConstants::defaultSampleRate };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FadingAudioProcessorPlayer)
 };

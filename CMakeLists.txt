@@ -34,6 +34,7 @@ juce_add_gui_app(Curve
 juce_generate_juce_header(Curve)
 
 target_sources(Curve PRIVATE
+    Source/AudioConstants.h
     Source/AudioDiagnostics.h
     Source/HostStartup.cpp
     Source/Plugins/AudioRecorderNode.cpp

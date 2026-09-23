@@ -56,6 +56,7 @@
 #include "OutputInterfaceLoopbackNode.h"
 #include "PluginGraph.h"
 #include "SpeakerEmulationNode.h"
+#include "../AudioConstants.h"
 
 //==============================================================================
 
@@ -70,15 +71,15 @@ static const std::vector<PluginDescription>& getStaticInternalDescriptions()
         result.push_back (AudioProcessorGraph::AudioGraphIOProcessor (AudioProcessorGraph::AudioGraphIOProcessor::audioInputNode).getPluginDescription());
 
         PluginDescription loopback;
-        loopback.name = "Interface Loopback (In)";
-        loopback.descriptiveName = "Interface Loopback (In)";
-        loopback.pluginFormatName = "Internal";
+        loopback.name = Curve::AudioConstants::loopbackName;
+        loopback.descriptiveName = Curve::AudioConstants::loopbackName;
+        loopback.pluginFormatName = Curve::AudioConstants::internalPluginFormat;
         loopback.category = "Audio I/O";
-        loopback.fileOrIdentifier = "OutputInterfaceLoopback";
-        loopback.uniqueId = 0x53415450; // "SATP"
+        loopback.fileOrIdentifier = Curve::AudioConstants::loopbackIdentifier;
+        loopback.uniqueId = Curve::AudioConstants::loopbackUniqueId;
         loopback.isInstrument = false;
         loopback.numInputChannels = 0;
-        loopback.numOutputChannels = 2;
+        loopback.numOutputChannels = Curve::AudioConstants::defaultNumChannels;
         result.push_back (loopback);
 
         result.push_back (AudioProcessorGraph::AudioGraphIOProcessor (AudioProcessorGraph::AudioGraphIOProcessor::audioOutputNode).getPluginDescription());
@@ -178,11 +179,11 @@ std::unique_ptr<AudioPluginInstance> InternalPluginFormat::InternalPluginFactory
 
     // Legacy node name compatibility
     if (name.equalsIgnoreCase ("System Audio Input") || name.equalsIgnoreCase ("SystemAudio")
-        || name.equalsIgnoreCase ("Output Interface Loopback") || name.equalsIgnoreCase ("OutputInterfaceLoopback"))
+        || name.equalsIgnoreCase ("Output Interface Loopback") || name.equalsIgnoreCase (Curve::AudioConstants::loopbackIdentifier))
     {
         const auto loopbackIt = std::find_if (begin, descriptions.end(), [] (const PluginDescription& desc) {
-            return desc.fileOrIdentifier.equalsIgnoreCase ("OutputInterfaceLoopback")
-                || desc.uniqueId == 0x53415450;
+            return desc.fileOrIdentifier.equalsIgnoreCase (Curve::AudioConstants::loopbackIdentifier)
+                || desc.uniqueId == Curve::AudioConstants::loopbackUniqueId;
         });
 
         if (loopbackIt != descriptions.end())

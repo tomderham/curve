@@ -711,8 +711,8 @@ void OutputInterfaceLoopbackNode::refreshCapture()
     {
         double sr = getSampleRate();
         int bs = getBlockSize();
-        if (sr <= 0.0) sr = 44100.0;
-        if (bs <= 0)   bs = 512;
+        if (sr <= 0.0) sr = Curve::AudioConstants::defaultSampleRate;
+        if (bs <= 0)   bs = Curve::AudioConstants::defaultBufferSize;
         isCapturing.store (false, std::memory_order_release);
         prepareToPlay (sr, bs);
     }
@@ -736,8 +736,8 @@ void OutputInterfaceLoopbackNode::setActiveState (bool shouldBeActive)
     {
         double sr = getSampleRate();
         int bs = getBlockSize();
-        if (sr <= 0.0) sr = 44100.0;
-        if (bs <= 0)   bs = 512;
+        if (sr <= 0.0) sr = Curve::AudioConstants::defaultSampleRate;
+        if (bs <= 0)   bs = Curve::AudioConstants::defaultBufferSize;
         isCapturing.store (false, std::memory_order_release);
         prepareToPlay (sr, bs);
     }
@@ -1051,7 +1051,7 @@ void OutputInterfaceLoopbackNode::processBlock (juce::AudioBuffer<float>& buffer
         return;
     
     double sr = getSampleRate();
-    if (sr <= 0.0) sr = 48000.0;
+    if (sr <= 0.0) sr = Curve::AudioConstants::defaultSampleRate;
 
     int numSamplesNeeded = buffer.getNumSamples();
     int currentReady = fifo.getNumReady();
@@ -1136,10 +1136,10 @@ void OutputInterfaceLoopbackNode::fillInPluginDescription (juce::PluginDescripti
 {
     description.name = getName();
     description.descriptiveName = getName();
-    description.pluginFormatName = "Internal";
+    description.pluginFormatName = Curve::AudioConstants::internalPluginFormat;
     description.category = "Audio I/O";
-    description.fileOrIdentifier = "OutputInterfaceLoopback";
-    description.uniqueId = 0x53415450; // "SATP"
+    description.fileOrIdentifier = Curve::AudioConstants::loopbackIdentifier;
+    description.uniqueId = Curve::AudioConstants::loopbackUniqueId;
     description.isInstrument = false;
     description.numInputChannels = 0;
     description.numOutputChannels = getMainBusNumOutputChannels();
