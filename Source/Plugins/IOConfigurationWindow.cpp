@@ -447,16 +447,11 @@ IOConfigurationWindow::IOConfigurationWindow (AudioProcessor& p)
 
     if (auto* graph = getGraph())
     {
-        ScopedLock renderLock (graph->getCallbackLock());
-        
-        graph->suspendProcessing (true);
-        graph->releaseResources();
+        ScopedLock graphLock (graph->getCallbackLock());
+        ScopedLock renderLock (p.getCallbackLock());
 
         p.suspendProcessing (true);
         p.releaseResources();
-
-        graph->prepareToPlay (graph->getSampleRate(), graph->getBlockSize());
-        graph->suspendProcessing (false);
     }
     else
     {
@@ -498,6 +493,12 @@ IOConfigurationWindow::~IOConfigurationWindow()
             graph->prepareToPlay (graph->getSampleRate(), graph->getBlockSize());
             graph->suspendProcessing (false);
         }
+    }
+    else if (auto* p = getAudioProcessor())
+    {
+        ScopedLock renderLock (p->getCallbackLock());
+        p->prepareToPlay (p->getSampleRate(), p->getBlockSize());
+        p->suspendProcessing (false);
     }
 }
 

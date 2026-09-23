@@ -491,7 +491,8 @@ void PluginGraph::createNodeFromXml (const XmlElement& xml, bool restorePluginWi
             readBusLayoutFromXml (layout, *instance, *layoutEntity, true);
             readBusLayoutFromXml (layout, *instance, *layoutEntity, false);
 
-            instance->setBusesLayout (layout);
+            if (! instance->setBusesLayout (layout))
+                DBG ("Failed to apply saved bus layout to " + instance->getName());
         }
 
         if (auto node = graph.addNode (std::move (instance), NodeID ((uint32) xml.getIntAttribute ("uid"))))
