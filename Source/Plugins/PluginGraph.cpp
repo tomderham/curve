@@ -212,12 +212,145 @@ File PluginGraph::getSuggestedSaveAsFile (const File& defaultFile)
     return FileBasedDocument::getSuggestedSaveAsFile (presetsDir.getChildFile (defaultFile.getFileName()));
 }
 
+//==============================================================================
+static void preConfigureGraphChannels (AudioProcessorGraph& graph, const XmlElement* xml = nullptr)
+{
+    int numIns = 2;
+    int numOuts = 2;
+    double targetSampleRate = graph.getSampleRate();
+    int targetBlockSize = graph.getBlockSize();
+
+    if (auto* settings = getUserSettings())
+    {
+        if (auto state = settings->getXmlValue ("audioDeviceState"))
+        {
+            // JUCE stores active channels as a radix-2 (binary) bitmask string.
+            // "11" in binary represents bits 0 and 1 enabled (standard Left & Right stereo).
+            constexpr auto defaultStereoBitmask = "11";
+            juce::BigInteger inChans, outChans;
+            inChans.parseString (state->getStringAttribute ("audioDeviceInChans", defaultStereoBitmask), 2);
+            outChans.parseString (state->getStringAttribute ("audioDeviceOutChans", defaultStereoBitmask), 2);
+
+            numIns  = jmax (numIns,  inChans.getHighestBit() + 1,  inChans.countNumberOfSetBits());
+            numOuts = jmax (numOuts, outChans.getHighestBit() + 1, outChans.countNumberOfSetBits());
+
+            if (targetSampleRate <= 0.0)
+                targetSampleRate = state->getDoubleAttribute ("audioDeviceRate", state->getDoubleAttribute ("sampleRate", 44100.0));
+
+            if (targetBlockSize <= 0)
+                targetBlockSize = state->getIntAttribute ("audioDeviceBufferSize", state->getIntAttribute ("bufferSize", 512));
+        }
+    }
+
+    if (xml != nullptr)
+    {
+        int audioOutputUid = -1;
+        int audioInputUid = -1;
+
+        for (auto* filterXml : xml->getChildWithTagNameIterator ("FILTER"))
+        {
+            int uid = filterXml->getIntAttribute ("uid", -1);
+
+            for (auto* child : filterXml->getChildIterator())
+            {
+                if (child->hasTagName ("PLUGIN"))
+                {
+                    PluginDescription desc;
+                    const bool loaded = desc.loadFromXml (*child);
+                    const bool isInternal = loaded && desc.pluginFormatName.equalsIgnoreCase ("Internal");
+
+                    const bool isAudioOutput = isInternal && (desc.fileOrIdentifier.equalsIgnoreCase ("Audio Output")
+                                                           || desc.name.equalsIgnoreCase ("Audio Output")
+                                                           || desc.uniqueId == 0x724248cb);
+
+                    const bool isAudioInput  = isInternal && (desc.fileOrIdentifier.equalsIgnoreCase ("Audio Input")
+                                                           || desc.name.equalsIgnoreCase ("Audio Input")
+                                                           || desc.uniqueId == 0x246006c0);
+
+                    if (isAudioOutput)
+                    {
+                        audioOutputUid = uid;
+
+                        if (auto* layoutEntity = filterXml->getChildByName ("LAYOUT"))
+                        {
+                            if (auto* inputs = layoutEntity->getChildByName ("INPUTS"))
+                            {
+                                for (auto* bus : inputs->getChildWithTagNameIterator ("BUS"))
+                                {
+                                    auto layoutStr = bus->getStringAttribute ("layout");
+                                    if (layoutStr.isNotEmpty() && ! layoutStr.equalsIgnoreCase ("disabled"))
+                                    {
+                                        auto set = AudioChannelSet::fromAbbreviatedString (layoutStr);
+                                        if (set.size() > 0)
+                                            numOuts = jmax (numOuts, set.size());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    else if (isAudioInput)
+                    {
+                        audioInputUid = uid;
+
+                        if (auto* layoutEntity = filterXml->getChildByName ("LAYOUT"))
+                        {
+                            if (auto* outputs = layoutEntity->getChildByName ("OUTPUTS"))
+                            {
+                                for (auto* bus : outputs->getChildWithTagNameIterator ("BUS"))
+                                {
+                                    auto layoutStr = bus->getStringAttribute ("layout");
+                                    if (layoutStr.isNotEmpty() && ! layoutStr.equalsIgnoreCase ("disabled"))
+                                    {
+                                        auto set = AudioChannelSet::fromAbbreviatedString (layoutStr);
+                                        if (set.size() > 0)
+                                            numIns = jmax (numIns, set.size());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
+        // Also check connection indices as a safeguard against sparse channels or missing LAYOUT tags
+        for (auto* connXml : xml->getChildWithTagNameIterator ("CONNECTION"))
+        {
+            if (audioOutputUid >= 0 && connXml->getIntAttribute ("dstFilter") == audioOutputUid)
+            {
+                int dstChan = connXml->getIntAttribute ("dstChannel");
+                numOuts = jmax (numOuts, dstChan + 1);
+            }
+
+            if (audioInputUid >= 0 && connXml->getIntAttribute ("srcFilter") == audioInputUid)
+            {
+                int srcChan = connXml->getIntAttribute ("srcChannel");
+                numIns = jmax (numIns, srcChan + 1);
+            }
+        }
+    }
+
+    numIns  = jmax (numIns,  graph.getTotalNumInputChannels());
+    numOuts = jmax (numOuts, graph.getTotalNumOutputChannels());
+
+    if (targetSampleRate <= 0.0)
+        targetSampleRate = 44100.0;
+
+    if (targetBlockSize <= 0)
+        targetBlockSize = 512;
+
+    graph.setPlayConfigDetails (numIns, numOuts, targetSampleRate, targetBlockSize);
+}
+
 void PluginGraph::newDocument()
 {
     clear();
     setFile ({});
 
     graph.removeChangeListener (this);
+
+    preConfigureGraphChannels (graph, nullptr);
 
     InternalPluginFormat internalFormat;
     String errorMessage;
@@ -557,6 +690,8 @@ std::unique_ptr<XmlElement> PluginGraph::createXml() const
 void PluginGraph::restoreFromXml (const XmlElement& xml, bool restorePluginWindows)
 {
     clear();
+
+    preConfigureGraphChannels (graph, &xml);
 
     for (auto* e : xml.getChildWithTagNameIterator ("FILTER"))
         createNodeFromXml (*e, restorePluginWindows);
