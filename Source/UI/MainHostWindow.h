@@ -47,6 +47,7 @@
 #pragma once
 
 #include "../Plugins/PluginGraph.h"
+#include "CurveAudioDeviceManager.h"
 #include "GraphEditorPanel.h"
 #include "../Calibration/OnlineCalibrationModels.h"
 
@@ -123,7 +124,7 @@ public:
 private:
 
     //==============================================================================
-    AudioDeviceManager deviceManager;
+    CurveAudioDeviceManager deviceManager;
     AudioPluginFormatManager formatManager;
 
     std::vector<PluginDescription> internalTypes;

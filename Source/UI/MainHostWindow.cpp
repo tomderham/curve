@@ -762,12 +762,19 @@ void MainHostWindow::showAudioSettings()
                          {
                              if (safeThis != nullptr)
                              {
-                                 auto audioState = safeThis->deviceManager.createStateXml();
-
-                                 if (auto* settings = getUserSettings())
+                                 // Only save audio device state if a device is actually active.
+                                 // When the target interface is disconnected, createStateXml()
+                                 // returns stale JUCE internal state (the fallback device),
+                                 // which would permanently clobber the configured target in settings.
+                                 if (safeThis->deviceManager.getCurrentAudioDevice() != nullptr)
                                  {
-                                     settings->setValue ("audioDeviceState", audioState.get());
-                                     settings->saveIfNeeded();
+                                     auto audioState = safeThis->deviceManager.createStateXml();
+
+                                     if (auto* settings = getUserSettings())
+                                     {
+                                         settings->setValue ("audioDeviceState", audioState.get());
+                                         settings->saveIfNeeded();
+                                     }
                                  }
 
                                  if (auto* rm = getResilienceManager())
