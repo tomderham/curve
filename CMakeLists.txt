@@ -54,6 +54,7 @@ target_sources(Curve PRIVATE
     Source/UI/SystemSleepManager.mm
     Source/Calibration/AUNBandEQConverter.mm
     Source/Calibration/AutoEQDataManager.cpp
+    Source/UI/GlobalShortcutManager.mm
     Source/UI/OnlineCalibrationDialog.cpp)
 target_compile_definitions(Curve PRIVATE
     ENABLE_AUDIO_DIAGNOSTICS=$<BOOL:${ENABLE_AUDIO_DIAGNOSTICS}>
@@ -82,7 +83,8 @@ target_link_libraries(Curve PRIVATE
     juce::juce_recommended_warning_flags
     "-framework CoreAudio"
     "-framework ServiceManagement"
-    "-framework AVFoundation")
+    "-framework AVFoundation"
+    "-framework Carbon")
 
 juce_add_bundle_resources_directory(Curve  ${CMAKE_CURRENT_SOURCE_DIR}/Source/Assets/)
 

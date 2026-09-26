@@ -12,6 +12,8 @@
 */
 
 #include "GitHubUpdater.h"
+#include "GlobalShortcutDialog.h"
+#include "GlobalShortcutManager.h"
 #include "GraphEditorPanel.h"
 #include "LoginItemManager.h"
 #include "MainHostWindow.h"
@@ -83,6 +85,8 @@ public:
     displayChangeNotifier = createMacOSDisplayChangeNotifier([this] {
       handleDisplayOrWakeChange();
     });
+
+    initGlobalShortcut();
   }
 
   void refreshIcon() {
@@ -129,9 +133,28 @@ public:
     recreateStatusItem();
   }
 
-
   void mouseUp(const juce::MouseEvent &) override {
     // Leave this empty to prevent double-firing
+  }
+
+  void toggleMenuFromShortcut() {
+    juce::MessageManager::callAsync([safeSelf = juce::Component::SafePointer<TrayIconController>(this)] {
+      if (auto *self = safeSelf.getComponent()) {
+        auto now = juce::Time::getMillisecondCounter();
+        if (self->isMenuOpen || (now - self->lastMenuDismissTime < 250)) {
+          self->isMenuOpen = false;
+          self->lastMenuDismissTime = now;
+          if (self->activeMenuKeyMonitor != nullptr) {
+            GlobalShortcutManager::removeMenuKeyMonitor(self->activeMenuKeyMonitor);
+            self->activeMenuKeyMonitor = nullptr;
+          }
+          juce::PopupMenu::dismissAllActiveMenus();
+          return;
+        }
+
+        self->openTrayMenu(true);
+      }
+    });
   }
 
   void mouseDown(const juce::MouseEvent &event) override {
@@ -140,36 +163,93 @@ public:
       if (isMenuOpen || (now - lastMenuDismissTime < 250)) {
         isMenuOpen = false;
         lastMenuDismissTime = now;
+        if (activeMenuKeyMonitor != nullptr) {
+          GlobalShortcutManager::removeMenuKeyMonitor(activeMenuKeyMonitor);
+          activeMenuKeyMonitor = nullptr;
+        }
         juce::PopupMenu::dismissAllActiveMenus();
         return;
       }
 
-      juce::Process::makeForegroundProcess();
-      auto currentMousePos = juce::Desktop::getInstance().getMousePosition();
-
-      auto menu = buildAppMenu(mainWindow, gitHubUpdater, true);
-
-      auto targetArea =
-          juce::Rectangle<int>(currentMousePos.x, currentMousePos.y, 1, 1);
-      juce::PopupMenu::Options options;
-      options =
-          options.withParentComponent(nullptr).withTargetScreenArea(targetArea);
-
-      isMenuOpen = true;
-      juce::Component::SafePointer<TrayIconController> safeSelf(this);
-      menu.showMenuAsync(options, [safeSelf](int) {
-        if (auto *self = safeSelf.getComponent()) {
-          self->isMenuOpen = false;
-          self->lastMenuDismissTime = juce::Time::getMillisecondCounter();
-        }
-      });
+      openTrayMenu(false);
     }
   }
 
-  ~TrayIconController() override = default;
+  void openTrayMenu(bool fromShortcut) {
+    juce::Process::makeForegroundProcess();
 
-  static void addPresetsToMenu(juce::PopupMenu &menu,
-                               MainHostWindow &mainWindow) {
+    juce::Rectangle<int> targetArea;
+    if (fromShortcut) {
+      targetArea = GlobalShortcutManager::getStatusItemScreenBounds(getNativeHandle());
+      if (targetArea.isEmpty()) {
+        auto mousePos = juce::Desktop::getInstance().getMousePosition();
+        targetArea = juce::Rectangle<int>(mousePos.x, mousePos.y, 1, 1);
+      }
+    } else {
+      auto mousePos = juce::Desktop::getInstance().getMousePosition();
+      targetArea = juce::Rectangle<int>(mousePos.x, mousePos.y, 1, 1);
+    }
+
+    GlobalShortcutManager::LocalActionMap localActions;
+    int initialSelectedPresetId = 0;
+    juce::Component::SafePointer<TrayIconController> safeSelf(this);
+    auto menu = buildAppMenu(mainWindow, gitHubUpdater, true, &localActions,
+                             [safeSelf] {
+                               if (auto *self = safeSelf.getComponent())
+                                 self->showGlobalShortcutDialog();
+                             },
+                             &initialSelectedPresetId);
+
+    juce::PopupMenu::Options options;
+    options = options.withParentComponent(nullptr).withTargetScreenArea(targetArea);
+    if (initialSelectedPresetId != 0)
+      options = options.withInitiallySelectedItem(initialSelectedPresetId);
+
+    isMenuOpen = true;
+
+    if (activeMenuKeyMonitor != nullptr) {
+      GlobalShortcutManager::removeMenuKeyMonitor(activeMenuKeyMonitor);
+      activeMenuKeyMonitor = nullptr;
+    }
+
+    if (!localActions.empty()) {
+      activeMenuKeyMonitor = GlobalShortcutManager::installMenuKeyMonitor(
+          std::move(localActions),
+          [safeSelf] {
+            if (auto *self = safeSelf.getComponent()) {
+              self->isMenuOpen = false;
+              self->lastMenuDismissTime = juce::Time::getMillisecondCounter();
+              if (self->activeMenuKeyMonitor != nullptr) {
+                GlobalShortcutManager::removeMenuKeyMonitor(self->activeMenuKeyMonitor);
+                self->activeMenuKeyMonitor = nullptr;
+              }
+            }
+          });
+    }
+
+    menu.showMenuAsync(options, [safeSelf](int) {
+      if (auto *self = safeSelf.getComponent()) {
+        self->isMenuOpen = false;
+        self->lastMenuDismissTime = juce::Time::getMillisecondCounter();
+        if (self->activeMenuKeyMonitor != nullptr) {
+          GlobalShortcutManager::removeMenuKeyMonitor(self->activeMenuKeyMonitor);
+          self->activeMenuKeyMonitor = nullptr;
+        }
+      }
+    });
+  }
+
+  ~TrayIconController() override {
+    GlobalShortcutManager::unregisterGlobalShortcut();
+    if (activeMenuKeyMonitor != nullptr) {
+      GlobalShortcutManager::removeMenuKeyMonitor(activeMenuKeyMonitor);
+      activeMenuKeyMonitor = nullptr;
+    }
+  }
+
+  static int addPresetsToMenu(juce::PopupMenu &menu,
+                              MainHostWindow &mainWindow,
+                              GlobalShortcutManager::LocalActionMap *outLocalActions = nullptr) {
     // Scan Presets folder for presets
     auto appDataDir =
         juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
@@ -190,29 +270,132 @@ public:
 
     if (files.isEmpty()) {
       menu.addItem("(No presets found)", false, false, nullptr);
-      return;
+      return 0;
     }
 
     juce::Component::SafePointer<MainHostWindow> safeWindow (&mainWindow);
+    int activePresetItemId = 0;
 
-    for (const auto &file : files) {
+    for (int i = 0; i < files.size(); ++i) {
+      const auto &file = files[i];
       juce::String name = file.getFileNameWithoutExtension();
       bool isCurrent = (file == activeFile);
+      int itemId = 1000 + i;
 
       juce::PopupMenu::Item item(name.replace("&", "&&"));
+      item.setID(itemId);
       item.setEnabled(true);
       item.setTicked(isCurrent);
-      item.setAction([safeWindow, file] {
+
+      if (isCurrent)
+        activePresetItemId = itemId;
+
+      auto action = [safeWindow, file] {
         if (auto* w = safeWindow.getComponent())
           w->loadPreset(file);
-      });
+      };
+      item.setAction(action);
+
+      // Support up to 30 fast presets:
+      // Index 0..9   -> Keys 1..9, 0 (Bank_None, badges "1".."9", "0")
+      // Index 10..19 -> Keys Option + 1..9, 0 (Bank_Option, badges "⌥1".."⌥0")
+      // Index 20..29 -> Keys Shift + 1..9, 0 (Bank_Shift, badges "⇧1".."⇧0")
+      if (i < 30) {
+        GlobalShortcutManager::ModifierBank bank = GlobalShortcutManager::Bank_None;
+        juce::String badgePrefix;
+        if (i >= 10 && i < 20) {
+          bank = GlobalShortcutManager::Bank_Option;
+          badgePrefix = juce::String::fromUTF8("\xe2\x8c\xa5"); // ⌥
+        } else if (i >= 20) {
+          bank = GlobalShortcutManager::Bank_Shift;
+          badgePrefix = juce::String::fromUTF8("\xe2\x87\xa7"); // ⇧
+        }
+
+        int digitIndex = (i % 10) + 1; // 1..10
+        char keyChar = (digitIndex == 10) ? '0' : static_cast<char>('0' + digitIndex);
+
+        item.shortcutKeyDescription = badgePrefix + juce::String::charToString(keyChar);
+
+        if (outLocalActions != nullptr) {
+          GlobalShortcutManager::LocalShortcutKey key { bank, keyChar };
+          (*outLocalActions)[key] = action;
+        }
+      }
+
       menu.addItem(item);
+    }
+
+    // If no preset is currently active, fallback to highlighting the first preset
+    if (activePresetItemId == 0 && !files.isEmpty())
+      activePresetItemId = 1000;
+
+    return activePresetItemId;
+  }
+
+  static juce::String getGlobalShortcutDisplayString() {
+    if (auto *settings = getAppProperties().getUserSettings()) {
+      if (!settings->getBoolValue("globalShortcutEnabled", false))
+        return "(Disabled)";
+      return settings->getValue("globalShortcutText", GlobalShortcutManager::defaultShortcutText());
+    }
+    return "(Disabled)";
+  }
+
+  void showGlobalShortcutDialog() {
+    bool enabled = false;
+    uint32_t keyCode = GlobalShortcutManager::defaultCarbonKeyCode;
+    uint32_t modifiers = GlobalShortcutManager::defaultCarbonModifiers;
+    juce::String text = GlobalShortcutManager::defaultShortcutText();
+
+    if (auto *settings = getAppProperties().getUserSettings()) {
+      enabled = settings->getBoolValue("globalShortcutEnabled", false);
+      keyCode = static_cast<uint32_t>(settings->getIntValue("globalShortcutKeyCode", (int) GlobalShortcutManager::defaultCarbonKeyCode));
+      modifiers = static_cast<uint32_t>(settings->getIntValue("globalShortcutModifiers", (int) GlobalShortcutManager::defaultCarbonModifiers));
+      text = settings->getValue("globalShortcutText", GlobalShortcutManager::defaultShortcutText());
+    }
+
+    juce::Component::SafePointer<TrayIconController> safeSelf(this);
+    GlobalShortcutDialog::showDialog(enabled, keyCode, modifiers, text,
+      [safeSelf](bool newEnabled, uint32_t newKeyCode, uint32_t newMods, const juce::String &newText) {
+        if (auto *self = safeSelf.getComponent()) {
+          if (auto *settings = getAppProperties().getUserSettings()) {
+            settings->setValue("globalShortcutEnabled", newEnabled);
+            settings->setValue("globalShortcutKeyCode", (int) newKeyCode);
+            settings->setValue("globalShortcutModifiers", (int) newMods);
+            settings->setValue("globalShortcutText", newText);
+            settings->saveIfNeeded();
+          }
+          self->initGlobalShortcut();
+        }
+      });
+  }
+
+  void initGlobalShortcut() {
+    bool enabled = false;
+    uint32_t keyCode = GlobalShortcutManager::defaultCarbonKeyCode;
+    uint32_t modifiers = GlobalShortcutManager::defaultCarbonModifiers;
+
+    if (auto *settings = getAppProperties().getUserSettings()) {
+      enabled = settings->getBoolValue("globalShortcutEnabled", false);
+      keyCode = static_cast<uint32_t>(settings->getIntValue("globalShortcutKeyCode", (int) GlobalShortcutManager::defaultCarbonKeyCode));
+      modifiers = static_cast<uint32_t>(settings->getIntValue("globalShortcutModifiers", (int) GlobalShortcutManager::defaultCarbonModifiers));
+    }
+
+    if (enabled) {
+      GlobalShortcutManager::registerGlobalShortcut(keyCode, modifiers, [this] {
+        toggleMenuFromShortcut();
+      });
+    } else {
+      GlobalShortcutManager::unregisterGlobalShortcut();
     }
   }
 
   static juce::PopupMenu buildAppMenu(MainHostWindow &mainWindow,
                                       GitHubUpdater &gitHubUpdater,
-                                      bool includeVisibilityToggle = false) {
+                                      bool includeVisibilityToggle = false,
+                                      GlobalShortcutManager::LocalActionMap *outLocalActions = nullptr,
+                                      std::function<void()> onOpenShortcutSettings = nullptr,
+                                      int *outInitialSelectedId = nullptr) {
     bool isAutoAppUpdateCheckEnabled = true;
     bool isAutoSyncSoundEnabled = true;
     bool isPreventSleepEnabled = false;
@@ -284,6 +467,11 @@ public:
             juce::MessageBoxIconType::InfoIcon, "Open at Login",
             "Curve will now open automatically at login.");
     });
+    juce::String shortcutLabel = "Global Menu Shortcut: " + getGlobalShortcutDisplayString() + "...";
+    settingsmenu.addItem(shortcutLabel, [onOpenShortcutSettings] {
+      if (onOpenShortcutSettings)
+        onOpenShortcutSettings();
+    });
     settingsmenu.addItem("About...", [safeWindow] {
       if (auto* w = safeWindow.getComponent())
         w->showAboutBox();
@@ -314,7 +502,9 @@ public:
     });
     menu.addSeparator();
     menu.addSectionHeader("Presets");
-    addPresetsToMenu(menu, mainWindow);
+    int initialId = addPresetsToMenu(menu, mainWindow, outLocalActions);
+    if (outInitialSelectedId != nullptr)
+      *outInitialSelectedId = initialId;
     menu.addSeparator();
 
     menu.addSubMenu("Settings", settingsmenu, true);
@@ -327,6 +517,7 @@ private:
   GitHubUpdater &gitHubUpdater;
   bool isMenuOpen = false;
   juce::uint32 lastMenuDismissTime = 0;
+  void *activeMenuKeyMonitor = nullptr;
   std::unique_ptr<MacOSDisplayChangeNotifierBase> displayChangeNotifier;
 };
 
