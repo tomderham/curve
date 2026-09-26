@@ -231,8 +231,8 @@ static void preConfigureGraphChannels (AudioProcessorGraph& graph, const XmlElem
             inChans.parseString (state->getStringAttribute ("audioDeviceInChans", defaultStereoBitmask), 2);
             outChans.parseString (state->getStringAttribute ("audioDeviceOutChans", defaultStereoBitmask), 2);
 
-            numIns  = jmax (numIns,  inChans.getHighestBit() + 1,  inChans.countNumberOfSetBits());
-            numOuts = jmax (numOuts, outChans.getHighestBit() + 1, outChans.countNumberOfSetBits());
+            numIns  = jmax (numIns,  inChans.countNumberOfSetBits());
+            numOuts = jmax (numOuts, outChans.countNumberOfSetBits());
 
             if (targetSampleRate <= 0.0)
                 targetSampleRate = state->getDoubleAttribute ("audioDeviceRate", state->getDoubleAttribute ("sampleRate", defaultSampleRate));
@@ -330,9 +330,6 @@ static void preConfigureGraphChannels (AudioProcessorGraph& graph, const XmlElem
             }
         }
     }
-
-    numIns  = jmax (numIns,  graph.getTotalNumInputChannels());
-    numOuts = jmax (numOuts, graph.getTotalNumOutputChannels());
 
     if (targetSampleRate <= 0.0)
         targetSampleRate = defaultSampleRate;
