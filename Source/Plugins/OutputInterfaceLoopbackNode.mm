@@ -756,8 +756,11 @@ OutputInterfaceLoopbackNode::~OutputInterfaceLoopbackNode()
     if (isActiveInGraph.load (std::memory_order_relaxed))
     {
         activeTapCount.fetch_sub (1, std::memory_order_relaxed);
-        if (activeTapCount.load (std::memory_order_relaxed) <= 0)
-            getSharedTapSession().updateMuteBehavior (false);
+        juce::MessageManager::callAsync ([]
+        {
+            if (activeTapCount.load (std::memory_order_relaxed) <= 0)
+                getSharedTapSession().updateMuteBehavior (false);
+        });
     }
 }
 
@@ -796,11 +799,19 @@ void OutputInterfaceLoopbackNode::setActiveState (bool shouldBeActive)
     isActiveInGraph.store (shouldBeActive, std::memory_order_release);
 
     if (shouldBeActive)
+    {
         activeTapCount.fetch_add (1, std::memory_order_relaxed);
+        getSharedTapSession().updateMuteBehavior (true);
+    }
     else
+    {
         activeTapCount.fetch_sub (1, std::memory_order_relaxed);
-
-    getSharedTapSession().updateMuteBehavior (activeTapCount.load (std::memory_order_relaxed) > 0);
+        juce::MessageManager::callAsync ([]
+        {
+            if (activeTapCount.load (std::memory_order_relaxed) <= 0)
+                getSharedTapSession().updateMuteBehavior (false);
+        });
+    }
 
     if (shouldBeActive)
     {
