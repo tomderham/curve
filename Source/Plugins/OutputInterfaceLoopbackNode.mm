@@ -183,6 +183,7 @@ struct SharedTapSession {
     
     std::atomic<juce::uint32> sessionStartTimeMs { 0 };
     std::atomic<juce::uint32> lastBufferDeliveredTimeMs { 0 };
+    std::atomic<juce::uint32> lastIoBlockCallbackTimeMs { 0 };
 
     SharedTapSession() = default;
     
@@ -256,6 +257,7 @@ struct SharedTapSession {
         currentMuteBehavior = CATapUnmuted;
         sessionStartTimeMs.store (0, std::memory_order_relaxed);
         lastBufferDeliveredTimeMs.store (0, std::memory_order_relaxed);
+        lastIoBlockCallbackTimeMs.store (0, std::memory_order_relaxed);
         
         if (ioProcID != nullptr && aggregateDeviceID != 0)
         {
@@ -284,8 +286,11 @@ struct SharedTapSession {
     {
         if (tapID == 0 || aggregateDeviceID == 0 || ioProcID == nullptr)
         {
-            CURVE_AUDIO_LOG ("[TapHealth FAIL] Missing handles: tapID=%u, aggID=%u, ioProc=%p",
-                             tapID, aggregateDeviceID, ioProcID);
+            if (tapID != 0 || aggregateDeviceID != 0 || ioProcID != nullptr)
+            {
+                CURVE_AUDIO_LOG ("[TapHealth FAIL] Incomplete handles: tapID=%u, aggID=%u, ioProc=%p",
+                                 tapID, aggregateDeviceID, ioProcID);
+            }
             return false;
         }
 
@@ -372,16 +377,17 @@ struct SharedTapSession {
             return false;
         }
 
-        auto now = juce::Time::getMillisecondCounter();
         auto started = sessionStartTimeMs.load (std::memory_order_relaxed);
 
         // Allow a grace period (2.5 seconds) after session initialization for the HAL IO thread to start running.
         if (isRunning == 0)
         {
-            if (started > 0 && (now - started) > 2500)
+            auto runCheckNow = juce::Time::getMillisecondCounter();
+            auto elapsedStart = (started > 0 && runCheckNow >= started) ? (runCheckNow - started) : 0;
+            if (started > 0 && elapsedStart > 2500)
             {
                 CURVE_AUDIO_LOG ("[TapHealth FAIL] Aggregate device not running: err=%d, isRunning=%u (elapsed=%u ms > 2500 ms)",
-                                 (int)runErr, isRunning, (now - started));
+                                 (int)runErr, isRunning, elapsedStart);
                 return false;
             }
             // Still within startup grace period: aggregate device is spinning up, do not fail.
@@ -404,15 +410,26 @@ struct SharedTapSession {
         }
         CFRelease (curDescRef);
 
-        // Frame delivery watchdog: if the device has been running for >2.5 seconds,
-        // verify that ioBlock has received frames from the tap in the past 2.0 seconds.
-        if (started > 0 && (now - started) > 2500)
+        // Frame delivery watchdog: sample "now" right at the check to ensure accurate elapsed time.
+        // Guards against integer underflow if an audio callback delivered a buffer during the IPC calls above.
+        auto watchdogNow = juce::Time::getMillisecondCounter();
+        auto elapsedSinceStart = (started > 0 && watchdogNow >= started) ? (watchdogNow - started) : 0;
+
+        if (started > 0 && elapsedSinceStart > 2500)
         {
             auto lastBuffer = lastBufferDeliveredTimeMs.load (std::memory_order_acquire);
-            if (lastBuffer == 0 || (now - lastBuffer) > 2000)
+            auto lastIo = lastIoBlockCallbackTimeMs.load (std::memory_order_acquire);
+
+            // If lastBuffer is in the future relative to watchdogNow (e.g. delivered on audio thread
+            // right while checking), elapsed is 0 ms.
+            juce::uint32 elapsedBuf = (lastBuffer > 0 && watchdogNow >= lastBuffer) ? (watchdogNow - lastBuffer) : 0;
+            juce::uint32 elapsedIo = (lastIo > 0 && watchdogNow >= lastIo) ? (watchdogNow - lastIo) : 0;
+            juce::ignoreUnused (elapsedIo);
+
+            if (lastBuffer == 0 || elapsedBuf > 2000)
             {
-                CURVE_AUDIO_LOG ("[TapHealth FAIL] Watchdog triggered! now=%u, started=%u, lastBuffer=%u (elapsed=%u ms > 2000 ms)",
-                                 now, started, lastBuffer, (now - lastBuffer));
+                CURVE_AUDIO_LOG ("[TapHealth FAIL] Watchdog triggered! now=%u, started=%u, lastBuffer=%u (elapsedBuf=%u ms > 2000 ms), lastIo=%u (elapsedIo=%u ms)",
+                                 watchdogNow, started, lastBuffer, elapsedBuf, lastIo, elapsedIo);
                 return false;
             }
         }
@@ -590,6 +607,8 @@ struct SharedTapSession {
                 AudioDeviceIOBlock ioBlock = ^(const AudioTimeStamp *inNow, const AudioBufferList *inInputData, const AudioTimeStamp *inInputTime, AudioBufferList *outOutputData, const AudioTimeStamp *inOutputTime) {
                     juce::ignoreUnused(inNow, inInputTime, outOutputData, inOutputTime);
 
+                    selfSession->lastIoBlockCallbackTimeMs.store (juce::Time::getMillisecondCounter(), std::memory_order_release);
+
                     if (inInputData == nullptr || inInputData->mNumberBuffers == 0)
                     {
                         AudioDiagnostics::getInstance().recordTapEmpty();
@@ -660,8 +679,10 @@ struct SharedTapSession {
                     }
 
                     if (startErr == noErr) {
-                        sessionStartTimeMs.store (juce::Time::getMillisecondCounter(), std::memory_order_release);
-                        lastBufferDeliveredTimeMs.store (juce::Time::getMillisecondCounter(), std::memory_order_release);
+                        auto startNow = juce::Time::getMillisecondCounter();
+                        sessionStartTimeMs.store (startNow, std::memory_order_release);
+                        lastBufferDeliveredTimeMs.store (startNow, std::memory_order_release);
+                        lastIoBlockCallbackTimeMs.store (startNow, std::memory_order_release);
                         currentDeviceName = resolvedName;
                         currentSampleRate = sampleRate;
                         currentMuteBehavior = targetMute;
