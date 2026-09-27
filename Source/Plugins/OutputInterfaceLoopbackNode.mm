@@ -172,7 +172,7 @@ struct SharedTapSession {
     juce::String currentDeviceName;
     double currentSampleRate = 0.0;
     int currentBufferSize = 0;
-    CATapMuteBehavior currentMuteBehavior = CATapUnmuted;
+    CATapMuteBehavior currentMuteBehavior = CATapMutedWhenTapped;
     NSString* activeTapUUIDString = nil;
 
     
@@ -235,7 +235,13 @@ struct SharedTapSession {
     
     void updateMuteBehavior (bool shouldBeActive)
     {
-        CATapMuteBehavior targetBehavior = shouldBeActive ? CATapMutedWhenTapped : CATapUnmuted;
+        if (! shouldBeActive)
+        {
+            stopAndDestroy();
+            return;
+        }
+
+        CATapMuteBehavior targetBehavior = CATapMutedWhenTapped;
         if (tapID != 0 && currentMuteBehavior != targetBehavior)
         {
             CURVE_AUDIO_LOG ("[SharedTapSession] updateMuteBehavior: rebuilding tap for muteBehavior switch (%d -> %d)",
@@ -256,7 +262,7 @@ struct SharedTapSession {
         currentDeviceName.clear();
         currentSampleRate = 0.0;
         currentBufferSize = 0;
-        currentMuteBehavior = CATapUnmuted;
+        currentMuteBehavior = CATapMutedWhenTapped;
         sessionStartTimeMs.store (0, std::memory_order_relaxed);
         lastRunningTimeMs.store (0, std::memory_order_relaxed);
         lastResumeTimeMs.store (0, std::memory_order_relaxed);
@@ -288,6 +294,9 @@ struct SharedTapSession {
 
     bool isTapHealthyInternal (const juce::String& targetDevice, double sampleRate)
     {
+        if (activeTapCount.load (std::memory_order_relaxed) <= 0)
+            return false;
+
         if (tapID == 0 || aggregateDeviceID == 0 || ioProcID == nullptr)
         {
             if (tapID != 0 || aggregateDeviceID != 0 || ioProcID != nullptr)
@@ -359,11 +368,10 @@ struct SharedTapSession {
             }
         }
 
-        CATapMuteBehavior expectedBehavior = (activeTapCount.load (std::memory_order_relaxed) > 0) ? CATapMutedWhenTapped : CATapUnmuted;
-        if (currentMuteBehavior != expectedBehavior)
+        if (currentMuteBehavior != CATapMutedWhenTapped)
         {
             CURVE_AUDIO_LOG ("[TapHealth FAIL] Mute behavior mismatch: current=%d, expected=%d",
-                             (int)currentMuteBehavior, (int)expectedBehavior);
+                             (int)currentMuteBehavior, (int)CATapMutedWhenTapped);
             return false;
         }
 
@@ -475,6 +483,13 @@ struct SharedTapSession {
     bool ensureInitialized (const juce::String& targetDeviceName, double sampleRate, int samplesPerBlock, bool forceReinit = false)
     {
         const juce::ScopedLock sl (lock);
+
+        if (activeTapCount.load (std::memory_order_relaxed) <= 0)
+        {
+            stopAndDestroy();
+            return false;
+        }
+
         currentBufferSize = samplesPerBlock;
 
         juce::String resolvedName = targetDeviceName;
@@ -494,71 +509,42 @@ struct SharedTapSession {
         }
 
         stopAndDestroy();
+        [NSThread sleepForTimeInterval:0.040];
 
         @autoreleasepool 
         {
-            if (tapID != 0 || aggregateDeviceID != 0)
+            pid_t myPid = getpid();
+            AudioObjectID myProcessObjectID = 0;
+            UInt32 size = sizeof(myProcessObjectID);
+            AudioObjectPropertyAddress prop = { kAudioHardwarePropertyTranslatePIDToProcessObject, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
+            if (AudioObjectGetPropertyData(kAudioObjectSystemObject, &prop, sizeof(myPid), &myPid, &size, &myProcessObjectID) != noErr) {
+                return false;
+            }
+
+            AudioObjectID outputDevID = findDeviceID (resolvedName);
+            CFStringRef outputUID = getDeviceUID (outputDevID);
+            if (outputUID == NULL) {
+                return false;
+            }
+
+            // Wait for the physical device to finish switching its hardware PLL sample rate
+            AudioObjectPropertyAddress srProp = { kAudioDevicePropertyNominalSampleRate, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
+            if (outputDevID != kAudioObjectUnknown && sampleRate > 0.0)
+            {
+                Float64 physRate = 0.0;
+                UInt32 rateSize = sizeof(physRate);
+                for (int retry = 0; retry < 40; ++retry)
                 {
-                    if (ioProcID != nullptr && aggregateDeviceID != 0)
+                    if (AudioObjectGetPropertyData (outputDevID, &srProp, 0, NULL, &rateSize, &physRate) == noErr)
                     {
-                        AudioDeviceStop (aggregateDeviceID, ioProcID);
-                        AudioDeviceDestroyIOProcID (aggregateDeviceID, ioProcID);
-                        ioProcID = nullptr;
+                        if (std::abs (physRate - sampleRate) < 1.0)
+                            break;
                     }
-                    if (aggregateDeviceID != 0)
-                    {
-                        AudioHardwareDestroyAggregateDevice (aggregateDeviceID);
-                        aggregateDeviceID = 0;
-                    }
-                    if (tapID != 0)
-                    {
-                        AudioHardwareDestroyProcessTap (tapID);
-                        tapID = 0;
-                    }
-                    if (activeTapUUIDString != nil)
-                    {
-                        [activeTapUUIDString release];
-                        activeTapUUIDString = nil;
-                    }
-                    currentDeviceName.clear();
-                    currentSampleRate = 0.0;
-
-                    // Allow CoreAudio HAL server (coreaudiod) a brief window to finalize tearing down the old stream
-                    [NSThread sleepForTimeInterval:0.040];
+                    [NSThread sleepForTimeInterval:0.025];
                 }
+            }
 
-                pid_t myPid = getpid();
-                AudioObjectID myProcessObjectID = 0;
-                UInt32 size = sizeof(myProcessObjectID);
-                AudioObjectPropertyAddress prop = { kAudioHardwarePropertyTranslatePIDToProcessObject, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
-                if (AudioObjectGetPropertyData(kAudioObjectSystemObject, &prop, sizeof(myPid), &myPid, &size, &myProcessObjectID) != noErr) {
-                    return false;
-                }
-
-                AudioObjectID outputDevID = findDeviceID (resolvedName);
-                CFStringRef outputUID = getDeviceUID (outputDevID);
-                if (outputUID == NULL) {
-                    return false;
-                }
-
-                // Wait for the physical device to finish switching its hardware PLL sample rate
-                AudioObjectPropertyAddress srProp = { kAudioDevicePropertyNominalSampleRate, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
-                if (outputDevID != kAudioObjectUnknown && sampleRate > 0.0)
-                {
-                    Float64 physRate = 0.0;
-                    UInt32 rateSize = sizeof(physRate);
-                    for (int retry = 0; retry < 40; ++retry)
-                    {
-                        if (AudioObjectGetPropertyData (outputDevID, &srProp, 0, NULL, &rateSize, &physRate) == noErr)
-                        {
-                            if (std::abs (physRate - sampleRate) < 1.0)
-                                break;
-                        }
-                        [NSThread sleepForTimeInterval:0.025];
-                    }
-                }
-
-                CATapMuteBehavior targetMute = (activeTapCount.load (std::memory_order_relaxed) > 0) ? CATapMutedWhenTapped : CATapUnmuted;
+            CATapMuteBehavior targetMute = CATapMutedWhenTapped;
 
                 if (tapID == 0)
                 {
@@ -840,13 +826,19 @@ bool OutputInterfaceLoopbackNode::isAnyTapActiveInGraph()
 
 void OutputInterfaceLoopbackNode::warmUpTap (const juce::String& targetDevice, double sampleRate, int bufferSize)
 {
-    auto& session = getSharedTapSession();
-    session.ensureInitialized (targetDevice, sampleRate, bufferSize);
-    session.updateMuteBehavior (OutputInterfaceLoopbackNode::isAnyTapActiveInGraph());
+    if (activeTapCount.load (std::memory_order_relaxed) > 0)
+    {
+        auto& session = getSharedTapSession();
+        session.ensureInitialized (targetDevice, sampleRate, bufferSize);
+        session.updateMuteBehavior (true);
+    }
 }
 
 bool OutputInterfaceLoopbackNode::ensureTapHealthy (const juce::String& targetDevice, double sampleRate, int bufferSize, bool forceReinit)
 {
+    if (! isAnyTapActiveInGraph())
+        return true;
+
     auto& session = getSharedTapSession();
     if (forceReinit || ! session.isTapHealthy (targetDevice, sampleRate))
     {
@@ -854,7 +846,7 @@ bool OutputInterfaceLoopbackNode::ensureTapHealthy (const juce::String& targetDe
                          (int)forceReinit, targetDevice.toRawUTF8(), sampleRate);
         if (session.ensureInitialized (targetDevice, sampleRate, bufferSize, true /* forceReinit */))
         {
-            session.updateMuteBehavior (OutputInterfaceLoopbackNode::isAnyTapActiveInGraph());
+            session.updateMuteBehavior (true);
             const juce::SpinLock::ScopedLockType sl (session.listenerLock);
             for (size_t i = 0; i < session.numListeners; ++i)
             {
@@ -953,7 +945,7 @@ void OutputInterfaceLoopbackNode::prepareToPlay (double sampleRate, int samplesP
     auto& session = getSharedTapSession();
     session.addListener (this);
     session.ensureInitialized (targetOutputDeviceName, sampleRate, samplesPerBlock);
-    session.updateMuteBehavior (OutputInterfaceLoopbackNode::isAnyTapActiveInGraph());
+    session.updateMuteBehavior (true);
     isCapturing.store (true, std::memory_order_release);
 }
 
