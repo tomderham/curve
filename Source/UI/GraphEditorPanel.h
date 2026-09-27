@@ -314,6 +314,12 @@ private:
     void changeListenerCallback (ChangeBroadcaster*) override;
     void handleAsyncUpdate() override;
 
+    juce::String lastDeviceName;
+    double lastSampleRate = 0.0;
+    int lastBufferSize = 0;
+    juce::BigInteger lastInputChannels;
+    juce::BigInteger lastOutputChannels;
+
     void init();
     void updateMidiOutput();
 

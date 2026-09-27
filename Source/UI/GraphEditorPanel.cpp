@@ -1240,6 +1240,15 @@ void GraphDocumentComponent::init()
 
     graphPlayer.setProcessor (&graph->graph);
 
+    if (auto* device = deviceManager.getCurrentAudioDevice())
+    {
+        lastDeviceName = device->getName();
+        lastSampleRate = device->getCurrentSampleRate();
+        lastBufferSize = device->getCurrentBufferSizeSamples();
+        lastInputChannels = device->getActiveInputChannels();
+        lastOutputChannels = device->getActiveOutputChannels();
+    }
+
     keyState.addListener (&graphPlayer.getMidiMessageCollector());
 
     graph->graph.addChangeListener (this);
@@ -1395,16 +1404,20 @@ void GraphDocumentComponent::propagateDeviceSettingsToNodes()
         int currentBufferSize = device->getCurrentBufferSizeSamples();
         auto workgroup = deviceManager.getDeviceAudioWorkgroup();
 
-        OutputInterfaceLoopbackNode::warmUpTap (currentDeviceName, currentSampleRate, currentBufferSize);
+        lastDeviceName = currentDeviceName;
+        lastSampleRate = currentSampleRate;
+        lastBufferSize = currentBufferSize;
+        lastInputChannels = device->getActiveInputChannels();
+        lastOutputChannels = device->getActiveOutputChannels();
+
+        bool anyActiveLoopback = false;
 
         if (graph != nullptr)
         {
-            bool anyLoopbackFound = false;
             for (auto* node : graph->graph.getNodes())
             {
                 if (auto* captureNode = dynamic_cast<OutputInterfaceLoopbackNode*> (node->getProcessor()))
                 {
-                    anyLoopbackFound = true;
                     bool isBypassed = node->isBypassed();
                     bool hasOutputConnection = false;
                     for (const auto& conn : graph->graph.getConnections())
@@ -1417,14 +1430,23 @@ void GraphDocumentComponent::propagateDeviceSettingsToNodes()
                     }
 
                     bool shouldBeActive = (! isBypassed) && hasOutputConnection;
+                    if (shouldBeActive)
+                        anyActiveLoopback = true;
+
                     captureNode->setTargetOutputDeviceName (currentDeviceName);
                     captureNode->setActiveState (shouldBeActive);
                     captureNode->setAudioWorkgroup (workgroup);
                 }
             }
+        }
 
-            if (! anyLoopbackFound)
-                OutputInterfaceLoopbackNode::updateGlobalMuteBehavior();
+        if (anyActiveLoopback)
+        {
+            OutputInterfaceLoopbackNode::warmUpTap (currentDeviceName, currentSampleRate, currentBufferSize);
+        }
+        else
+        {
+            OutputInterfaceLoopbackNode::teardownTap();
         }
 
         bool autoSync = true;
@@ -1434,6 +1456,15 @@ void GraphDocumentComponent::propagateDeviceSettingsToNodes()
         if (autoSync)
             OutputInterfaceLoopbackNode::syncSystemOutputDevice (currentDeviceName);
     }
+    else
+    {
+        lastDeviceName.clear();
+        lastSampleRate = 0.0;
+        lastBufferSize = 0;
+        lastInputChannels.clear();
+        lastOutputChannels.clear();
+        OutputInterfaceLoopbackNode::teardownTap();
+    }
 }
 
 bool GraphDocumentComponent::closeAnyOpenPluginWindows()
@@ -1441,9 +1472,37 @@ bool GraphDocumentComponent::closeAnyOpenPluginWindows()
     return graphPanel != nullptr && graphPanel->graph.closeAnyOpenPluginWindows();
 }
 
-void GraphDocumentComponent::changeListenerCallback (ChangeBroadcaster*)
+void GraphDocumentComponent::changeListenerCallback (ChangeBroadcaster* source)
 {
     updateMidiOutput();
+
+    if (source == &deviceManager)
+    {
+        if (auto* device = deviceManager.getCurrentAudioDevice())
+        {
+            juce::String currentDeviceName = device->getName();
+            double currentSampleRate = device->getCurrentSampleRate();
+            int currentBufferSize = device->getCurrentBufferSizeSamples();
+            auto currentIn = device->getActiveInputChannels();
+            auto currentOut = device->getActiveOutputChannels();
+
+            if (currentDeviceName == lastDeviceName
+                && std::abs (currentSampleRate - lastSampleRate) < 0.001
+                && currentBufferSize == lastBufferSize
+                && currentIn == lastInputChannels
+                && currentOut == lastOutputChannels)
+            {
+                // Audio device parameters haven't changed (e.g. CoreAudio aggregate device tap notification).
+                // Do not trigger redundant node propagation cycles.
+                return;
+            }
+        }
+        else if (lastDeviceName.isEmpty())
+        {
+            return;
+        }
+    }
+
     triggerAsyncUpdate();
 }
 
