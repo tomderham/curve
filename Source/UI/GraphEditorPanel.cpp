@@ -220,8 +220,13 @@ struct GraphEditorPanel::PluginComponent final : public Component,
 
     ~PluginComponent() override
     {
+        // Don't dereference observedBypassParam blindly: the node is removed from
+        // the graph before we're notified (async), so it may already be deleted.
         if (observedBypassParam != nullptr)
-            observedBypassParam->removeListener (this);
+            if (auto f = graph.graph.getNodeForId (pluginID))
+                if (auto* processor = f->getProcessor())
+                    if (processor->getBypassParameter() == observedBypassParam)
+                        observedBypassParam->removeListener (this);
     }
 
     void mouseDown (const MouseEvent& e) override
@@ -279,13 +284,12 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         {
             if (auto f = graph.graph.getNodeForId (pluginID))
             {
-                auto* proc = f->getProcessor();
-                auto windowType = (proc != nullptr && ! proc->hasEditor())
-                                      ? PluginWindow::Type::audioIO
-                                      : PluginWindow::Type::normal;
-
-                if (auto* w = graph.getOrCreateWindowFor (f, windowType))
-                    w->toFront (true);
+                // Other nodes without an editor have nothing to show; their I/O
+                // configuration stays available from the context menu.
+                if (auto* proc = f->getProcessor(); proc != nullptr
+                      && (proc->hasEditor() || PluginGraph::isConfiguredByAudioSettings (*proc)))
+                    if (auto* w = graph.getOrCreateWindowFor (f, PluginWindow::Type::normal))
+                        w->toFront (true);
             }
         }
     }
@@ -447,7 +451,7 @@ struct GraphEditorPanel::PluginComponent final : public Component,
     void showPopupMenu (Point<int> localPos)
     {
         menu.reset (new PopupMenu);
-        menu->addItem ("Delete This Node", [this] { graph.graph.removeNode (pluginID); });
+        menu->addItem ("Delete This Node", [this] { graph.removeNode (pluginID); });
         menu->addItem ("Disconnect All Pins", [this] { graph.graph.disconnectNode (pluginID); });
         menu->addItem ("Toggle Bypass", [this]
         {
@@ -487,7 +491,7 @@ struct GraphEditorPanel::PluginComponent final : public Component,
                 });
             }
 
-           #if JUCE_PLUGINHOST_ARA && (JUCE_MAC || JUCE_WINDOWS || JUCE_LINUX)
+           #if JUCE_PLUGINHOST_ARA
             if (auto* instance = dynamic_cast<AudioPluginInstance*> (proc))
                 if (instance->getPluginDescription().hasARAExtension && isNodeUsingARA())
                     menu->addItem ("Show ARA Host Controls", [this] { showWindow (PluginWindow::Type::araHost); });
@@ -496,7 +500,12 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         }
 
         menu->addSeparator();
-        menu->addItem ("Configure Audio I/O", [this] { showWindow (PluginWindow::Type::audioIO); });
+
+        // MIDI I/O nodes have no audio buses to configure
+        if (auto* proc = getProcessor(); proc != nullptr && PluginGraph::isConfiguredByAudioSettings (*proc))
+            menu->addItem ("Audio Settings...", [this] { showWindow (PluginWindow::Type::audioIO); });
+        else if (dynamic_cast<AudioProcessorGraph::AudioGraphIOProcessor*> (proc) == nullptr)
+            menu->addItem ("Configure Audio I/O", [this] { showWindow (PluginWindow::Type::audioIO); });
 
         menu->addSeparator();
         menu->addItem ("Save Plug-in State", [this] { savePluginState(); });

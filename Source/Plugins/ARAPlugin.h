@@ -36,7 +36,7 @@
 
 #include <juce_core/system/juce_TargetPlatform.h>
 
-#if JUCE_PLUGINHOST_ARA && (JUCE_MAC || JUCE_WINDOWS || JUCE_LINUX)
+#if JUCE_PLUGINHOST_ARA
 
 #include <JuceHeader.h>
 

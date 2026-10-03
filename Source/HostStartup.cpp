@@ -74,22 +74,33 @@ public:
     watchdogThread = std::thread([this] {
       while (!shouldStopWatchdog.load(std::memory_order_relaxed)) {
         std::unique_lock<std::mutex> lock(watchdogMutex);
-        watchdogCv.wait_for(lock, std::chrono::milliseconds(500), [this] {
-          return shouldStopWatchdog.load(std::memory_order_relaxed) ||
-                 watchdogArmed.load(std::memory_order_relaxed);
-        });
 
-        if (shouldStopWatchdog.load(std::memory_order_relaxed))
-          break;
-
-        if (watchdogArmed.load(std::memory_order_relaxed)) {
-          auto now = juce::Time::getMillisecondCounter();
-          if (static_cast<juce::int32>(now - watchdogDeadline.load(std::memory_order_relaxed)) >= 0) {
-            // Plugin hung or timed out for >15s; terminate immediately to
-            // prevent zombie
-            std::_Exit(1);
-          }
+        if (!watchdogArmed.load(std::memory_order_acquire)) {
+          // Idle: sleep until a scan arms the watchdog
+          watchdogCv.wait_for(lock, std::chrono::milliseconds(500), [this] {
+            return shouldStopWatchdog.load(std::memory_order_relaxed) ||
+                   watchdogArmed.load(std::memory_order_acquire);
+          });
+          continue;
         }
+
+        auto now = juce::Time::getMillisecondCounter();
+        auto remainingMs = static_cast<juce::int32>(
+            watchdogDeadline.load(std::memory_order_relaxed) - now);
+
+        if (remainingMs <= 0) {
+          // Plugin hung for >15s; exit immediately to avoid a zombie
+          std::_Exit(1);
+        }
+
+        // Armed: flags are set without the mutex, so cap the wait in case a
+        // notification is missed.
+        watchdogCv.wait_for(lock,
+                            std::chrono::milliseconds(juce::jmin(remainingMs, 100)),
+                            [this] {
+          return shouldStopWatchdog.load(std::memory_order_relaxed) ||
+                 !watchdogArmed.load(std::memory_order_acquire);
+        });
       }
     });
   }
@@ -116,7 +127,10 @@ private:
       cvRef.notify_all();
     }
 
-    ~ScopedWatchdogArmer() { isArmed.store(false, std::memory_order_release); }
+    ~ScopedWatchdogArmer() {
+      isArmed.store(false, std::memory_order_release);
+      cvRef.notify_all();
+    }
 
     std::atomic<bool> &isArmed;
     std::condition_variable &cvRef;
@@ -407,12 +421,13 @@ public:
       return;
 
     if (settings->getBoolValue("hasPromptedLoginItem", false)) {
-      // Restore silently if registration dropped since (e.g. an app update).
+      // macOS is the source of truth: notRegistered is what we see after the
+      // user removes Curve from Login Items, so never re-register silently.
       if (settings->getBoolValue("openAtLogin", false) &&
           LoginItemManager::getStatus() ==
               LoginItemManager::Status::notRegistered) {
-        juce::String errorMessage;
-        LoginItemManager::setEnabled(true, errorMessage);
+        settings->setValue("openAtLogin", false);
+        settings->saveIfNeeded();
       }
 
       return;

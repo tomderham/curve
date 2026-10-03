@@ -78,8 +78,36 @@ bool GlobalShortcutManager::isGlobalShortcutRegistered()
 
 static uint32_t charToCarbonKeyCode(juce::juce_wchar ch)
 {
-    switch (std::toupper(static_cast<char>(ch)))
+    // Non-ASCII characters (e.g. Option-modified text like "Ç") must not be
+    // truncated onto an ASCII key.
+    if (ch > 127)
+        return 0xFFFFFFFF;
+
+    switch (std::toupper(static_cast<int>(ch)))
     {
+        // Shifted symbols on the US layout map to their base keys
+        case '!': return 0x12;
+        case '@': return 0x13;
+        case '#': return 0x14;
+        case '$': return 0x15;
+        case '^': return 0x16;
+        case '%': return 0x17;
+        case '+': return 0x18;
+        case '(': return 0x19;
+        case '&': return 0x1A;
+        case '_': return 0x1B;
+        case '*': return 0x1C;
+        case ')': return 0x1D;
+        case '}': return 0x1E;
+        case '{': return 0x21;
+        case '"': return 0x27;
+        case ':': return 0x29;
+        case '|': return 0x2A;
+        case '<': return 0x2B;
+        case '?': return 0x2C;
+        case '>': return 0x2F;
+        case '~': return 0x32;
+
         case 'A': return 0x00;
         case 'S': return 0x01;
         case 'D': return 0x02;
@@ -220,11 +248,12 @@ bool GlobalShortcutManager::juceKeyPressToCarbon(const juce::KeyPress& keyPress,
         return true;
     }
 
-    juce::juce_wchar ch = keyPress.getTextCharacter();
-    if (ch == 0)
-        ch = (juce::juce_wchar) juceCode;
+    // Prefer the key code: it is the unmodified character, whereas the text
+    // character is altered by Option/Control (e.g. Option+Shift+C gives "Ç").
+    uint32_t code = charToCarbonKeyCode((juce::juce_wchar) juceCode);
+    if (code == 0xFFFFFFFF)
+        code = charToCarbonKeyCode(keyPress.getTextCharacter());
 
-    uint32_t code = charToCarbonKeyCode(ch);
     if (code == 0xFFFFFFFF)
         return false;
 
@@ -269,6 +298,26 @@ juce::Rectangle<int> GlobalShortcutManager::getStatusItemScreenBounds(void* nati
     return { juceX, juceY, juceW, juceH };
 }
 
+// Maps the top-row digit keys by physical key code, so the digit is found
+// regardless of Shift/Option (which change the character the key produces).
+static char digitForKeyCode(unsigned short keyCode)
+{
+    switch (keyCode)
+    {
+        case 0x1D: return '0';
+        case 0x12: return '1';
+        case 0x13: return '2';
+        case 0x14: return '3';
+        case 0x15: return '4';
+        case 0x17: return '5';
+        case 0x16: return '6';
+        case 0x1A: return '7';
+        case 0x1C: return '8';
+        case 0x19: return '9';
+        default:   return 0;
+    }
+}
+
 void* GlobalShortcutManager::installMenuKeyMonitor(LocalActionMap actions, std::function<void()> onTriggerDismiss)
 {
     auto actionMap = std::make_shared<LocalActionMap>(std::move(actions));
@@ -278,11 +327,22 @@ void* GlobalShortcutManager::installMenuKeyMonitor(LocalActionMap actions, std::
         if (!event)
             return event;
 
-        NSString* chars = [event charactersIgnoringModifiers];
-        if (chars == nil || [chars length] == 0)
+        char digit = digitForKeyCode([event keyCode]);
+        if (digit == 0)
+        {
+            // Fall back to the character for keys outside the top row (e.g. keypad)
+            NSString* chars = [event charactersIgnoringModifiers];
+            if (chars != nil && [chars length] > 0)
+            {
+                unichar ch = [chars characterAtIndex:0];
+                if (ch >= '0' && ch <= '9')
+                    digit = static_cast<char>(ch);
+            }
+        }
+
+        if (digit == 0)
             return event;
 
-        unichar ch = [chars characterAtIndex:0];
         NSEventModifierFlags flags = [event modifierFlags] & NSEventModifierFlagDeviceIndependentFlagsMask;
 
         ModifierBank bank = Bank_None;
@@ -304,9 +364,8 @@ void* GlobalShortcutManager::installMenuKeyMonitor(LocalActionMap actions, std::
         else
             return event;
 
-        if (ch >= '0' && ch <= '9')
         {
-            LocalShortcutKey key { bank, static_cast<char>(ch) };
+            LocalShortcutKey key { bank, digit };
             auto it = actionMap->find(key);
             if (it != actionMap->end())
             {

@@ -84,9 +84,16 @@ public:
     Point<double> getNodePosition (NodeID) const;
 
     //==============================================================================
+    // Remove nodes through these rather than graph.removeNode()/clear() directly,
+    // so loopback nodes stop holding the shared tap open as soon as they leave the graph.
+    void removeNode (NodeID);
     void clear();
 
     PluginWindow* getOrCreateWindowFor (AudioProcessorGraph::Node*, PluginWindow::Type);
+
+    // Device audio I/O and loopback nodes are configured in Audio Settings; any
+    // window requested for them opens that instead.
+    static bool isConfiguredByAudioSettings (AudioProcessor&);
     bool closeAnyOpenPluginWindows();
 
     //==============================================================================
@@ -123,7 +130,26 @@ private:
     ScopedMessageBox messageBox;
     bool restorePluginWindowsOnLoad = false;
 
+    // State for the preset restore in progress. Plugins that can't be created
+    // synchronously (e.g. AUv3) finish restoring after restoreFromXml() returns;
+    // restoreGeneration lets those callbacks detect that the graph was replaced.
+    uint32 restoreGeneration = 0;
+    int pendingAsyncRestores = 0;
+    StringArray pluginsFailedToRestore;
+    std::vector<AudioProcessorGraph::Connection> restoredConnections;
+
     void createNodeFromXml (const XmlElement&, bool restorePluginWindows = false);
+    void createNodeFromXmlAsync (std::shared_ptr<const XmlElement> nodeXml,
+                                 std::vector<PluginDescriptionAndPreference> candidates,
+                                 bool restorePluginWindows);
+    void asyncNodeRestoreFinished (std::unique_ptr<AudioPluginInstance>,
+                                   const PluginDescriptionAndPreference&,
+                                   const XmlElement& nodeXml,
+                                   bool restorePluginWindows);
+    bool finishNodeFromXml (std::unique_ptr<AudioPluginInstance>,
+                            const XmlElement&,
+                            bool restorePluginWindows);
+    void showRestoreFailures();
     void addPluginCallback (std::unique_ptr<AudioPluginInstance>,
                             const String& error,
                             Point<double>,

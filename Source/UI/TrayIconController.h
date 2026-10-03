@@ -461,11 +461,27 @@ public:
             if (auto* u = updaterToken->load())
               u->doCheckNow();
         });
-    settingsmenu.addItem("Open at Login...", [] {
-      if (attemptToEnableLoginItem())
+    bool isOpenAtLoginEnabled =
+        (LoginItemManager::getStatus() == LoginItemManager::Status::enabled);
+    settingsmenu.addItem("Open at Login", true, isOpenAtLoginEnabled,
+                         [isOpenAtLoginEnabled] {
+      if (isOpenAtLoginEnabled) {
+        juce::String errorMessage;
+        if (LoginItemManager::setEnabled(false, errorMessage)) {
+          if (auto *settings = getAppProperties().getUserSettings()) {
+            settings->setValue("openAtLogin", false);
+            settings->saveIfNeeded();
+          }
+        } else {
+          juce::NativeMessageBox::showMessageBoxAsync(
+              juce::MessageBoxIconType::WarningIcon, "Open at Login",
+              "Could not remove Curve from Login Items:\n" + errorMessage);
+        }
+      } else if (attemptToEnableLoginItem()) {
         juce::NativeMessageBox::showMessageBoxAsync(
             juce::MessageBoxIconType::InfoIcon, "Open at Login",
             "Curve will now open automatically at login.");
+      }
     });
     juce::String shortcutLabel = "Global Menu Shortcut: " + getGlobalShortcutDisplayString() + "...";
     settingsmenu.addItem(shortcutLabel, [onOpenShortcutSettings] {

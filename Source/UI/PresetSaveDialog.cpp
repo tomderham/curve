@@ -1,5 +1,17 @@
 #include "PresetSaveDialog.h"
 
+// Appends the preset suffix rather than using File::withFileExtension, which
+// would treat everything after the last dot in the name ("EQ v1.2") as an extension.
+static juce::File presetFileForName (const juce::File& directory, juce::String legalName)
+{
+    const juce::String suffix (PluginGraph::getFilenameSuffix());
+
+    if (legalName.endsWithIgnoreCase (suffix))
+        legalName = legalName.dropLastCharacters (suffix.length());
+
+    return directory.getChildFile (legalName + suffix);
+}
+
 juce::File PresetSaveDialog::getPresetsDirectory()
 {
     auto appDataDir = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
@@ -299,7 +311,7 @@ void PresetSaveDialog::promptRename (const juce::File& file)
             auto legalName = juce::File::createLegalFileName (rawName);
             if (legalName.isNotEmpty())
             {
-                auto newFile = file.getSiblingFile (legalName).withFileExtension ("filtergraph");
+                auto newFile = presetFileForName (file.getParentDirectory(), legalName);
                 if (newFile != file)
                 {
                     if (newFile.existsAsFile())
@@ -370,7 +382,7 @@ void PresetSaveDialog::attemptSave()
     if (legalName.isEmpty())
         legalName = "unnamed";
 
-    auto targetFile = getPresetsDirectory().getChildFile (legalName).withFileExtension ("filtergraph");
+    auto targetFile = presetFileForName (getPresetsDirectory(), legalName);
 
     if (targetFile.existsAsFile())
     {

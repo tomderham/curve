@@ -445,6 +445,10 @@ IOConfigurationWindow::IOConfigurationWindow (AudioProcessor& p)
     title.setFont (title.getFont().withStyle (Font::bold));
     addAndMakeVisible (title);
 
+    // Must release the plugin *before* the layout lists below are built and stay
+    // released while open: JUCE's VST3 host only asks the plugin which layouts it
+    // supports when inactive, otherwise it reports unsupported layouts as valid.
+    // Don't defer this to the first layout change.
     if (auto* graph = getGraph())
     {
         ScopedLock graphLock (graph->getCallbackLock());
@@ -478,11 +482,20 @@ IOConfigurationWindow::IOConfigurationWindow (AudioProcessor& p)
 
 IOConfigurationWindow::~IOConfigurationWindow()
 {
+    // Don't hold the graph's callback lock while preparing: that blocks the audio
+    // thread for the whole prepare. Suspended processors are never processed, so
+    // preparing them unlocked is safe.
     if (auto* graph = getGraph())
     {
         if (auto* p = getAudioProcessor())
         {
-            ScopedLock renderLock (graph->getCallbackLock());
+            if (p->getBusesLayout() == currentLayout)
+            {
+                // Layout unchanged: only this plugin needs re-preparing
+                p->prepareToPlay (graph->getSampleRate(), graph->getBlockSize());
+                p->suspendProcessing (false);
+                return;
+            }
 
             graph->suspendProcessing (true);
             graph->releaseResources();

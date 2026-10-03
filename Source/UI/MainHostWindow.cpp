@@ -531,7 +531,7 @@ static void addToMenu (const KnownPluginList::PluginTree& tree,
 
         addPlugin (PluginDescriptionAndPreference { plugin, PluginDescriptionAndPreference::UseARA::no }, name);
 
-       #if JUCE_PLUGINHOST_ARA && (JUCE_MAC || JUCE_WINDOWS || JUCE_LINUX)
+       #if JUCE_PLUGINHOST_ARA
         if (plugin.hasARAExtension)
         {
             name << " (ARA)";
@@ -1038,7 +1038,7 @@ void MainHostWindow::showOnlineCalibrationDialogForCreation (Point<int> pos)
             if (! confirmed)
             {
                 // User cancelled: delete the newly created node
-                safeThis->graphHolder->graph->graph.removeNode (newNodeId);
+                safeThis->graphHolder->graph->removeNode (newNodeId);
                 safeThis->graphHolder->graph->changed();
             }
             else if (finalProfile.has_value())

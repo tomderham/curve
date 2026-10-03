@@ -79,6 +79,13 @@ using namespace juce;
 
 juce::PropertiesFile* getUserSettings();
 
+static bool hasOutputStreams (AudioObjectID devID)
+{
+    AudioObjectPropertyAddress streamsProp = { kAudioDevicePropertyStreams, kAudioObjectPropertyScopeOutput, kAudioObjectPropertyElementMain };
+    UInt32 streamsSize = 0;
+    return AudioObjectGetPropertyDataSize (devID, &streamsProp, 0, NULL, &streamsSize) == noErr && streamsSize > 0;
+}
+
 static AudioObjectID findDeviceID (const juce::String& targetNameOrUID)
 {
     if (targetNameOrUID.isEmpty())
@@ -100,49 +107,62 @@ static AudioObjectID findDeviceID (const juce::String& targetNameOrUID)
     if (AudioObjectGetPropertyData (kAudioObjectSystemObject, &devicesProp, 0, NULL, &dataSize, devIDs.data()) != noErr)
         return kAudioObjectUnknown;
 
-    AudioObjectPropertyAddress uidProp = { kAudioDevicePropertyDeviceUID, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
-    AudioObjectPropertyAddress nameProp = { kAudioObjectPropertyName, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
-
-    // Pass 1: Exact match on UID or name
-    for (size_t i = 0; i < numDevices; ++i)
+    auto getStringProperty = [] (AudioObjectID devID, AudioObjectPropertySelector selector) -> juce::String
     {
-        AudioObjectID devID = devIDs[i];
+        AudioObjectPropertyAddress prop = { selector, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
+        CFStringRef value = NULL;
+        UInt32 valueSize = sizeof (value);
+        if (AudioObjectGetPropertyData (devID, &prop, 0, NULL, &valueSize, &value) != noErr || value == NULL)
+            return {};
 
-        CFStringRef devUID = NULL;
-        UInt32 uidSize = sizeof (devUID);
-        if (AudioObjectGetPropertyData (devID, &uidProp, 0, NULL, &uidSize, &devUID) == noErr && devUID != NULL)
-        {
-            juce::String uidStr = juce::String::fromUTF8 ([(__bridge NSString*)devUID UTF8String]);
-            CFRelease (devUID);
-            if (uidStr.equalsIgnoreCase (targetNameOrUID))
-                return devID;
-        }
+        juce::String result = juce::String::fromUTF8 ([(__bridge NSString*)value UTF8String]);
+        CFRelease (value);
+        return result;
+    };
 
-        CFStringRef devName = NULL;
-        UInt32 nameSize = sizeof (devName);
-        if (AudioObjectGetPropertyData (devID, &nameProp, 0, NULL, &nameSize, &devName) == noErr && devName != NULL)
+    // Pass 1: Exact match on UID (unambiguous, so any device qualifies)
+    for (auto devID : devIDs)
+        if (getStringProperty (devID, kAudioDevicePropertyDeviceUID).equalsIgnoreCase (targetNameOrUID))
+            return devID;
+
+    // Name matching only considers devices with output streams: some hardware (e.g. AirPods)
+    // exposes separate input and output devices that share a name.
+    std::vector<std::pair<AudioObjectID, juce::String>> outputDevices;
+    for (auto devID : devIDs)
+    {
+        if (! hasOutputStreams (devID))
+            continue;
+
+        auto name = getStringProperty (devID, kAudioObjectPropertyName);
+        if (name.isNotEmpty())
+            outputDevices.emplace_back (devID, name);
+    }
+
+    // Pass 2: Exact match on name
+    for (auto& [devID, name] : outputDevices)
+        if (name.equalsIgnoreCase (targetNameOrUID))
+            return devID;
+
+    // Pass 3: JUCE disambiguates same-named devices as "Name (1)", "Name (2)", ... in enumeration order
+    if (targetNameOrUID.endsWithChar (')'))
+    {
+        auto baseName = targetNameOrUID.upToLastOccurrenceOf (" (", false, false);
+        auto indexText = targetNameOrUID.fromLastOccurrenceOf (" (", false, false).dropLastCharacters (1);
+
+        if (baseName.isNotEmpty() && indexText.isNotEmpty() && indexText.containsOnly ("0123456789"))
         {
-            juce::String nameStr = juce::String::fromUTF8 ([(__bridge NSString*)devName UTF8String]);
-            CFRelease (devName);
-            if (nameStr.equalsIgnoreCase (targetNameOrUID))
-                return devID;
+            int remaining = indexText.getIntValue();
+
+            for (auto& [devID, name] : outputDevices)
+                if (name.equalsIgnoreCase (baseName) && --remaining == 0)
+                    return devID;
         }
     }
 
-    // Pass 2: Prefix match (e.g. CoreAudio device names with appended suffixes)
-    for (size_t i = 0; i < numDevices; ++i)
-    {
-        AudioObjectID devID = devIDs[i];
-        CFStringRef devName = NULL;
-        UInt32 nameSize = sizeof (devName);
-        if (AudioObjectGetPropertyData (devID, &nameProp, 0, NULL, &nameSize, &devName) == noErr && devName != NULL)
-        {
-            juce::String nameStr = juce::String::fromUTF8 ([(__bridge NSString*)devName UTF8String]);
-            CFRelease (devName);
-            if (targetNameOrUID.startsWithIgnoreCase (nameStr) || nameStr.startsWithIgnoreCase (targetNameOrUID))
-                return devID;
-        }
-    }
+    // Pass 4: Prefix match (e.g. CoreAudio device names with appended suffixes)
+    for (auto& [devID, name] : outputDevices)
+        if (targetNameOrUID.startsWithIgnoreCase (name) || name.startsWithIgnoreCase (targetNameOrUID))
+            return devID;
 
     return kAudioObjectUnknown;
 }
@@ -186,6 +206,7 @@ struct SharedTapSession {
     std::atomic<juce::uint32> lastResumeTimeMs { 0 };
     std::atomic<juce::uint32> lastBufferDeliveredTimeMs { 0 };
     std::atomic<juce::uint32> lastIoBlockCallbackTimeMs { 0 };
+    bool wasRunningAtLastCheck = false; // guarded by lock
 
     SharedTapSession() = default;
     
@@ -268,6 +289,7 @@ struct SharedTapSession {
         lastResumeTimeMs.store (0, std::memory_order_relaxed);
         lastBufferDeliveredTimeMs.store (0, std::memory_order_relaxed);
         lastIoBlockCallbackTimeMs.store (0, std::memory_order_relaxed);
+        wasRunningAtLastCheck = false;
         
         if (ioProcID != nullptr && aggregateDeviceID != 0)
         {
@@ -394,16 +416,18 @@ struct SharedTapSession {
 
         if (isRunning != 0)
         {
-            auto prevRunning = lastRunningTimeMs.load (std::memory_order_relaxed);
             // Transition from not running (paused) to running: mark resume timestamp
-            if (prevRunning > 0 && checkNow > prevRunning && (checkNow - prevRunning) > 100)
+            if (! wasRunningAtLastCheck)
             {
                 lastResumeTimeMs.store (checkNow, std::memory_order_release);
             }
+            wasRunningAtLastCheck = true;
             lastRunningTimeMs.store (checkNow, std::memory_order_release);
         }
         else
         {
+            wasRunningAtLastCheck = false;
+
             // isRunning == 0: device is either spinning up after initialization, or temporarily
             // paused by CoreAudio HAL (e.g. another client paused/resumed IO on the shared hardware interface).
             auto lastRunning = lastRunningTimeMs.load (std::memory_order_relaxed);
@@ -526,6 +550,9 @@ struct SharedTapSession {
             if (outputUID == NULL) {
                 return false;
             }
+
+            CURVE_AUDIO_LOG ("[SharedTapSession] Resolved output device: target='%s' -> id=%u, uid='%s'",
+                             resolvedName.toRawUTF8(), (unsigned) outputDevID, [(__bridge NSString*)outputUID UTF8String]);
 
             // Wait for the physical device to finish switching its hardware PLL sample rate
             AudioObjectPropertyAddress srProp = { kAudioDevicePropertyNominalSampleRate, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
@@ -700,6 +727,7 @@ struct SharedTapSession {
                         lastResumeTimeMs.store (startNow, std::memory_order_release);
                         lastBufferDeliveredTimeMs.store (startNow, std::memory_order_release);
                         lastIoBlockCallbackTimeMs.store (startNow, std::memory_order_release);
+                        wasRunningAtLastCheck = true;
                         currentDeviceName = resolvedName;
                         currentSampleRate = sampleRate;
                         currentMuteBehavior = targetMute;

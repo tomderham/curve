@@ -300,7 +300,7 @@ private:
 
         if (type == PluginWindow::Type::araHost)
         {
-           #if JUCE_PLUGINHOST_ARA && (JUCE_MAC || JUCE_WINDOWS || JUCE_LINUX)
+           #if JUCE_PLUGINHOST_ARA
             if (auto* araPluginInstanceWrapper = dynamic_cast<ARAPluginInstanceWrapper*> (&processor))
                 if (auto* ui = araPluginInstanceWrapper->createARAHostEditor())
                     return ui;

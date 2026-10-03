@@ -13,6 +13,7 @@
 
 #pragma once
 #include <JuceHeader.h>
+#include "../AudioDiagnostics.h"
 
 juce::PropertiesFile* getUserSettings();
 
@@ -92,8 +93,7 @@ public:
 private:
     void timerCallback() override
     {
-        if (areAutomaticChecksEnabled())
-            checkIfTimeForUpdateCheck(); 
+        checkIfTimeForUpdateCheck();
     }
 
     bool areAutomaticChecksEnabled() const
@@ -105,6 +105,12 @@ private:
 
     void checkIfTimeForUpdateCheck()
     {
+        if (! areAutomaticChecksEnabled())
+        {
+            CURVE_AUDIO_LOG ("[Updater] Automatic check skipped: disabled in settings");
+            return;
+        }
+
         // Don't start a check if one is already in progress
         if (isChecking || activeDownload != nullptr)
             return;
@@ -118,6 +124,10 @@ private:
             if (currentTime > (lastCheck + 86400000)) // check for updates if more than 24 hours past
             {
                 performGitHubRequest (false);
+            }
+            else
+            {
+                CURVE_AUDIO_LOG ("[Updater] Automatic check skipped: last check was less than 24 hours ago");
             }
         }
     }
@@ -217,6 +227,8 @@ private:
             return;
 
         isChecking = true;
+
+        CURVE_AUDIO_LOG ("[Updater] Sending update request (manual=%d)", (int) isManualCheck);
         
         juce::URL url ("https://api.github.com/repos/" + user + "/" + repo + "/releases/latest");
         

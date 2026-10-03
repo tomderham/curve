@@ -36,8 +36,10 @@
 #include "../UI/MainHostWindow.h"
 #include "PluginGraph.h"
 #include "InternalPlugins.h"
+#include "OutputInterfaceLoopbackNode.h"
 #include "../UI/GraphEditorPanel.h"
 #include "../AudioConstants.h"
+#include "../AudioDiagnostics.h"
 
 
 //==============================================================================
@@ -109,7 +111,7 @@ void PluginGraph::addPluginCallback (std::unique_ptr<AudioPluginInstance> instan
     }
     else
     {
-       #if JUCE_PLUGINHOST_ARA && (JUCE_MAC || JUCE_WINDOWS || JUCE_LINUX)
+       #if JUCE_PLUGINHOST_ARA
         if (useARA == PluginDescriptionAndPreference::UseARA::yes
             && instance->getPluginDescription().hasARAExtension)
         {
@@ -148,11 +150,50 @@ Point<double> PluginGraph::getNodePosition (NodeID nodeID) const
 }
 
 //==============================================================================
+// The graph deletes removed nodes up to 500ms later (with its old render sequence),
+// so deactivate loopback nodes now, or the tap health check rebuilds the tap for
+// nodes that are already gone.
+static void deactivateIfLoopback (AudioProcessorGraph::Node& node)
+{
+    if (auto* loopback = dynamic_cast<OutputInterfaceLoopbackNode*> (node.getProcessor()))
+        loopback->setActiveState (false);
+}
+
+void PluginGraph::removeNode (NodeID nodeID)
+{
+    if (auto node = graph.getNodeForId (nodeID))
+        deactivateIfLoopback (*node);
+
+    graph.removeNode (nodeID);
+}
+
 void PluginGraph::clear()
 {
+    ++restoreGeneration;
+    pendingAsyncRestores = 0;
+    pluginsFailedToRestore.clear();
+    restoredConnections.clear();
+
     closeAnyOpenPluginWindows();
+
+    for (auto* node : graph.getNodes())
+        deactivateIfLoopback (*node);
+
     graph.clear();
     changed();
+}
+
+bool PluginGraph::isConfiguredByAudioSettings (AudioProcessor& processor)
+{
+    using IONode = AudioProcessorGraph::AudioGraphIOProcessor;
+
+    if (auto* ioNode = dynamic_cast<IONode*> (&processor))
+        return ioNode->getType() == IONode::audioInputNode || ioNode->getType() == IONode::audioOutputNode;
+
+    if (auto* plugin = dynamic_cast<AudioPluginInstance*> (&processor))
+        return plugin->getPluginDescription().category == "Audio I/O";
+
+    return false;
 }
 
 PluginWindow* PluginGraph::getOrCreateWindowFor (AudioProcessorGraph::Node* node, PluginWindow::Type type)
@@ -165,18 +206,14 @@ PluginWindow* PluginGraph::getOrCreateWindowFor (AudioProcessorGraph::Node* node
 
     if (auto* processor = node->getProcessor())
     {
+        if (isConfiguredByAudioSettings (*processor))
+        {
+            getCommandManager().invokeDirectly (CommandIDs::showAudioSettings, false);
+            return nullptr;
+        }
+
         if (auto* plugin = dynamic_cast<AudioPluginInstance*> (processor))
         {
-            auto description = plugin->getPluginDescription();
-
-            const bool isHardwareIO = (description.category == "Audio I/O" || description.category == "Midi I/O");
-
-            if (isHardwareIO)
-            {
-                getCommandManager().invokeDirectly (CommandIDs::showAudioSettings, false);
-                return nullptr;
-            }
-
             return activePluginWindows.add (new PluginWindow (node,
                                                               type,
                                                               activePluginWindows,
@@ -517,6 +554,9 @@ static XmlElement* createNodeXml (AudioProcessorGraph::Node* const node) noexcep
         e->setAttribute ("y",        node->properties ["y"].toString());
         e->setAttribute ("useARA",   node->properties ["useARA"].toString());
 
+        if (node->properties.contains ("customNodeName"))
+            e->setAttribute ("customNodeName", node->properties ["customNodeName"].toString());
+
         for (int i = 0; i < (int) PluginWindow::Type::numTypes; ++i)
         {
             auto type = (PluginWindow::Type) i;
@@ -554,6 +594,32 @@ static XmlElement* createNodeXml (AudioProcessorGraph::Node* const node) noexcep
     return nullptr;
 }
 
+#if JUCE_PLUGINHOST_ARA
+static std::unique_ptr<AudioPluginInstance> wrapInstanceForARA (std::unique_ptr<AudioPluginInstance> instance,
+                                                                const PluginDescriptionAndPreference& description)
+{
+    if (instance
+        && description.useARA == PluginDescriptionAndPreference::UseARA::yes
+        && description.pluginDescription.hasARAExtension)
+    {
+        return std::make_unique<ARAPluginInstanceWrapper> (std::move (instance));
+    }
+
+    return instance;
+}
+#else
+static std::unique_ptr<AudioPluginInstance> wrapInstanceForARA (std::unique_ptr<AudioPluginInstance> instance,
+                                                                const PluginDescriptionAndPreference&)
+{
+    return instance;
+}
+#endif
+
+static String getRestoreFailureName (const PluginDescription& description)
+{
+    return description.name.isNotEmpty() ? description.name : TRANS ("Unknown plugin");
+}
+
 void PluginGraph::createNodeFromXml (const XmlElement& xml, bool restorePluginWindows)
 {
     PluginDescriptionAndPreference pd;
@@ -569,99 +635,219 @@ void PluginGraph::createNodeFromXml (const XmlElement& xml, bool restorePluginWi
         }
     }
 
-    auto createInstanceWithFallback = [&]() -> std::unique_ptr<AudioPluginInstance>
+    // The saved description first, then the scanned plugin with the same ID as a fallback
+    std::vector<PluginDescriptionAndPreference> candidates { pd };
+
     {
-        auto createInstance = [this] (const PluginDescriptionAndPreference& description) -> std::unique_ptr<AudioPluginInstance>
-        {
-            String errorMessage;
-
-            auto instance = formatManager.createPluginInstance (description.pluginDescription,
-                                                                graph.getSampleRate(),
-                                                                graph.getBlockSize(),
-                                                                errorMessage);
-
-           #if JUCE_PLUGINHOST_ARA && (JUCE_MAC || JUCE_WINDOWS || JUCE_LINUX)
-            if (instance
-                && description.useARA == PluginDescriptionAndPreference::UseARA::yes
-                && description.pluginDescription.hasARAExtension)
-            {
-                return std::make_unique<ARAPluginInstanceWrapper> (std::move (instance));
-            }
-           #endif
-
-            return instance;
-        };
-
-        if (auto instance = createInstance (pd))
-            return instance;
-
         const auto allFormats = formatManager.getFormats();
         const auto matchingFormat = std::find_if (allFormats.begin(), allFormats.end(),
                                                   [&] (const AudioPluginFormat* f) { return f->getName() == pd.pluginDescription.pluginFormatName; });
 
-        if (matchingFormat == allFormats.end())
-            return nullptr;
+        if (matchingFormat != allFormats.end())
+        {
+            const auto plugins = knownPlugins.getTypesForFormat (**matchingFormat);
+            const auto matchingPlugin = std::find_if (plugins.begin(), plugins.end(),
+                                                      [&] (const PluginDescription& desc) { return pd.pluginDescription.uniqueId == desc.uniqueId; });
 
-        const auto plugins = knownPlugins.getTypesForFormat (**matchingFormat);
-        const auto matchingPlugin = std::find_if (plugins.begin(), plugins.end(),
-                                                  [&] (const PluginDescription& desc) { return pd.pluginDescription.uniqueId == desc.uniqueId; });
+            if (matchingPlugin != plugins.end())
+                candidates.push_back (PluginDescriptionAndPreference { *matchingPlugin });
+        }
+    }
 
-        if (matchingPlugin == plugins.end())
-            return nullptr;
+    for (const auto& description : candidates)
+    {
+        String errorMessage;
 
-        return createInstance (PluginDescriptionAndPreference { *matchingPlugin });
+        auto instance = formatManager.createPluginInstance (description.pluginDescription,
+                                                            graph.getSampleRate(),
+                                                            graph.getBlockSize(),
+                                                            errorMessage);
+
+        if (instance != nullptr)
+        {
+            if (! finishNodeFromXml (wrapInstanceForARA (std::move (instance), description), xml, restorePluginWindows))
+                pluginsFailedToRestore.add (getRestoreFailureName (pd.pluginDescription));
+
+            return;
+        }
+    }
+
+    // Some formats (e.g. AUv3) can't be created synchronously; retry async.
+    CURVE_AUDIO_LOG ("[PresetRestore] '%s' (%s) could not be created synchronously; retrying asynchronously",
+                     pd.pluginDescription.name.toRawUTF8(), pd.pluginDescription.pluginFormatName.toRawUTF8());
+
+    ++pendingAsyncRestores;
+    createNodeFromXmlAsync (std::make_shared<const XmlElement> (xml), std::move (candidates), restorePluginWindows);
+}
+
+void PluginGraph::createNodeFromXmlAsync (std::shared_ptr<const XmlElement> nodeXml,
+                                          std::vector<PluginDescriptionAndPreference> candidates,
+                                          bool restorePluginWindows)
+{
+    jassert (! candidates.empty());
+
+    const auto description = candidates.front();
+    candidates.erase (candidates.begin());
+
+    juce::WeakReference<PluginGraph> weakSelf (this);
+
+    formatManager.createPluginInstanceAsync (description.pluginDescription,
+                                             graph.getSampleRate(),
+                                             graph.getBlockSize(),
+                                             [weakSelf, nodeXml, description, candidates, restorePluginWindows, generation = restoreGeneration]
+                                             (std::unique_ptr<AudioPluginInstance> instance, const String&)
+                                             {
+                                                 auto* self = weakSelf.get();
+
+                                                 // The graph was cleared or another preset was loaded in the meantime
+                                                 if (self == nullptr || self->restoreGeneration != generation)
+                                                     return;
+
+                                                 if (instance == nullptr && ! candidates.empty())
+                                                     self->createNodeFromXmlAsync (nodeXml, candidates, restorePluginWindows);
+                                                 else
+                                                     self->asyncNodeRestoreFinished (std::move (instance), description, *nodeXml, restorePluginWindows);
+                                             });
+}
+
+void PluginGraph::asyncNodeRestoreFinished (std::unique_ptr<AudioPluginInstance> instance,
+                                            const PluginDescriptionAndPreference& description,
+                                            const XmlElement& nodeXml,
+                                            bool restorePluginWindows)
+{
+    --pendingAsyncRestores;
+
+    const auto addFailure = [&]
+    {
+        PluginDescription saved;
+
+        for (auto* e : nodeXml.getChildIterator())
+            if (saved.loadFromXml (*e))
+                break;
+
+        pluginsFailedToRestore.add (getRestoreFailureName (saved));
+        CURVE_AUDIO_LOG ("[PresetRestore] Async restore failed for '%s'", getRestoreFailureName (saved).toRawUTF8());
     };
 
-    if (auto instance = createInstanceWithFallback())
+    if (instance == nullptr)
     {
-        if (auto* layoutEntity = xml.getChildByName ("LAYOUT"))
+        addFailure();
+    }
+    else
+    {
+        // As in loadDocument(): completing the load mustn't mark the preset as edited
+        const bool wasChanged = hasChangedSinceSaved();
+        graph.removeChangeListener (this);
+
+        if (finishNodeFromXml (wrapInstanceForARA (std::move (instance), description), nodeXml, restorePluginWindows))
         {
-            auto layout = instance->getBusesLayout();
+            const NodeID nodeID ((uint32) nodeXml.getIntAttribute ("uid"));
 
-            readBusLayoutFromXml (layout, *instance, *layoutEntity, true);
-            readBusLayoutFromXml (layout, *instance, *layoutEntity, false);
+            for (const auto& connection : restoredConnections)
+                if (connection.source.nodeID == nodeID || connection.destination.nodeID == nodeID)
+                    graph.addConnection (connection);
 
-            if (! instance->setBusesLayout (layout))
-                DBG ("Failed to apply saved bus layout to " + instance->getName());
+            graph.removeIllegalConnections();
+
+            CURVE_AUDIO_LOG ("[PresetRestore] Async restore succeeded for '%s' (node uid=%u)",
+                             description.pluginDescription.name.toRawUTF8(), (unsigned) nodeID.uid);
+        }
+        else
+        {
+            addFailure();
         }
 
-        if (auto node = graph.addNode (std::move (instance), NodeID ((uint32) xml.getIntAttribute ("uid"))))
+        changed();
+        setChangedFlag (wasChanged);
+
+        juce::WeakReference<PluginGraph> weakSelf (this);
+        MessageManager::callAsync ([weakSelf, wasChanged, generation = restoreGeneration]
         {
-            if (auto* state = xml.getChildByName ("STATE"))
+            if (auto* self = weakSelf.get())
             {
-                MemoryBlock m;
-                m.fromBase64Encoding (state->getAllSubText());
+                if (self->restoreGeneration == generation)
+                    self->setChangedFlag (wasChanged);
 
-                node->getProcessor()->setStateInformation (m.getData(), (int) m.getSize());
+                self->graph.addChangeListener (self);
             }
+        });
+    }
 
-            const double posX = xml.hasAttribute ("x") ? xml.getDoubleAttribute ("x") : 0.5;
-            const double posY = xml.hasAttribute ("y") ? xml.getDoubleAttribute ("y") : 0.5;
-            node->properties.set ("x", jlimit (0.0, 1.0, posX));
-            node->properties.set ("y", jlimit (0.0, 1.0, posY));
-            node->properties.set ("useARA", xml.getBoolAttribute ("useARA"));
+    if (pendingAsyncRestores == 0)
+        showRestoreFailures();
+}
 
-            for (int i = 0; i < (int) PluginWindow::Type::numTypes; ++i)
+bool PluginGraph::finishNodeFromXml (std::unique_ptr<AudioPluginInstance> instance,
+                                     const XmlElement& xml,
+                                     bool restorePluginWindows)
+{
+    if (auto* layoutEntity = xml.getChildByName ("LAYOUT"))
+    {
+        auto layout = instance->getBusesLayout();
+
+        readBusLayoutFromXml (layout, *instance, *layoutEntity, true);
+        readBusLayoutFromXml (layout, *instance, *layoutEntity, false);
+
+        if (! instance->setBusesLayout (layout))
+            DBG ("Failed to apply saved bus layout to " + instance->getName());
+    }
+
+    if (auto node = graph.addNode (std::move (instance), NodeID ((uint32) xml.getIntAttribute ("uid"))))
+    {
+        if (auto* state = xml.getChildByName ("STATE"))
+        {
+            MemoryBlock m;
+            m.fromBase64Encoding (state->getAllSubText());
+
+            node->getProcessor()->setStateInformation (m.getData(), (int) m.getSize());
+        }
+
+        const double posX = xml.hasAttribute ("x") ? xml.getDoubleAttribute ("x") : 0.5;
+        const double posY = xml.hasAttribute ("y") ? xml.getDoubleAttribute ("y") : 0.5;
+        node->properties.set ("x", jlimit (0.0, 1.0, posX));
+        node->properties.set ("y", jlimit (0.0, 1.0, posY));
+        node->properties.set ("useARA", xml.getBoolAttribute ("useARA"));
+
+        if (const auto customName = xml.getStringAttribute ("customNodeName"); customName.isNotEmpty())
+            node->properties.set ("customNodeName", customName);
+
+        for (int i = 0; i < (int) PluginWindow::Type::numTypes; ++i)
+        {
+            auto type = (PluginWindow::Type) i;
+
+            if (xml.hasAttribute (PluginWindow::getOpenProp (type)))
             {
-                auto type = (PluginWindow::Type) i;
+                node->properties.set (PluginWindow::getLastXProp (type), xml.getIntAttribute (PluginWindow::getLastXProp (type)));
+                node->properties.set (PluginWindow::getLastYProp (type), xml.getIntAttribute (PluginWindow::getLastYProp (type)));
+                node->properties.set (PluginWindow::getOpenProp  (type), xml.getIntAttribute (PluginWindow::getOpenProp (type)));
 
-                if (xml.hasAttribute (PluginWindow::getOpenProp (type)))
+                if (restorePluginWindows && node->properties[PluginWindow::getOpenProp (type)])
                 {
-                    node->properties.set (PluginWindow::getLastXProp (type), xml.getIntAttribute (PluginWindow::getLastXProp (type)));
-                    node->properties.set (PluginWindow::getLastYProp (type), xml.getIntAttribute (PluginWindow::getLastYProp (type)));
-                    node->properties.set (PluginWindow::getOpenProp  (type), xml.getIntAttribute (PluginWindow::getOpenProp (type)));
+                    jassert (node->getProcessor() != nullptr);
 
-                    if (restorePluginWindows && node->properties[PluginWindow::getOpenProp (type)])
-                    {
-                        jassert (node->getProcessor() != nullptr);
-
-                        if (auto w = getOrCreateWindowFor (node, type))
-                            w->toFront (true);
-                    }
+                    if (auto w = getOrCreateWindowFor (node, type))
+                        w->toFront (true);
                 }
             }
         }
+
+        return true;
     }
+
+    return false;
+}
+
+void PluginGraph::showRestoreFailures()
+{
+    if (pluginsFailedToRestore.isEmpty())
+        return;
+
+    auto options = MessageBoxOptions::makeOptionsOk (MessageBoxIconType::WarningIcon,
+                                                     TRANS ("Couldn't load plugins"),
+                                                     TRANS ("These plugins could not be loaded and are missing from the preset:")
+                                                         + "\n\n" + pluginsFailedToRestore.joinIntoString ("\n"));
+    messageBox = AlertWindow::showScopedAsync (options, nullptr);
+    pluginsFailedToRestore.clear();
 }
 
 std::unique_ptr<XmlElement> PluginGraph::createXml() const
@@ -690,15 +876,21 @@ void PluginGraph::restoreFromXml (const XmlElement& xml, bool restorePluginWindo
 
     preConfigureGraphChannels (graph, &xml);
 
+    for (auto* e : xml.getChildWithTagNameIterator ("CONNECTION"))
+    {
+        restoredConnections.push_back ({ { NodeID ((uint32) e->getIntAttribute ("srcFilter")), e->getIntAttribute ("srcChannel") },
+                                         { NodeID ((uint32) e->getIntAttribute ("dstFilter")), e->getIntAttribute ("dstChannel") } });
+    }
+
     for (auto* e : xml.getChildWithTagNameIterator ("FILTER"))
         createNodeFromXml (*e, restorePluginWindows);
 
-    for (auto* e : xml.getChildWithTagNameIterator ("CONNECTION"))
-    {
-        graph.addConnection ({ { NodeID ((uint32) e->getIntAttribute ("srcFilter")), e->getIntAttribute ("srcChannel") },
-                               { NodeID ((uint32) e->getIntAttribute ("dstFilter")), e->getIntAttribute ("dstChannel") } });
-    }
+    for (const auto& connection : restoredConnections)
+        graph.addConnection (connection);
 
     graph.removeIllegalConnections();
     changed();
+
+    if (pendingAsyncRestores == 0)
+        showRestoreFailures();
 }
