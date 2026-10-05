@@ -190,6 +190,35 @@ public:
       targetArea = juce::Rectangle<int>(mousePos.x, mousePos.y, 1, 1);
     }
 
+    // Set now so a second click while waiting for activation cancels the open
+    isMenuOpen = true;
+    showTrayMenuWhenActive(targetArea, ++menuRequestId, juce::Time::getMillisecondCounter());
+  }
+
+  // App activation is asynchronous, and JUCE's PopupMenu dismisses itself within
+  // ~10ms if the app isn't foreground while the mouse is outside the menu. When
+  // Curve isn't already active (e.g. the first click on the icon), the menu would
+  // flash and close, so wait for activation before showing it.
+  void showTrayMenuWhenActive(juce::Rectangle<int> targetArea, juce::uint32 requestId, juce::uint32 startTime) {
+    if (requestId != menuRequestId || !isMenuOpen)
+      return;
+
+    constexpr juce::uint32 activationTimeoutMs = 500;
+
+    if (!juce::Process::isForegroundProcess()
+        && juce::Time::getMillisecondCounter() - startTime < activationTimeoutMs) {
+      juce::Component::SafePointer<TrayIconController> safeSelf(this);
+      juce::Timer::callAfterDelay(10, [safeSelf, targetArea, requestId, startTime] {
+        if (auto *self = safeSelf.getComponent())
+          self->showTrayMenuWhenActive(targetArea, requestId, startTime);
+      });
+      return;
+    }
+
+    showTrayMenu(targetArea);
+  }
+
+  void showTrayMenu(juce::Rectangle<int> targetArea) {
     GlobalShortcutManager::LocalActionMap localActions;
     int initialSelectedPresetId = 0;
     juce::Component::SafePointer<TrayIconController> safeSelf(this);
@@ -532,6 +561,7 @@ private:
   MainHostWindow &mainWindow;
   GitHubUpdater &gitHubUpdater;
   bool isMenuOpen = false;
+  juce::uint32 menuRequestId = 0;
   juce::uint32 lastMenuDismissTime = 0;
   void *activeMenuKeyMonitor = nullptr;
   std::unique_ptr<MacOSDisplayChangeNotifierBase> displayChangeNotifier;
