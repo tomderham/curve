@@ -51,6 +51,7 @@
 #include <condition_variable>
 #include <thread>
 #include "UI/MainHostWindow.h"
+#include "UI/CurveColours.h"
 #include "Plugins/InternalPlugins.h"
 #include "UI/AudioResilienceManager.h"
 #include "UI/GitHubUpdater.h"
@@ -220,6 +221,58 @@ private:
 };
 
 //==============================================================================
+// Title bar button for JUCE-drawn windows (dialogs, plugin windows). Replaces
+// LookAndFeel_V4's thin dark red/yellow glyphs, which are hard to see on the
+// dark title bar, with light glyphs that highlight in the accent colour.
+class CurveWindowButton final : public juce::Button
+{
+public:
+    // Paths are in unit coordinates (0..1) and stroked at paint time
+    CurveWindowButton (const juce::String& name, juce::Path normal, juce::Path toggled)
+        : juce::Button (name), normalShape (std::move (normal)), toggledShape (std::move (toggled))
+    {
+    }
+
+    void paintButton (juce::Graphics& g, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override
+    {
+        auto background = juce::Colours::grey;
+
+        if (auto* rw = findParentComponentOfClass<juce::ResizableWindow>())
+            if (auto* lf = dynamic_cast<juce::LookAndFeel_V4*> (&rw->getLookAndFeel()))
+                background = lf->getCurrentColourScheme().getUIColour (juce::LookAndFeel_V4::ColourScheme::widgetBackground);
+
+        g.fillAll (background);
+
+        auto bounds = getLocalBounds().toFloat();
+        auto square = bounds.withSizeKeepingCentre (juce::jmin (bounds.getWidth(), bounds.getHeight()),
+                                                    juce::jmin (bounds.getWidth(), bounds.getHeight()))
+                            .reduced (2.0f);
+
+        const bool active = isEnabled() && (shouldDrawButtonAsHighlighted || shouldDrawButtonAsDown);
+
+        if (active)
+        {
+            g.setColour (shouldDrawButtonAsDown ? Curve::Colours::accent.darker (0.3f) : Curve::Colours::accent);
+            g.fillRoundedRectangle (square, 4.0f);
+        }
+
+        auto glyph = square.reduced (square.getWidth() * 0.3f);
+        auto glyphColour = active ? juce::Colours::white : Curve::Colours::titleBarGlyph;
+        g.setColour (isEnabled() ? glyphColour : glyphColour.withAlpha (0.4f));
+
+        const auto& shape = getToggleState() ? toggledShape : normalShape;
+        g.strokePath (shape,
+                      juce::PathStrokeType (1.75f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded),
+                      juce::AffineTransform::scale (glyph.getWidth(), glyph.getHeight()).translated (glyph.getX(), glyph.getY()));
+    }
+
+private:
+    juce::Path normalShape, toggledShape;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CurveWindowButton)
+};
+
+//==============================================================================
 class CurveLookAndFeel : public juce::LookAndFeel_V4
 {
 public:
@@ -230,6 +283,41 @@ public:
         setColour (juce::PopupMenu::highlightedBackgroundColourId, juce::Colour (0xff0066cc));
         setColour (juce::PopupMenu::highlightedTextColourId, juce::Colours::white);
         setColour (juce::PopupMenu::headerTextColourId, juce::Colour (0xff999999));
+    }
+
+    juce::Button* createDocumentWindowButton (int buttonType) override
+    {
+        juce::Path shape;
+
+        if (buttonType == juce::DocumentWindow::closeButton)
+        {
+            shape.startNewSubPath (0.0f, 0.0f);
+            shape.lineTo (1.0f, 1.0f);
+            shape.startNewSubPath (1.0f, 0.0f);
+            shape.lineTo (0.0f, 1.0f);
+            return new CurveWindowButton ("close", shape, shape);
+        }
+
+        if (buttonType == juce::DocumentWindow::minimiseButton)
+        {
+            shape.startNewSubPath (0.0f, 0.5f);
+            shape.lineTo (1.0f, 0.5f);
+            return new CurveWindowButton ("minimise", shape, shape);
+        }
+
+        if (buttonType == juce::DocumentWindow::maximiseButton)
+        {
+            shape.startNewSubPath (0.5f, 0.0f);
+            shape.lineTo (0.5f, 1.0f);
+            shape.startNewSubPath (0.0f, 0.5f);
+            shape.lineTo (1.0f, 0.5f);
+
+            juce::Path restoreShape;
+            restoreShape.addRectangle (0.0f, 0.0f, 1.0f, 1.0f);
+            return new CurveWindowButton ("maximise", shape, restoreShape);
+        }
+
+        return juce::LookAndFeel_V4::createDocumentWindowButton (buttonType);
     }
 
     void drawPopupMenuItem (juce::Graphics& g, const juce::Rectangle<int>& area,

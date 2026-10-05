@@ -46,6 +46,7 @@
 
 #include <JuceHeader.h>
 #include "GraphEditorPanel.h"
+#include "CurveColours.h"
 #include "FilteredAudioDeviceSelectorComponent.h"
 #include "../Plugins/InternalPlugins.h"
 #include "MainHostWindow.h"
@@ -227,7 +228,7 @@ public:
             g.fillRoundedRectangle (getLocalBounds().toFloat().reduced (1.0f), 4.0f);
         }
 
-        g.setColour (bypassed ? textColour.withAlpha (0.4f) : Colour (0xff3b82f6));
+        g.setColour (bypassed ? textColour.withAlpha (0.4f) : Curve::Colours::accent);
         g.strokePath (glyphPath, PathStrokeType (1.5f, PathStrokeType::curved, PathStrokeType::rounded));
     }
 
