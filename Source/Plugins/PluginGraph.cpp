@@ -557,6 +557,9 @@ static XmlElement* createNodeXml (AudioProcessorGraph::Node* const node) noexcep
         if (node->properties.contains ("customNodeName"))
             e->setAttribute ("customNodeName", node->properties ["customNodeName"].toString());
 
+        if (node->isBypassed())
+            e->setAttribute ("bypassed", true);
+
         for (int i = 0; i < (int) PluginWindow::Type::numTypes; ++i)
         {
             auto type = (PluginWindow::Type) i;
@@ -801,6 +804,10 @@ bool PluginGraph::finishNodeFromXml (std::unique_ptr<AudioPluginInstance> instan
 
             node->getProcessor()->setStateInformation (m.getData(), (int) m.getSize());
         }
+
+        // After STATE, so it overrides any bypass in the plugin's own state
+        if (xml.getBoolAttribute ("bypassed"))
+            node->setBypassed (true);
 
         const double posX = xml.hasAttribute ("x") ? xml.getDoubleAttribute ("x") : 0.5;
         const double posY = xml.hasAttribute ("y") ? xml.getDoubleAttribute ("y") : 0.5;

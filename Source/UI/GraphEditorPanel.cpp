@@ -190,6 +190,60 @@ static String getTooltipForProcessor (const AudioProcessor& processor)
 }
 
 //==============================================================================
+// Power glyph that toggles a node's bypass. Stateless: it queries the node so it
+// always reflects bypass changes made elsewhere.
+class NodeBypassButton final : public Button
+{
+public:
+    explicit NodeBypassButton (std::function<bool()> isBypassedFn)
+        : Button ("Bypass"), isBypassed (std::move (isBypassedFn))
+    {
+        setClickingTogglesState (false);
+        setWantsKeyboardFocus (false);
+    }
+
+    void resized() override
+    {
+        const auto glyph = getLocalBounds().toFloat().withSizeKeepingCentre (glyphSize, glyphSize).reduced (1.5f);
+        const auto r = glyph.getWidth() * 0.5f;
+        const auto c = glyph.getCentre();
+
+        glyphPath.clear();
+        glyphPath.addCentredArc (c.x, c.y, r, r, 0.0f,
+                                 MathConstants<float>::pi * 0.2f,
+                                 MathConstants<float>::twoPi - MathConstants<float>::pi * 0.2f, true);
+        glyphPath.startNewSubPath (c.x, glyph.getY() - 0.5f);
+        glyphPath.lineTo (c.x, c.y);
+    }
+
+    void paintButton (Graphics& g, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override
+    {
+        const auto textColour = findColour (TextEditor::textColourId);
+        const bool bypassed = isBypassed != nullptr && isBypassed();
+
+        if (shouldDrawButtonAsHighlighted || shouldDrawButtonAsDown)
+        {
+            g.setColour (textColour.withAlpha (shouldDrawButtonAsDown ? 0.22f : 0.12f));
+            g.fillRoundedRectangle (getLocalBounds().toFloat().reduced (1.0f), 4.0f);
+        }
+
+        g.setColour (bypassed ? textColour.withAlpha (0.4f) : Colour (0xff3b82f6));
+        g.strokePath (glyphPath, PathStrokeType (1.5f, PathStrokeType::curved, PathStrokeType::rounded));
+    }
+
+    String getTooltip() override
+    {
+        return (isBypassed != nullptr && isBypassed()) ? "Bypassed - click to enable"
+                                                       : "Bypass (click to toggle)";
+    }
+
+private:
+    static constexpr float glyphSize = 14.0f;
+    std::function<bool()> isBypassed;
+    Path glyphPath;
+};
+
+//==============================================================================
 struct GraphEditorPanel::PluginComponent final : public Component,
                                                  public SettableTooltipClient,
                                                  public Timer,
@@ -209,6 +263,14 @@ struct GraphEditorPanel::PluginComponent final : public Component,
                 }
 
                 setTooltip (getTooltipForProcessor (*processor));
+
+                // No bypass for the graph's I/O nodes
+                if (dynamic_cast<AudioProcessorGraph::AudioGraphIOProcessor*> (processor) == nullptr)
+                {
+                    bypassButton = std::make_unique<NodeBypassButton> ([this] { return isNodeBypassed(); });
+                    bypassButton->onClick = [this] { toggleBypass(); };
+                    addAndMakeVisible (bypassButton.get());
+                }
             }
         }
 
@@ -306,10 +368,7 @@ struct GraphEditorPanel::PluginComponent final : public Component,
     void paint (Graphics& g) override
     {
         auto boxArea = getLocalBounds().reduced (4, pinSize);
-        bool isBypassed = false;
-
-        if (auto* f = graph.graph.getNodeForId (pluginID))
-            isBypassed = f->isBypassed();
+        const bool isBypassed = isNodeBypassed();
 
         auto boxColour = findColour (TextEditor::backgroundColourId);
 
@@ -322,13 +381,24 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         g.setColour (findColour (TextEditor::outlineColourId).withAlpha (0.6f));
         g.drawRect (boxArea.toFloat(), 1.0f);
 
-        g.setColour (findColour (TextEditor::textColourId));
+        // Reserve the bypass slot on both sides to keep the name centred
+        auto textArea = bypassButton != nullptr ? boxArea.reduced (bypassSlot + bypassMargin, 0) : boxArea;
+
+        g.setColour (findColour (TextEditor::textColourId).withMultipliedAlpha (isBypassed ? 0.5f : 1.0f));
         g.setFont (font);
-        g.drawFittedText (getName(), boxArea, Justification::centred, 2);
+        g.drawFittedText (getName(), textArea, Justification::centred, 2);
     }
 
     void resized() override
     {
+        if (bypassButton != nullptr)
+        {
+            auto boxArea = getLocalBounds().reduced (4, pinSize);
+            bypassButton->setBounds (boxArea.withWidth (bypassSlot)
+                                            .withSizeKeepingCentre (bypassSlot, bypassSlot)
+                                            .translated (bypassMargin, 0));
+        }
+
         if (auto f = graph.graph.getNodeForId (pluginID))
         {
             if (auto* processor = f->getProcessor())
@@ -392,7 +462,7 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         }
 
         const auto textWidth = GlyphArrangement::getStringWidthInt (font, displayName);
-        w = jmax (w, 16 + jmin (textWidth, 300));
+        w = jmax (w, 16 + (bypassButton != nullptr ? 2 * (bypassSlot + bypassMargin) : 0) + jmin (textWidth, 300));
         if (textWidth > 300)
             h = 100;
 
@@ -453,16 +523,7 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         menu.reset (new PopupMenu);
         menu->addItem ("Delete This Node", [this] { graph.removeNode (pluginID); });
         menu->addItem ("Disconnect All Pins", [this] { graph.graph.disconnectNode (pluginID); });
-        menu->addItem ("Toggle Bypass", [this]
-        {
-            if (auto* node = graph.graph.getNodeForId (pluginID))
-            {
-                node->setBypassed (! node->isBypassed());
-                graph.graph.sendChangeMessage();
-            }
-
-            repaint();
-        });
+        menu->addItem ("Toggle Bypass", [this] { toggleBypass(); });
         menu->addItem ("Rename This Node", [this]
         {
             promptRenameNode();
@@ -512,6 +573,25 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         menu->addItem ("Load Plug-in State", [this] { loadPluginState(); });
 
         menu->showMenuAsync (PopupMenu::Options{}.withTargetScreenArea (Rectangle<int>{}.withPosition (localPointToGlobal (localPos))));
+    }
+
+    bool isNodeBypassed() const
+    {
+        if (auto* node = graph.graph.getNodeForId (pluginID))
+            return node->isBypassed();
+
+        return false;
+    }
+
+    void toggleBypass()
+    {
+        if (auto* node = graph.graph.getNodeForId (pluginID))
+        {
+            node->setBypassed (! node->isBypassed());
+            graph.graph.sendChangeMessage();
+        }
+
+        repaint();
     }
 
     void promptRenameNode()
@@ -632,6 +712,7 @@ struct GraphEditorPanel::PluginComponent final : public Component,
     GraphEditorPanel& panel;
     PluginGraph& graph;
     const AudioProcessorGraph::NodeID pluginID;
+    AudioProcessor* const processorAtCreation = getProcessor();
     OwnedArray<PinComponent> pins;
     int numInputs = 0, numOutputs = 0;
     int pinSize = 16;
@@ -642,6 +723,9 @@ struct GraphEditorPanel::PluginComponent final : public Component,
     std::unique_ptr<FileChooser> fileChooser;
     AudioProcessorParameter* observedBypassParam = nullptr;
     const String formatSuffix = getFormatSuffix (getProcessor());
+    static constexpr int bypassSlot = 20;
+    static constexpr int bypassMargin = 2;
+    std::unique_ptr<NodeBypassButton> bypassButton;
 };
 
 
@@ -994,9 +1078,15 @@ void GraphEditorPanel::changeListenerCallback (ChangeBroadcaster*)
 
 void GraphEditorPanel::updateComponents()
 {
+    // A preset load can reuse a node ID for a different processor, so rebuild those too
     for (int i = nodes.size(); --i >= 0;)
-        if (graph.graph.getNodeForId (nodes.getUnchecked (i)->pluginID) == nullptr)
+    {
+        auto* comp = nodes.getUnchecked (i);
+        auto* node = graph.graph.getNodeForId (comp->pluginID);
+
+        if (node == nullptr || node->getProcessor() != comp->processorAtCreation)
             nodes.remove (i);
+    }
 
     for (int i = connectors.size(); --i >= 0;)
         if (! graph.graph.isConnected (connectors.getUnchecked (i)->connection))
@@ -1004,9 +1094,6 @@ void GraphEditorPanel::updateComponents()
 
     for (auto* fc : nodes)
         fc->update();
-
-    for (auto* cc : connectors)
-        cc->update();
 
     for (auto* f : graph.graph.getNodes())
     {
@@ -1017,6 +1104,10 @@ void GraphEditorPanel::updateComponents()
             comp->update();
         }
     }
+
+    // After creating nodes, so connectors see rebuilt nodes' pins
+    for (auto* cc : connectors)
+        cc->update();
 
     for (auto& c : graph.graph.getConnections())
     {
