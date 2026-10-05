@@ -43,6 +43,27 @@
 
 
 //==============================================================================
+// JUCE invokes AUv3 creation callbacks directly from AudioComponentInstantiate's
+// completion handler, which can run on an arbitrary queue. Everything our
+// callbacks touch (WeakReference, the graph, UI) is message-thread only.
+static AudioPluginFormat::PluginCreationCallback callOnMessageThread (AudioPluginFormat::PluginCreationCallback userCallback)
+{
+    return [callback = std::move (userCallback)] (std::unique_ptr<AudioPluginInstance> instance, const String& error)
+    {
+        if (MessageManager::getInstance()->isThisTheMessageThread())
+        {
+            callback (std::move (instance), error);
+            return;
+        }
+
+        // std::function must be copyable, so the instance can't be captured as a unique_ptr
+        auto heldInstance = std::make_shared<std::unique_ptr<AudioPluginInstance>> (std::move (instance));
+        MessageManager::callAsync ([callback, heldInstance, error] { callback (std::move (*heldInstance), error); });
+    };
+}
+
+
+//==============================================================================
 PluginGraph::PluginGraph (AudioPluginFormatManager& fm, KnownPluginList& kpl)
     : FileBasedDocument (getFilenameSuffix(),
                          getFilenameWildcard(),
@@ -90,11 +111,11 @@ void PluginGraph::addPlugin (const PluginDescriptionAndPreference& desc, Point<d
     formatManager.createPluginInstanceAsync (desc.pluginDescription,
                                              graph.getSampleRate(),
                                              graph.getBlockSize(),
-                                             [weakSelf, pos, useARA = desc.useARA] (std::unique_ptr<AudioPluginInstance> instance, const String& error)
+                                             callOnMessageThread ([weakSelf, pos, useARA = desc.useARA] (std::unique_ptr<AudioPluginInstance> instance, const String& error)
                                              {
                                                  if (auto* self = weakSelf.get())
                                                      self->addPluginCallback (std::move (instance), error, pos, useARA);
-                                             });
+                                             }));
 }
 
 void PluginGraph::addPluginCallback (std::unique_ptr<AudioPluginInstance> instance,
@@ -697,8 +718,8 @@ void PluginGraph::createNodeFromXmlAsync (std::shared_ptr<const XmlElement> node
     formatManager.createPluginInstanceAsync (description.pluginDescription,
                                              graph.getSampleRate(),
                                              graph.getBlockSize(),
-                                             [weakSelf, nodeXml, description, candidates, restorePluginWindows, generation = restoreGeneration]
-                                             (std::unique_ptr<AudioPluginInstance> instance, const String&)
+                                             callOnMessageThread ([weakSelf, nodeXml, description, candidates, restorePluginWindows, generation = restoreGeneration]
+                                                                  (std::unique_ptr<AudioPluginInstance> instance, const String&)
                                              {
                                                  auto* self = weakSelf.get();
 
@@ -710,7 +731,7 @@ void PluginGraph::createNodeFromXmlAsync (std::shared_ptr<const XmlElement> node
                                                      self->createNodeFromXmlAsync (nodeXml, candidates, restorePluginWindows);
                                                  else
                                                      self->asyncNodeRestoreFinished (std::move (instance), description, *nodeXml, restorePluginWindows);
-                                             });
+                                             }));
 }
 
 void PluginGraph::asyncNodeRestoreFinished (std::unique_ptr<AudioPluginInstance> instance,
