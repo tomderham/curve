@@ -47,6 +47,7 @@
 #include <JuceHeader.h>
 #include "MainHostWindow.h"
 #include "AudioResilienceManager.h"
+#include "IdleReleaseController.h"
 #include "FilteredAudioDeviceSelectorComponent.h"
 #include "PresetSaveDialog.h"
 #include "OnlineCalibrationDialog.h"
@@ -734,6 +735,10 @@ bool MainHostWindow::perform (const InvocationInfo& info)
 
 void MainHostWindow::showAudioSettings()
 {
+    // The selector needs an open device to show and edit the current configuration
+    if (auto* idle = getIdleReleaseController())
+        idle->resumeIfReleased();
+
     if (auto* rm = getResilienceManager())
         rm->setSuspended (true);
 
@@ -870,6 +875,10 @@ void MainHostWindow::filesDropped (const StringArray& files, int x, int y)
 
 void MainHostWindow::loadPreset(juce::File file)
 {
+    // Load into a running device, so the new graph is prepared and checked for idle release normally
+    if (auto* idle = getIdleReleaseController())
+        idle->resumeIfReleased();
+
     if (auto* rm = getResilienceManager())
     {
         rm->setSuspended (true);

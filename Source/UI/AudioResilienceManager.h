@@ -107,6 +107,77 @@ public:
         }
     }
 
+    bool isSuspendedOrRestarting() const
+    {
+        return isSuspended || isRestarting;
+    }
+
+    // Idle release: the interface is closed on purpose (see IdleReleaseController), so none of
+    // the recovery paths below may reopen it until exitIdleRelease() is called.
+    void enterIdleRelease()
+    {
+        if (isIdleReleased || isRestarting)
+            return;
+
+        stopTimer (timerDebouncedResilience);
+        stopTimer (timerWakeRecovery);
+        isIdleReleased = true;
+
+        isRestarting = true;
+        deviceManager.closeAudioDevice();
+        OutputInterfaceLoopbackNode::teardownTap();
+        isRestarting = false;
+    }
+
+    void exitIdleRelease()
+    {
+        if (! isIdleReleased)
+            return;
+
+        isIdleReleased = false;
+        consecutiveEnforceFailures = 0;
+
+        // Reopen exactly the setup that was running before the release (including its active
+        // channels). Re-initialising from the saved XML instead would enable all input channels
+        // whenever an input device name is saved, which would then block the next idle release.
+        isRestarting = true;
+        deviceManager.restartLastAudioDevice();
+        isRestarting = false;
+
+        auto* currentDevice = deviceManager.getCurrentAudioDevice();
+
+        if (currentDevice != nullptr && currentDevice->isPlaying())
+        {
+            lastDeviceName = currentDevice->getName();
+            lastInputChannels = currentDevice->getActiveInputChannels();
+            lastOutputChannels = currentDevice->getActiveOutputChannels();
+            lastSampleRate = currentDevice->getCurrentSampleRate();
+            lastBufferSize = currentDevice->getCurrentBufferSizeSamples();
+
+            if (OutputInterfaceLoopbackNode::isAnyTapActiveInGraph())
+                OutputInterfaceLoopbackNode::ensureTapHealthy (targetOutputDeviceName,
+                                                               lastSampleRate,
+                                                               lastBufferSize,
+                                                               true /* forceTapReinit */);
+
+            if (onConfigRestored != nullptr)
+                juce::MessageManager::callAsync ([callback = onConfigRestored] {
+                    if (callback)
+                        callback();
+                });
+
+            return;
+        }
+
+        // The previous device couldn't be restarted (e.g. unplugged while released): fall back to normal recovery
+        updateTargetSettings();
+
+        if (cachedAudioState != nullptr)
+            enforceConfiguration (cachedAudioState.get(), true /* forceTapReinit */);
+        else
+            doResilience();
+    }
+
     void setAlwaysEnforceSampleRate (bool enforce)
     {
         alwaysEnforceSampleRate = enforce;
@@ -194,7 +265,7 @@ public:
     // callback when an audio config change occurs
     void changeListenerCallback(juce::ChangeBroadcaster*) override
     {
-        if (isRestarting || isSuspended) return;
+        if (isRestarting || isSuspended || isIdleReleased) return;
 
         // Update baseline device properties immediately
         auto* currentDevice = deviceManager.getCurrentAudioDevice();
@@ -253,6 +324,14 @@ public:
     // Timer callback runs every 5s for periodic health checks
     void timerCallback (int timerId) override
     {
+        if (isIdleReleased)
+        {
+            // exitIdleRelease() reconfigures directly, so pending one-shot recovery timers aren't needed
+            if (timerId != timerPeriodicHealthCheck)
+                stopTimer (timerId);
+            return;
+        }
+
         if (isSuspended) return;
 
         if (timerId == timerWakeRecovery)
@@ -318,7 +397,7 @@ public:
 
     void doResilience()
     {
-        if (isSuspended)
+        if (isSuspended || isIdleReleased)
             return;
 
         // Defer resilience checks while audio configuration dialogs are modal
@@ -463,6 +542,7 @@ private:
     bool isRestarting = false;
     bool isWarmedUp = false;
     bool isSuspended = false;
+    bool isIdleReleased = false;
     bool wokeFromSleepFlag = false;
     juce::uint32 wakeRecoveryStartTimeMs = 0;
     std::shared_ptr<std::atomic<bool>> isAlive = std::make_shared<std::atomic<bool>> (true);

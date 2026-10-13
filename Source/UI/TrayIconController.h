@@ -18,6 +18,7 @@
 #include "LoginItemManager.h"
 #include "MainHostWindow.h"
 #include "SystemSleepManager.h"
+#include "IdleReleaseController.h"
 
 inline std::unique_ptr<InputStream>
 createAssetInputStream(const char *resourcePath) {
@@ -470,6 +471,12 @@ public:
             settings->saveIfNeeded();
           }
           SystemSleepManager::setPreventSystemSleep(newState);
+        });
+    const bool isIdleReleaseEnabled = IdleReleaseController::isEnabledInSettings();
+    settingsmenu.addItem(
+        "Release audio interface when idle", true, isIdleReleaseEnabled,
+        [isIdleReleaseEnabled] {
+          IdleReleaseController::setEnabledInSettings(!isIdleReleaseEnabled);
         });
     settingsmenu.addSeparator();
     auto updaterToken = gitHubUpdater.getLifetimeToken();

@@ -50,6 +50,7 @@
 #include "../Plugins/PluginGraph.h"
 #include "../AudioDiagnostics.h"
 #include "../AudioConstants.h"
+#include "IdleReleaseController.h"
 
 class MainHostWindow;
 
@@ -154,8 +155,11 @@ public:
         double sr = (device != nullptr) ? device->getCurrentSampleRate() : Curve::AudioConstants::defaultSampleRate;
         currentSampleRate.store (sr, std::memory_order_relaxed);
         fadeGain.reset (sr, 0.02);
-        fadeGain.setCurrentAndTargetValue (1.0f);
-        targetGain.store (1.0f, std::memory_order_relaxed);
+
+        // After an idle release, stay silent until startFadeIn() (the tap may not be attached yet)
+        const float startGain = holdSilentOnStart.load (std::memory_order_acquire) ? 0.0f : 1.0f;
+        fadeGain.setCurrentAndTargetValue (startGain);
+        targetGain.store (startGain, std::memory_order_relaxed);
         isFadedOut.store (false, std::memory_order_release);
     }
 
@@ -170,8 +174,15 @@ public:
         isFadedOut.store (false, std::memory_order_release);
     }
 
+    /** Makes the next device start begin silent, until startFadeIn() is called. */
+    void holdSilentUntilFadeIn()
+    {
+        holdSilentOnStart.store (true, std::memory_order_release);
+    }
+
     void startFadeIn()
     {
+        holdSilentOnStart.store (false, std::memory_order_release);
         targetGain.store (1.0f, std::memory_order_release);
         isFadedOut.store (false, std::memory_order_release);
     }
@@ -193,6 +204,8 @@ public:
         player.audioDeviceIOCallbackWithContext (inputChannelData, numInputChannels,
                                                  outputChannelData, numOutputChannels,
                                                  numSamples, context);
+
+        IdleAudioActivity::noteBlock (outputChannelData, numOutputChannels, numSamples);
 
         auto endTicks = juce::Time::getHighResolutionTicks();
         double elapsedSec = juce::Time::highResolutionTicksToSeconds (endTicks - startTicks);
@@ -253,6 +266,7 @@ private:
     juce::LinearSmoothedValue<float> fadeGain { 1.0f };
     std::atomic<float> targetGain { 1.0f };
     std::atomic<bool> isFadedOut { false };
+    std::atomic<bool> holdSilentOnStart { false };
     std::atomic<double> currentSampleRate { Curve::AudioConstants::defaultSampleRate };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FadingAudioProcessorPlayer)
@@ -293,6 +307,8 @@ public:
 
     void startPresetTransition() { graphPlayer.startFadeOut(); }
     void endPresetTransition()   { graphPlayer.startFadeIn(); }
+    void holdOutputUntilFadeIn() { graphPlayer.holdSilentUntilFadeIn(); }
+    void fadeInOutput()          { graphPlayer.startFadeIn(); }
     bool isTransitionFadedOut() const { return graphPlayer.isFullyFadedOut(); }
     void showUpdateBanner (const String& version, const String& downloadUrl);
 

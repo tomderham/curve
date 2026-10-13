@@ -54,6 +54,8 @@
 #include "UI/CurveColours.h"
 #include "Plugins/InternalPlugins.h"
 #include "UI/AudioResilienceManager.h"
+#include "UI/IdleReleaseController.h"
+#include "Plugins/AudioRecorderNode.h"
 #include "UI/GitHubUpdater.h"
 #include "UI/LoginItemManager.h"
 #include "UI/SystemSleepManager.h"
@@ -453,6 +455,28 @@ public:
       }
     }));
 
+    idleReleaseController.reset(new IdleReleaseController(deviceManager, [] {
+      // Never release the interface mid-recording
+      if (auto *app = dynamic_cast<PluginHostApp *>(
+              juce::JUCEApplication::getInstance()))
+        if (app->mainWindow != nullptr && app->mainWindow->graphHolder != nullptr &&
+            app->mainWindow->graphHolder->graph != nullptr)
+          for (auto *node : app->mainWindow->graphHolder->graph->graph.getNodes())
+            if (auto *recorder = dynamic_cast<AudioRecorderNode *>(node->getProcessor()))
+              if (recorder->isRecording())
+                return true;
+      return false;
+    }, [](bool shouldHold) {
+      if (auto *app = dynamic_cast<PluginHostApp *>(
+              juce::JUCEApplication::getInstance()))
+        if (app->mainWindow != nullptr && app->mainWindow->graphHolder != nullptr) {
+          if (shouldHold)
+            app->mainWindow->graphHolder->holdOutputUntilFadeIn();
+          else
+            app->mainWindow->graphHolder->fadeInOutput();
+        }
+    }));
+
     commandManager.registerAllCommandsForTarget(mainWindow.get());
 
     // Defer plugin loading to an async update so instantiation happens once the
@@ -556,6 +580,7 @@ public:
     }
 
     trayIcon = nullptr;
+    idleReleaseController = nullptr;
     resilienceManager = nullptr;
     githubUpdater = nullptr;
     mainWindow = nullptr;
@@ -596,12 +621,17 @@ public:
     return resilienceManager.get();
   }
 
+  IdleReleaseController *getIdleReleaseController() const {
+    return idleReleaseController.get();
+  }
+
 private:
   std::unique_ptr<MainHostWindow> mainWindow;
   std::unique_ptr<CurveLookAndFeel> customLookAndFeel;
   std::unique_ptr<PluginScannerSubprocess> storedScannerSubprocess;
   std::unique_ptr<GitHubUpdater> githubUpdater;
   std::unique_ptr<AudioResilienceManager> resilienceManager;
+  std::unique_ptr<IdleReleaseController> idleReleaseController;
   std::unique_ptr<TrayIconController> trayIcon;
   bool lastShutdownClean = true;
 };
@@ -624,6 +654,12 @@ ApplicationCommandManager &getCommandManager() {
 AudioResilienceManager *getResilienceManager() {
   if (auto *app = dynamic_cast<PluginHostApp *>(JUCEApplication::getInstance()))
     return app->getResilienceManager();
+  return nullptr;
+}
+
+IdleReleaseController *getIdleReleaseController() {
+  if (auto *app = dynamic_cast<PluginHostApp *>(JUCEApplication::getInstance()))
+    return app->getIdleReleaseController();
   return nullptr;
 }
 
