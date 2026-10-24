@@ -198,20 +198,23 @@ public:
 
         setConstrainer (&constrainer);
 
-        auto savedX = (int) node->properties.getWithDefault (getLastXProp (type), Random::getSystemRandom().nextInt (500));
-        auto savedY = (int) node->properties.getWithDefault (getLastYProp (type), Random::getSystemRandom().nextInt (500));
+        // New windows open on the display the mouse is on, which is normally where
+        // the graph editor is.
+        const auto openingArea = getOpeningDisplayArea();
+        auto& random = Random::getSystemRandom();
+        const auto defaultX = openingArea.getX() + random.nextInt (jmax (1, jmin (500, openingArea.getWidth() - getWidth())));
+        const auto defaultY = openingArea.getY() + random.nextInt (jmax (1, jmin (500, openingArea.getHeight() - getHeight())));
+
+        auto savedX = (int) node->properties.getWithDefault (getLastXProp (type), defaultX);
+        auto savedY = (int) node->properties.getWithDefault (getLastYProp (type), defaultY);
 
         // The saved position may be on a display that's gone, or in a gap between
         // displays of different sizes. If the title bar can't be reached, reopen
-        // on the main display instead.
+        // centred on the display the mouse is on instead.
         if (! isTitleBarReachable ({ savedX, savedY, getWidth(), getTitleBarHeight() }))
         {
-            if (auto* main = Desktop::getInstance().getDisplays().getPrimaryDisplay())
-            {
-                auto area = main->userBounds.toNearestInt();
-                savedX = area.getX() + jmax (0, (area.getWidth() - getWidth()) / 2);
-                savedY = area.getY() + jmax (0, (area.getHeight() - getHeight()) / 2);
-            }
+            savedX = openingArea.getX() + jmax (0, (openingArea.getWidth() - getWidth()) / 2);
+            savedY = openingArea.getY() + jmax (0, (openingArea.getHeight() - getHeight()) / 2);
         }
 
         setTopLeftPosition (savedX, savedY);
@@ -272,9 +275,11 @@ private:
 
         // Plug-in windows use a JUCE-drawn title bar, so unlike a native one, macOS
         // doesn't stop it going under the menu bar or Dock, where it can't be
-        // grabbed again. Keep it inside the usable area of the display the mouse
-        // is on; using the mouse's display still lets windows move between
-        // displays, including ones arranged above or below.
+        // grabbed again. While the user drags, keep it inside the usable area of
+        // the display the mouse is on, which still lets windows move between
+        // displays, including ones arranged above or below. AppKit also calls this
+        // when a window is first shown, while the mouse may be on another display,
+        // so otherwise use the display the window itself is on.
         void checkBounds (Rectangle<int>& bounds,
                           const Rectangle<int>& previousBounds,
                           const Rectangle<int>& limits,
@@ -292,7 +297,10 @@ private:
             if (! (isMoving || isStretchingTop))
                 return;
 
-            const auto* display = Desktop::getInstance().getDisplays().getDisplayForPoint (Desktop::getInstance().getMainMouseSource().getScreenPosition());
+            const auto& displays = Desktop::getInstance().getDisplays();
+            const auto* display = ModifierKeys::currentModifiers.isAnyMouseButtonDown()
+                                      ? displays.getDisplayForPoint (Desktop::getInstance().getMainMouseSource().getScreenPosition())
+                                      : displays.getDisplayForRect (bounds);
 
             if (display == nullptr)
                 return;
@@ -330,6 +338,17 @@ private:
     };
 
     DecoratorConstrainer constrainer { *this };
+
+    static Rectangle<int> getOpeningDisplayArea()
+    {
+        const auto& displays = Desktop::getInstance().getDisplays();
+        const auto* display = displays.getDisplayForPoint (Desktop::getInstance().getMainMouseSource().getScreenPosition());
+
+        if (display == nullptr)
+            display = displays.getPrimaryDisplay();
+
+        return display != nullptr ? display->userBounds.toNearestInt() : Rectangle<int> { 0, 0, 800, 600 };
+    }
 
     static bool isTitleBarReachable (Rectangle<int> titleBar)
     {
