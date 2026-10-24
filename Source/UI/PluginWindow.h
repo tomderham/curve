@@ -201,11 +201,17 @@ public:
         auto savedX = (int) node->properties.getWithDefault (getLastXProp (type), Random::getSystemRandom().nextInt (500));
         auto savedY = (int) node->properties.getWithDefault (getLastYProp (type), Random::getSystemRandom().nextInt (500));
 
-        auto totalBounds = Desktop::getInstance().getDisplays().getTotalBounds (true);
-        if (! totalBounds.isEmpty())
+        // The saved position may be on a display that's gone, or in a gap between
+        // displays of different sizes. If the title bar can't be reached, reopen
+        // on the main display instead.
+        if (! isTitleBarReachable ({ savedX, savedY, getWidth(), getTitleBarHeight() }))
         {
-            savedX = jlimit (totalBounds.getX(), jmax (totalBounds.getX(), totalBounds.getRight() - getWidth()), savedX);
-            savedY = jlimit (totalBounds.getY(), jmax (totalBounds.getY(), totalBounds.getBottom() - getHeight()), savedY);
+            if (auto* main = Desktop::getInstance().getDisplays().getPrimaryDisplay())
+            {
+                auto area = main->userBounds.toNearestInt();
+                savedX = area.getX() + jmax (0, (area.getWidth() - getWidth()) / 2);
+                savedY = area.getY() + jmax (0, (area.getHeight() - getHeight()) / 2);
+            }
         }
 
         setTopLeftPosition (savedX, savedY);
@@ -264,6 +270,47 @@ private:
             return editor != nullptr ? editor->getConstrainer() : nullptr;
         }
 
+        // Plug-in windows use a JUCE-drawn title bar, so unlike a native one, macOS
+        // doesn't stop it going under the menu bar or Dock, where it can't be
+        // grabbed again. Keep it inside the usable area of the display the mouse
+        // is on; using the mouse's display still lets windows move between
+        // displays, including ones arranged above or below.
+        void checkBounds (Rectangle<int>& bounds,
+                          const Rectangle<int>& previousBounds,
+                          const Rectangle<int>& limits,
+                          bool isStretchingTop,
+                          bool isStretchingLeft,
+                          bool isStretchingBottom,
+                          bool isStretchingRight) override
+        {
+            BorderedComponentBoundsConstrainer::checkBounds (bounds, previousBounds, limits,
+                                                             isStretchingTop, isStretchingLeft,
+                                                             isStretchingBottom, isStretchingRight);
+
+            const bool isMoving = ! (isStretchingTop || isStretchingLeft || isStretchingBottom || isStretchingRight);
+
+            if (! (isMoving || isStretchingTop))
+                return;
+
+            const auto* display = Desktop::getInstance().getDisplays().getDisplayForPoint (Desktop::getInstance().getMainMouseSource().getScreenPosition());
+
+            if (display == nullptr)
+                return;
+
+            const auto area = display->userBounds.toNearestInt();
+
+            if (isStretchingTop)
+            {
+                if (bounds.getY() < area.getY())
+                    bounds.setTop (area.getY());
+
+                return;
+            }
+
+            const auto maxY = jmax (area.getY(), area.getBottom() - window.getTitleBarHeight());
+            bounds.setY (jlimit (area.getY(), maxY, bounds.getY()));
+        }
+
         BorderSize<int> getAdditionalBorder() const override
         {
             const auto nativeFrame = [&]() -> BorderSize<int>
@@ -283,6 +330,21 @@ private:
     };
 
     DecoratorConstrainer constrainer { *this };
+
+    static bool isTitleBarReachable (Rectangle<int> titleBar)
+    {
+        const auto minVisibleWidth = jmin (100, titleBar.getWidth());
+
+        for (const auto& display : Desktop::getInstance().getDisplays().displays)
+        {
+            const auto overlap = display.userBounds.toNearestInt().getIntersection (titleBar);
+
+            if (overlap.getHeight() == titleBar.getHeight() && overlap.getWidth() >= minVisibleWidth)
+                return true;
+        }
+
+        return false;
+    }
 
     float getDesktopScaleFactor() const override     { return 1.0f; }
 
