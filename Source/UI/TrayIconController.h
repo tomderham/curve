@@ -15,6 +15,7 @@
 #include "GlobalShortcutDialog.h"
 #include "GlobalShortcutManager.h"
 #include "GraphEditorPanel.h"
+#include "DockIconManager.h"
 #include "LoginItemManager.h"
 #include "MainHostWindow.h"
 #include "SystemSleepManager.h"
@@ -200,6 +201,16 @@ public:
   // ~10ms if the app isn't foreground while the mouse is outside the menu. When
   // Curve isn't already active (e.g. the first click on the icon), the menu would
   // flash and close, so wait for activation before showing it.
+  //
+  // Known limitation with "Show in Dock" on (activation policy Regular, see
+  // DockIconManager): clicking the icon while another app is active never
+  // activates Curve on macOS 14+ (cooperative activation). Neither
+  // activateIgnoringOtherApps: (Process::makeForegroundProcess) nor [NSApp activate]
+  // works; as an Accessory app, Curve does get activated. So the wait below times
+  // out and the menu opens while Curve is inactive. JUCE's PopupMenu then closes it
+  // within ~10ms unless the pointer is already inside it (the
+  // doesAnyJuceCompHaveFocus check in PopupMenu's MouseSourceState), so the menu
+  // sometimes flashes and disappears. Clicks while Curve is already active work.
   void showTrayMenuWhenActive(juce::Rectangle<int> targetArea, juce::uint32 requestId, juce::uint32 startTime) {
     if (requestId != menuRequestId || !isMenuOpen)
       return;
@@ -518,6 +529,16 @@ public:
             juce::MessageBoxIconType::InfoIcon, "Open at Login",
             "Curve will now open automatically at login.");
       }
+    });
+    const bool isShowInDockEnabled = DockIconManager::isShowInDockEnabled();
+    settingsmenu.addItem("Show in Dock", true, isShowInDockEnabled,
+                         [isShowInDockEnabled] {
+      bool newState = !isShowInDockEnabled;
+      if (auto *settings = getAppProperties().getUserSettings()) {
+        settings->setValue("showInDock", newState);
+        settings->saveIfNeeded();
+      }
+      DockIconManager::setShowInDock(newState);
     });
     juce::String shortcutLabel = "Global Menu Shortcut: " + getGlobalShortcutDisplayString() + "...";
     settingsmenu.addItem(shortcutLabel, [onOpenShortcutSettings] {

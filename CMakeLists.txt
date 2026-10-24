@@ -48,6 +48,8 @@ target_sources(Curve PRIVATE
     Source/Plugins/SpeakerEmulationNode.cpp
     Source/Plugins/OutputInterfaceLoopbackNode.mm
     Source/UI/GraphEditorPanel.cpp
+    Source/UI/DockIconManager.h
+    Source/UI/DockIconManager.mm
     Source/UI/IdleReleaseController.h
     Source/UI/IdleReleaseController.mm
     Source/UI/LoginItemManager.mm

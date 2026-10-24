@@ -59,6 +59,7 @@
 #include "UI/GitHubUpdater.h"
 #include "UI/LoginItemManager.h"
 #include "UI/SystemSleepManager.h"
+#include "UI/DockIconManager.h"
 #include "UI/TrayIconController.h"
 #include "AudioDiagnostics.h"
 
@@ -425,6 +426,15 @@ public:
 
     // initialize menu bar controller
     trayIcon.reset(new TrayIconController(*mainWindow, *githubUpdater));
+
+    // optional Dock icon; clicking it shows the editor
+    DockIconManager::applyCurrentSetting();
+    DockIconManager::setReopenCallback(
+        [weakWin =
+             juce::Component::SafePointer<MainHostWindow>(mainWindow.get())] {
+          if (auto *w = weakWin.getComponent())
+            w->showWindow();
+        });
 
     mainWindow->onShowAppMenu = [this](juce::Component *target) {
       if (mainWindow != nullptr && githubUpdater != nullptr) {

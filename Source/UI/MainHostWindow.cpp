@@ -1310,12 +1310,17 @@ void MainHostWindow::showWindow()
     if (! isOnDesktop())
         addToDesktop (getDesktopWindowStyleFlags());
 
-    restoreWindowStateFromString (getAppProperties().getUserSettings()->getValue ("mainWindowPos"));
-
-    auto totalBounds = Desktop::getInstance().getDisplays().getTotalBounds (true);
-    if (! totalBounds.isEmpty() && ! totalBounds.intersects (getBounds()))
+    // Only restore the saved position when reopening; if the editor is already
+    // showing (e.g. a Dock click), keep it where the user has moved it.
+    if (! isVisible())
     {
-        centreWithSize (getWidth(), getHeight());
+        restoreWindowStateFromString (getAppProperties().getUserSettings()->getValue ("mainWindowPos"));
+
+        auto totalBounds = Desktop::getInstance().getDisplays().getTotalBounds (true);
+        if (! totalBounds.isEmpty() && ! totalBounds.intersects (getBounds()))
+        {
+            centreWithSize (getWidth(), getHeight());
+        }
     }
 
     setVisible (true);
