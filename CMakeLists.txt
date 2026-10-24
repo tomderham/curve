@@ -39,13 +39,18 @@ target_sources(Curve PRIVATE
     Source/AudioDiagnostics.h
     Source/HostStartup.cpp
     Source/Plugins/AudioRecorderNode.cpp
+    Source/Plugins/ClipperNode.cpp
     Source/Plugins/CrossfeedNode.cpp
+    Source/Plugins/DelayNode.cpp
     Source/Plugins/GainNode.cpp
     Source/Plugins/IOConfigurationWindow.cpp
     Source/Plugins/InternalPlugins.cpp
     Source/Plugins/InvertPhaseNode.cpp
+    Source/Plugins/MidSideNode.cpp
+    Source/Plugins/PanNode.cpp
     Source/Plugins/PluginGraph.cpp
     Source/Plugins/SpeakerEmulationNode.cpp
+    Source/Plugins/StereoUtilityNode.cpp
     Source/Plugins/OutputInterfaceLoopbackNode.mm
     Source/UI/GraphEditorPanel.cpp
     Source/UI/DockIconManager.h

@@ -49,13 +49,18 @@
 #include <juce_audio_plugin_client/juce_audio_plugin_client.h>
 
 #include "AudioRecorderNode.h"
+#include "ClipperNode.h"
 #include "CrossfeedNode.h"
+#include "DelayNode.h"
 #include "GainNode.h"
 #include "InternalPlugins.h"
 #include "InvertPhaseNode.h"
+#include "MidSideNode.h"
 #include "OutputInterfaceLoopbackNode.h"
+#include "PanNode.h"
 #include "PluginGraph.h"
 #include "SpeakerEmulationNode.h"
+#include "StereoUtilityNode.h"
 #include "../AudioConstants.h"
 
 //==============================================================================
@@ -149,6 +154,78 @@ static const std::vector<PluginDescription>& getStaticInternalDescriptions()
         recd.numOutputChannels = 0;
         result.push_back (recd);
 
+        PluginDescription clip;
+        clip.name = "Clipper";
+        clip.descriptiveName = "Clipper";
+        clip.pluginFormatName = "Internal";
+        clip.category = "Plugins";
+        clip.fileOrIdentifier = "Clipper";
+        clip.uniqueId = 0x434C4950; // "CLIP"
+        clip.isInstrument = false;
+        clip.numInputChannels = 2;
+        clip.numOutputChannels = 2;
+        result.push_back (clip);
+
+        PluginDescription pann;
+        pann.name = "Pan";
+        pann.descriptiveName = "Pan";
+        pann.pluginFormatName = "Internal";
+        pann.category = "Plugins";
+        pann.fileOrIdentifier = "Pan";
+        pann.uniqueId = 0x50414E4E; // "PANN"
+        pann.isInstrument = false;
+        pann.numInputChannels = 1;
+        pann.numOutputChannels = 2;
+        result.push_back (pann);
+
+        PluginDescription stut;
+        stut.name = "Stereo Utility";
+        stut.descriptiveName = "Stereo Utility";
+        stut.pluginFormatName = "Internal";
+        stut.category = "Plugins";
+        stut.fileOrIdentifier = "StereoUtility";
+        stut.uniqueId = 0x53545554; // "STUT"
+        stut.isInstrument = false;
+        stut.numInputChannels = 2;
+        stut.numOutputChannels = 2;
+        result.push_back (stut);
+
+        PluginDescription msen;
+        msen.name = "Mid/Side Encoder";
+        msen.descriptiveName = "Mid/Side Encoder";
+        msen.pluginFormatName = "Internal";
+        msen.category = "Plugins";
+        msen.fileOrIdentifier = "MidSideEncoder";
+        msen.uniqueId = 0x4D53454E; // "MSEN"
+        msen.isInstrument = false;
+        msen.numInputChannels = 2;
+        msen.numOutputChannels = 2;
+        result.push_back (msen);
+
+        PluginDescription msdc;
+        msdc.name = "Mid/Side Decoder";
+        msdc.descriptiveName = "Mid/Side Decoder";
+        msdc.pluginFormatName = "Internal";
+        msdc.category = "Plugins";
+        msdc.fileOrIdentifier = "MidSideDecoder";
+        msdc.uniqueId = 0x4D534443; // "MSDC"
+        msdc.isInstrument = false;
+        msdc.numInputChannels = 2;
+        msdc.numOutputChannels = 2;
+        result.push_back (msdc);
+
+        PluginDescription dlay;
+        dlay.name = "Delay";
+        dlay.descriptiveName = "Delay";
+        dlay.pluginFormatName = "Internal";
+        dlay.category = "Plugins";
+        dlay.fileOrIdentifier = "Delay";
+        dlay.uniqueId = 0x444C4159; // "DLAY"
+        dlay.isInstrument = false;
+        dlay.numInputChannels = 2;
+        dlay.numOutputChannels = 2;
+        result.push_back (dlay);
+
         return result;
     }();
 
@@ -207,7 +284,13 @@ InternalPluginFormat::InternalPluginFormat()
         [] { return std::make_unique<SpeakerEmulationNode>(); },
         [] { return std::make_unique<GainNode>(); },
         [] { return std::make_unique<InvertPhaseNode>(); },
-        [] { return std::make_unique<AudioRecorderNode>(); }
+        [] { return std::make_unique<AudioRecorderNode>(); },
+        [] { return std::make_unique<ClipperNode>(); },
+        [] { return std::make_unique<PanNode>(); },
+        [] { return std::make_unique<StereoUtilityNode>(); },
+        [] { return std::make_unique<MidSideNode> (MidSideNode::Mode::encode); },
+        [] { return std::make_unique<MidSideNode> (MidSideNode::Mode::decode); },
+        [] { return std::make_unique<DelayNode>(); }
     }
 {
 }

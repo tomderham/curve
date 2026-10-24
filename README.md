@@ -15,7 +15,7 @@ A primary use case for this app is to host equalizer (EQ) plugins for real-time 
 - Full control over audio device settings, including channel selection on input and output interfaces, sample rate, and buffer latency.
 - Native bit-perfect loopback support (without additional drivers); also an (optional) feature to force system audio output to the loopback.
 - Native (internal) plugins for headphone crosstalk and studio monitor emulation when using headphones.
-- Native (internal) utility plugins for gain, phase inversion and tapped audio recording to wav file.
+- Native (internal) utility plugins for gain, safety clipping, phase inversion, panning, stereo/mid-side processing, sample-accurate delay and tapped audio recording to wav file.
 
 
 ## Using the Curve app
@@ -41,7 +41,7 @@ On first use, the following steps are recommended:
   - Close the dialog (red cross at top left).
 - You can now create a preset. If the editor window is not already open, click on the menu bar icon and select 'Show Editor'.
   - When opening the app for the first time, you should see the Audio Input, Interface Loopback (in) and Audio Output nodes, each with some green dots that correspond to the channels you enabled in Audio settings. Nodes can be removed by right clicking them. Audio and MIDI I/O nodes can be added by right clicking the background of the Editor window. If you are not using the Interface Loopback node in a given preset (see examples below), remove it or at least ensure its pins are not connected (otherwise it can cause unexpected muting).
-  - Next, to add plugins, right click the background of the Editor window and select a plugin. Select a plugin you want to use, and a corresponding node will appear with inputs at the top and outputs at the bottom. The 'Plugins' menu (right below Audio I/O and MIDI I/O) contains some useful internal plugins - see Internal plugins section below. Below that menu, all other scanned plugins can be found, organized by manufacturer. If the number of input and output pins for a given plugin is not what you want, right click the node and select 'Configure Audio I/O' to correct it.
+  - Next, to add plugins, right click the background of the Editor window and select a plugin. Select a plugin you want to use, and a corresponding node will appear with inputs at the top and outputs at the bottom. The 'Curve Plugins' menu (right below Audio I/O and MIDI I/O) contains some useful internal plugins - see Internal plugins section below. Below that menu, all other scanned plugins can be found, organized by manufacturer. If the number of input and output pins for a given plugin is not what you want, right click the node and select 'Configure Audio I/O' to correct it.
   - Then, connect channel(s) on either the Audio Input or the Interface Loopback to inputs on the plugin, and connect channel(s) on the output of the plugin to the Audio Output. This is done by clicking a green dot on one node and dragging a connecting line to a green dot on another node. You can of course add additional plugin nodes and connect them together however you wish. If you are using the Interface Loopback node as the input, see the section on Loopback interfaces below.
   - Note: There is some loop-prevention handling, but you should obviously take care with crazy configurations that could cause hardware (or ear) damage.
   - If using MIDI controlled plugins (effects or instruments), add MIDI I/O nodes and connect them to the corresponding MIDI I/O of the plugins.
@@ -73,12 +73,18 @@ Notes for nerds - The audio channels of 'Stream 0' (the primary stream) of the s
 
 ## Internal plugins
 
-Curve provides the following native plugins for use within Curve, accessible from the 'Plugins' menu
+Curve provides the following native plugins for use within Curve, accessible from the 'Curve Plugins' menu
 - Parametric EQ - A convenience shortcut to Apple's AUNBandEQ (multi-band parametric EQ, often used for calibration EQ) (multi-channel)
 - Headphone Crossfeed - Crossfeed processor for natural soundstage imaging when monitoring with headphones (stereo)
 - Headphone Speaker Emulation - Mid-field studio speaker emulation processor (including crossfeed) for monitoring with headphones (stereo)
 - Gain - Volume trim and mute toggle utility (multi-channel)
+- Clipper - Hard clips each channel at a ceiling (-50 to 0 dBFS) as a safety guard against EQ boosts, with a clip indicator. Only adds protection when the ceiling is set below 0 dBFS; 0 latency (multi-channel)
 - Invert Phase - Negates polarity of audio signal on each channel (multi-channel)
+- Pan - Places a mono input in the stereo output, with selectable pan law (0, -3, -4.5 or -6 dB at centre). With a stereo input (via 'Configure Audio I/O') it acts as a balance control (mono to stereo, or stereo)
+- Stereo Utility - Swap L/R, mono sum, left or right only, and stereo width from 0 to 200% (stereo)
+- Mid/Side Encoder - Converts L/R to Mid (first pin) and Side (second pin) (stereo)
+- Mid/Side Decoder - Converts Mid and Side back to L/R. Place an encoder and decoder around separate processing of the Mid and Side pins; the round trip is bit-exact (stereo)
+- Delay - Whole-sample delay of up to 2 seconds, shown in samples, milliseconds or centimeters, for speaker time alignment or syncing audio with video. Changing the delay while audio is playing may cause a brief click (multi-channel)
 - Audio Recorder - Audio recorder utility, saves WAV files to Desktop (multi-channel)
 
 

@@ -591,12 +591,25 @@ void MainHostWindow::addPluginsToMenu (PopupMenu& m)
         addInternalByName ("Headphone Crossfeed");
         addInternalByName ("Headphone Speaker Emulation");
 
-        // Separator 2: separates next 2 from final 3
         pluginsMenu.addSeparator();
 
-        // Group 3: Utility plugins (Final 3)
+        // Group 3: Level and safety utilities
         addInternalByName ("Gain");
+        addInternalByName ("Clipper");
         addInternalByName ("Invert Phase");
+
+        pluginsMenu.addSeparator();
+
+        // Group 4: Routing and stereo utilities
+        addInternalByName ("Pan");
+        addInternalByName ("Stereo Utility");
+        addInternalByName ("Mid/Side Encoder");
+        addInternalByName ("Mid/Side Decoder");
+        addInternalByName ("Delay");
+
+        pluginsMenu.addSeparator();
+
+        // Group 5: Recording
         addInternalByName ("Audio Recorder");
 
         // Catch-all: add any future internal plugins not explicitly categorized
@@ -642,7 +655,7 @@ void MainHostWindow::addPluginsToMenu (PopupMenu& m)
             m.addSubMenu ("MIDI I/O", midiIOMenu);
 
         if (pluginsMenu.getNumItems() > 0)
-            m.addSubMenu ("Plugins", pluginsMenu);
+            m.addSubMenu ("Curve Plugins", pluginsMenu);
     }
 
     m.addSeparator();

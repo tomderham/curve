@@ -184,6 +184,24 @@ static String getTooltipForProcessor (const AudioProcessor& processor)
     if (name == "Invert Phase")
         return "Invert Phase: Negates polarity of audio signal on each channel.";
 
+    if (name == "Clipper")
+        return "Clipper: Hard clips each channel at a ceiling (-50 to 0 dBFS) as a safety guard; 0 latency.";
+
+    if (name == "Pan")
+        return "Pan: Places a mono input in the stereo output with a selectable pan law; balance control for stereo input.";
+
+    if (name == "Stereo Utility")
+        return "Stereo Utility: Swap L/R, mono sum, left or right only, and stereo width (0-200%).";
+
+    if (name == "Mid/Side Encoder")
+        return "Mid/Side Encoder: Converts L/R to Mid (pin 1) and Side (pin 2). Pair with a decoder to process mid and side separately.";
+
+    if (name == "Mid/Side Decoder")
+        return "Mid/Side Decoder: Converts Mid (pin 1) and Side (pin 2) back to L/R.";
+
+    if (name == "Delay")
+        return "Delay: Whole-sample delay on each channel (up to 2 s), for time alignment.";
+
     if (name == "Audio Recorder")
         return "WAV Audio Capture: Multi-channel audio recorder utility, saves WAV files to Desktop.";
 
