@@ -492,7 +492,7 @@ void MidiControlEngine::handleLearnMessage (const MidiMessage& message)
     // More messages from the control just learned
     if (lastLearned.has_value() && lastLearned->trigger == *trigger)
     {
-        // A CC button that sends 127 on press and 0 on release is momentary, so toggle on each press
+        // A CC button that sends a value on press and 0 on release is momentary, so toggle on each press
         if (lastLearned->mode == MidiMapping::Mode::follow
             && value == 0
             && Time::getMillisecondCounter() - lastLearnedTime < momentaryReleaseWindowMs)
@@ -511,10 +511,6 @@ void MidiControlEngine::handleLearnMessage (const MidiMessage& message)
     mapping.trigger = *trigger;
     mapping.target = *learnTarget;
     mapping.mode = MidiMapping::getDefaultMode (*trigger, *learnTarget);
-
-    // Only a full-scale press can turn out to be a momentary button
-    if (mapping.mode == MidiMapping::Mode::follow && value != 127)
-        mapping.mode = MidiMapping::Mode::toggle;
 
     graph->assignMidiMapping (mapping);
     lastLearned = mapping;

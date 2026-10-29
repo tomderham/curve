@@ -1262,15 +1262,6 @@ void GraphEditorPanel::showPopupMenu (Point<int> localMousePos)
     {
         mainWindow->addPluginsToMenu (*menu);
 
-        if (auto* engine = midiEngine)
-        {
-            menu->addSeparator();
-            menu->addItem ("MIDI Learn", true, engine->isLearning(), [engine] { engine->setLearning (! engine->isLearning()); });
-
-            if (engine->learnTargetHasMapping())
-                menu->addItem ("Remove MIDI Mapping for Selected Control", [engine] { engine->removeMappingForLearnTarget(); });
-        }
-
         menu->showMenuAsync (PopupMenu::Options{}.withTargetScreenArea (Rectangle<int>{}.withPosition (localPointToGlobal (localMousePos))),
                              ModalCallbackFunction::create ([this, localMousePos] (int r)
                                                             {

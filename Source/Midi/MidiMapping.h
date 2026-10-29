@@ -74,8 +74,8 @@ struct MidiMapping
     enum class Mode
     {
         absolute,   // CC 0..127 scales into min..max
-        toggle,     // each press (CC > 63, note on, program change) flips the target
-        follow      // the target is on while the control is (CC > 63 or note held)
+        toggle,     // each press (any non-zero CC, note on, program change) flips the target
+        follow      // the target is on while the control is (non-zero CC or note held)
     };
 
     MidiTrigger trigger;
@@ -90,7 +90,7 @@ struct MidiMapping
 
     /** CC value, 127 for note on and program change, 0 for note off. */
     static int getControlValue (const MidiMessage&);
-    static bool isPress (int controlValue)  { return controlValue > 63; }
+    static bool isPress (int controlValue)  { return controlValue > 0; }
 
     /** The normalised parameter value for an absolute control value. */
     float scale (int controlValue) const;
