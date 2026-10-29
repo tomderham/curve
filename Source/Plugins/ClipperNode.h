@@ -15,6 +15,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "InternalParameter.h"
 
 //==============================================================================
 /**
@@ -22,7 +23,8 @@
     (-50 dBFS to 0 dBFS), as a safety guard after EQ boosts. 0 added latency;
     samples below the ceiling pass through bit-exact.
 */
-class ClipperNode : public juce::AudioPluginInstance
+class ClipperNode : public juce::AudioPluginInstance,
+                    private juce::AudioProcessorParameter::Listener
 {
 public:
     static constexpr float minCeilingDb = -50.0f;
@@ -55,14 +57,17 @@ public:
     void fillInPluginDescription (juce::PluginDescription& description) const override;
 
     //==============================================================================
-    void setCeilingDb (float newCeilingDb);
-    float getCeilingDb() const noexcept { return ceilingDb.load (std::memory_order_relaxed); }
+    InternalParameter& getCeilingParameter() noexcept { return *ceilingParam; }  // dBFS
+    float getCeilingDb() const noexcept { return ceilingParam->get(); }
 
     // True if any sample was clipped since the last call
     bool consumeClipFlag() noexcept { return clipped.exchange (false, std::memory_order_relaxed); }
 
 private:
-    std::atomic<float> ceilingDb { -1.0f };
+    void parameterValueChanged (int, float) override;
+    void parameterGestureChanged (int, bool) override {}
+
+    InternalParameter* ceilingParam = nullptr;
     std::atomic<float> ceilingLinear { juce::Decibels::decibelsToGain (-1.0f) };
     std::atomic<bool> clipped { false };
 

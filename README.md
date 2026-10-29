@@ -16,6 +16,7 @@ A primary use case for this app is to host equalizer (EQ) plugins for real-time 
 - Native bit-perfect loopback support (without additional drivers); also an (optional) feature to force system audio output to the loopback.
 - Native (internal) plugins for headphone crosstalk and studio monitor emulation when using headphones.
 - Native (internal) utility plugins for gain, safety clipping, phase inversion, panning, stereo/mid-side processing, sample-accurate delay and tapped audio recording to wav file.
+- MIDI Learn: control plugin parameters, node bypass and preset switching from a MIDI controller.
 
 
 ## Using the Curve app
@@ -75,7 +76,7 @@ Notes for nerds - The audio channels of 'Stream 0' (the primary stream) of the s
 
 Curve provides the following native plugins for use within Curve, accessible from the 'Curve Plugins' menu
 - Parametric EQ - A convenience shortcut to Apple's AUNBandEQ (multi-band parametric EQ, often used for calibration EQ) (multi-channel)
-- Headphone Crossfeed - Crossfeed processor for natural soundstage imaging when monitoring with headphones (stereo)
+- Headphone Crossfeed - Crossfeed processor for natural soundstage imaging when monitoring with headphones, with adjustable crossfeed amount (stereo)
 - Headphone Speaker Emulation - Mid-field studio speaker emulation processor (including crossfeed) for monitoring with headphones (stereo)
 - Gain - Volume trim and mute toggle utility (multi-channel)
 - Clipper - Hard clips each channel at a ceiling (-50 to 0 dBFS) as a safety guard against EQ boosts, with a clip indicator. Only adds protection when the ceiling is set below 0 dBFS; 0 latency (multi-channel)
@@ -86,6 +87,40 @@ Curve provides the following native plugins for use within Curve, accessible fro
 - Mid/Side Decoder - Converts Mid and Side back to L/R. Place an encoder and decoder around separate processing of the Mid and Side pins; the round trip is bit-exact (stereo)
 - Delay - Whole-sample delay of up to 2 seconds, shown in samples, milliseconds or centimeters, for speaker time alignment or syncing audio with video. Changing the delay while audio is playing may cause a brief click (multi-channel)
 - Audio Recorder - Audio recorder utility, saves WAV files to Desktop (multi-channel)
+
+## MIDI control
+
+A MIDI controller can control plugin parameters, bypass nodes, and switch presets. Enable the controller under MIDI inputs in Audio Settings. It does not need a MIDI Input node or any connections in the preset.
+
+To map a control:
+- Right-click the editor background (or a node) and select 'MIDI Learn'. The editor gets a highlighted border, and the status bar at the bottom guides you.
+- Choose what to control:
+  - For a plugin parameter, open the plugin's window and move the control in it.
+  - For a node's bypass, click its power button.
+- Move a knob, fader or button on your MIDI controller. The mapping is made straight away. You can keep mapping other controls while in MIDI Learn.
+- To remove the mapping for the selected parameter or bypass, press Delete (or use the right-click menu).
+- Press Esc, or select 'MIDI Learn' again, to finish.
+
+Mapped controls work like this:
+- Knobs and faders (CC) cover a parameter's full range.
+- Notes and program changes toggle the target.
+- For bypass, Curve works out whether a CC button is momentary (each press toggles bypass) or latching (bypass follows the button's state).
+
+Nodes with mappings show a small MIDI socket icon. Hovering over the node lists its mappings in the status bar. 'Clear MIDI Mappings' in a node's right-click menu removes all of them. Mappings are saved with the preset, so remember to 'Save as preset'. Mapped MIDI messages are not passed on to plugins through the MIDI Input node; all other MIDI is passed on as before.
+
+Preset switching is set up under Settings -> 'MIDI Control', and applies to all presets:
+- 'Program Change Selects Preset' (off by default): program change 0 loads the first preset in the menu, 1 the second, and so on. This is the same order as the number key shortcuts.
+- 'Next Preset Control' and 'Previous Preset Control': press the button on your controller that you want to use.
+
+Curve's internal plugins have MIDI-learnable controls too:
+- Gain: gain and mute
+- Pan: pan
+- Clipper: ceiling
+- Stereo Utility: mode and width
+- Headphone Crossfeed: amount
+- Audio Recorder: record start/stop
+
+Headphone Speaker Emulation, Invert Phase and the Mid/Side encoder/decoder have no settings, so map their bypass instead. Delay is left out on purpose: it's a set-once alignment adjustment, and changing it while audio plays would cause glitches.
 
 
 # Building from source code on macOS

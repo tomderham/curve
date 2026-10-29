@@ -364,6 +364,12 @@ MainHostWindow::MainHostWindow()
 
     graphHolder.reset (new GraphDocumentComponent (formatManager, deviceManager, knownPluginList));
 
+    graphHolder->midiEngine->onLoadPreset = [safeThis = SafePointer<MainHostWindow> (this)] (const File& file)
+    {
+        if (safeThis != nullptr)
+            safeThis->loadPreset (file);
+    };
+
     setContentNonOwned (graphHolder.get(), false);
 
     setUsingNativeTitleBar (true);

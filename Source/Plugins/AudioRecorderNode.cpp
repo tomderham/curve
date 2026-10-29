@@ -28,12 +28,11 @@ public:
         recordButton.setButtonText (recorderNode.isRecording() ? "Stop Recording" : "Start Recording");
         recordButton.onClick = [this]
         {
-            if (recorderNode.isRecording())
-                recorderNode.stopRecording();
-            else
-                recorderNode.startRecording();
-
-            updateUI();
+            // Through the parameter, so the button can be MIDI learned
+            auto& record = recorderNode.getRecordParameter();
+            record.beginChangeGesture();
+            record.set (recorderNode.isRecording() ? 0.0f : 1.0f);
+            record.endChangeGesture();
         };
         addAndMakeVisible (recordButton);
 
@@ -149,11 +148,30 @@ AudioRecorderNode::AudioRecorderNode()
     : AudioPluginInstance (BusesProperties().withInput ("Input", juce::AudioChannelSet::stereo(), true)),
       juce::Thread ("CurveAudioRecorderThread")
 {
+    // Not automatable: it's a transport control, not part of the sound
+    auto record = InternalParameter::makeBool ("record", "Record", false, false);
+    recordParam = record.get();
+    addHostedParameter (std::move (record));
+    recordParam->addListener (this);
 }
 
 AudioRecorderNode::~AudioRecorderNode()
 {
+    recordParam->removeListener (this);
+    cancelPendingUpdate();
     stopRecording();
+}
+
+void AudioRecorderNode::handleAsyncUpdate()
+{
+    if (recordParam->isOn() && ! isRecording())
+        startRecording();
+    else if (! recordParam->isOn() && isRecording())
+        stopRecording();
+
+    // e.g. the file couldn't be created
+    if (recordParam->isOn() != isRecording())
+        recordParam->set (isRecording() ? 1.0f : 0.0f);
 }
 
 void AudioRecorderNode::prepareToPlay (double sampleRate, int samplesPerBlock)
@@ -242,6 +260,11 @@ void AudioRecorderNode::startRecording()
 
 void AudioRecorderNode::stopRecording()
 {
+    // Recording can also stop for device or layout changes. Clear the parameter
+    // first, so a pending update can't start it again.
+    if (recordParam->isOn())
+        recordParam->set (0.0f);
+
     if (! isRecordingFlag.load (std::memory_order_acquire))
         return;
 

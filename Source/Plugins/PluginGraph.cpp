@@ -185,6 +185,7 @@ void PluginGraph::removeNode (NodeID nodeID)
     if (auto node = graph.getNodeForId (nodeID))
         deactivateIfLoopback (*node);
 
+    midiMappings.removeForNode (nodeID);
     graph.removeNode (nodeID);
 }
 
@@ -194,6 +195,7 @@ void PluginGraph::clear()
     pendingAsyncRestores = 0;
     pluginsFailedToRestore.clear();
     restoredConnections.clear();
+    midiMappings.clear();
 
     closeAnyOpenPluginWindows();
 
@@ -235,10 +237,12 @@ PluginWindow* PluginGraph::getOrCreateWindowFor (AudioProcessorGraph::Node* node
 
         if (auto* plugin = dynamic_cast<AudioPluginInstance*> (processor))
         {
-            return activePluginWindows.add (new PluginWindow (node,
-                                                              type,
-                                                              activePluginWindows,
-                                                              getCommandManager().getKeyMappings()));
+            auto* window = activePluginWindows.add (new PluginWindow (node,
+                                                                      type,
+                                                                      activePluginWindows,
+                                                                      getCommandManager().getKeyMappings()));
+            window->setAlwaysOnTop (pluginWindowsFloating);
+            return window;
         }
     }
 
@@ -252,6 +256,96 @@ bool PluginGraph::closeAnyOpenPluginWindows()
     return ! wasEmpty;
 }
 
+void PluginGraph::setPluginWindowsFloating (bool shouldFloat)
+{
+    pluginWindowsFloating = shouldFloat;
+
+    for (auto* w : activePluginWindows)
+    {
+        w->setAlwaysOnTop (shouldFloat);
+
+        // Bring back any that the editor covered when learning was switched on
+        if (shouldFloat)
+            w->toFront (false);
+    }
+}
+
+void PluginGraph::setNodeBypassed (NodeID nodeID, bool shouldBeBypassed)
+{
+    if (auto* node = graph.getNodeForId (nodeID))
+    {
+        if (node->isBypassed() == shouldBeBypassed)
+            return;
+
+        node->setBypassed (shouldBeBypassed);
+        graph.sendChangeMessage();
+    }
+}
+
+String PluginGraph::getNodeDisplayName (NodeID nodeID) const
+{
+    if (auto* node = graph.getNodeForId (nodeID))
+    {
+        const auto customName = node->properties.getWithDefault ("customNodeName", String()).toString();
+
+        if (customName.isNotEmpty())
+            return customName;
+
+        if (auto* processor = node->getProcessor())
+            return processor->getName();
+    }
+
+    return {};
+}
+
+//==============================================================================
+void PluginGraph::assignMidiMapping (const MidiMapping& mapping)
+{
+    midiMappings.assign (mapping);
+    changed();
+}
+
+void PluginGraph::removeMidiMappingFor (const MidiMappingTarget& target)
+{
+    if (midiMappings.removeFor (target))
+        changed();
+}
+
+void PluginGraph::removeMidiMappingsForNode (NodeID nodeID)
+{
+    if (midiMappings.removeForNode (nodeID))
+        changed();
+}
+
+String PluginGraph::describeMidiMappingTarget (const MidiMappingTarget& target) const
+{
+    switch (target.kind)
+    {
+        case MidiMappingTarget::Kind::bypass:           return "Bypass";
+        case MidiMappingTarget::Kind::nextPreset:       return "Next Preset";
+        case MidiMappingTarget::Kind::previousPreset:   return "Previous Preset";
+        case MidiMappingTarget::Kind::parameter:        break;
+    }
+
+    if (auto* node = graph.getNodeForId (target.nodeID))
+        if (auto* processor = node->getProcessor())
+            if (auto* param = target.findParameter (*processor))
+                return param->getName (64);
+
+    return target.paramID.isNotEmpty() ? target.paramID : "Parameter " + String (target.paramIndex + 1);
+}
+
+String PluginGraph::describeMidiMappingsForNode (NodeID nodeID) const
+{
+    StringArray items;
+
+    for (auto& m : midiMappings.getMappings())
+        if (m.target.isNodeTarget() && m.target.nodeID == nodeID)
+            items.add (m.trigger.describe() + String::fromUTF8 (" \xe2\x86\x92 ") + describeMidiMappingTarget (m.target));
+
+    return items.joinIntoString (", ");
+}
+
 //==============================================================================
 String PluginGraph::getDocumentTitle()
 {
@@ -261,14 +355,24 @@ String PluginGraph::getDocumentTitle()
     return getFile().getFileNameWithoutExtension();
 }
 
+File PluginGraph::getPresetsDirectory()
+{
+    return File::getSpecialLocation (File::userApplicationDataDirectory)
+             .getChildFile ("Application Support")
+             .getChildFile (JUCEApplication::getInstance()->getApplicationName())
+             .getChildFile ("Presets");
+}
+
+Array<File> PluginGraph::getPresetFiles()
+{
+    auto files = getPresetsDirectory().findChildFiles (File::findFiles, false, getFilenameWildcard());
+    files.sort();
+    return files;
+}
+
 File PluginGraph::getSuggestedSaveAsFile (const File& defaultFile)
 {
-    auto appDataDir = File::getSpecialLocation (File::userApplicationDataDirectory)
-                        .getChildFile ("Application Support")
-                        .getChildFile (JUCEApplication::getInstance()->getApplicationName());
-    auto presetsDir = appDataDir.getChildFile ("Presets");
-
-    return FileBasedDocument::getSuggestedSaveAsFile (presetsDir.getChildFile (defaultFile.getFileName()));
+    return FileBasedDocument::getSuggestedSaveAsFile (getPresetsDirectory().getChildFile (defaultFile.getFileName()));
 }
 
 //==============================================================================
@@ -895,6 +999,16 @@ std::unique_ptr<XmlElement> PluginGraph::createXml() const
         e->setAttribute ("dstChannel", connection.destination.channelIndex);
     }
 
+    // Leave out mappings whose node is gone, e.g. a plugin that failed to load
+    MidiMappingSet mappingsToSave;
+
+    for (auto& m : midiMappings.getMappings())
+        if (graph.getNodeForId (m.target.nodeID) != nullptr)
+            mappingsToSave.assign (m);
+
+    if (! mappingsToSave.isEmpty())
+        xml->addChildElement (mappingsToSave.toXml().release());
+
     return xml;
 }
 
@@ -917,6 +1031,11 @@ void PluginGraph::restoreFromXml (const XmlElement& xml, bool restorePluginWindo
         graph.addConnection (connection);
 
     graph.removeIllegalConnections();
+
+    // Targets are looked up when a message arrives, so nodes still restoring asynchronously are fine
+    if (auto* mappingsXml = xml.getChildByName (MidiMappingSet::xmlTag))
+        midiMappings.restoreFromXml (*mappingsXml);
+
     changed();
 
     if (pendingAsyncRestores == 0)

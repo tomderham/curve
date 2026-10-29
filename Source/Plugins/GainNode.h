@@ -15,13 +15,15 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "InternalParameter.h"
 
 //==============================================================================
 /**
     An internal AudioProcessor that applies smooth, precise gain adjustment
     (-60 dB to +60 dB) with optional muting and 0 added latency.
 */
-class GainNode : public juce::AudioPluginInstance
+class GainNode : public juce::AudioPluginInstance,
+                 private juce::AudioProcessorParameter::Listener
 {
 public:
     GainNode();
@@ -51,17 +53,17 @@ public:
     void fillInPluginDescription (juce::PluginDescription& description) const override;
 
     //==============================================================================
-    void setGainDb (float newGainDb);
-    float getGainDb() const noexcept { return gainDb.load (std::memory_order_relaxed); }
-
-    void setMuted (bool shouldMute);
-    bool isMuted() const noexcept { return muted.load (std::memory_order_relaxed); }
+    InternalParameter& getGainParameter() noexcept  { return *gainParam; }  // dB
+    InternalParameter& getMuteParameter() noexcept  { return *muteParam; }
 
 private:
     void updateTargetGain();
 
-    std::atomic<float> gainDb { 0.0f };
-    std::atomic<bool> muted { false };
+    void parameterValueChanged (int, float) override    { updateTargetGain(); }
+    void parameterGestureChanged (int, bool) override   {}
+
+    InternalParameter* gainParam = nullptr;
+    InternalParameter* muteParam = nullptr;
     std::atomic<float> targetGainLinear { 1.0f };
 
     juce::LinearSmoothedValue<float> smoothedGain;

@@ -15,9 +15,7 @@
 #include "StereoUtilityNode.h"
 
 //==============================================================================
-class StereoUtilityEditor final : public juce::AudioProcessorEditor,
-                                  private juce::Slider::Listener,
-                                  private juce::ComboBox::Listener
+class StereoUtilityEditor final : public juce::AudioProcessorEditor
 {
 public:
     explicit StereoUtilityEditor (StereoUtilityNode& owner)
@@ -31,23 +29,17 @@ public:
         titleLabel.setJustificationType (juce::Justification::centred);
         addAndMakeVisible (titleLabel);
 
-        modeBox.addItem ("Stereo", 1 + (int) StereoUtilityNode::Mode::stereo);
-        modeBox.addItem ("Swap L/R", 1 + (int) StereoUtilityNode::Mode::swap);
-        modeBox.addItem ("Mono (L+R)", 1 + (int) StereoUtilityNode::Mode::mono);
-        modeBox.addItem ("Left only", 1 + (int) StereoUtilityNode::Mode::leftOnly);
-        modeBox.addItem ("Right only", 1 + (int) StereoUtilityNode::Mode::rightOnly);
-        modeBox.setSelectedId (1 + (int) stereoNode.getMode(), juce::dontSendNotification);
-        modeBox.addListener (this);
+        modeBox.addItemList (StereoUtilityNode::getModeNames(), 1);
         addAndMakeVisible (modeBox);
 
         widthSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
         widthSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 80, 20);
-        widthSlider.setRange (0.0, 200.0, 1.0);
-        widthSlider.setTextValueSuffix (" % width");
-        widthSlider.setValue (stereoNode.getWidth() * 100.0, juce::dontSendNotification);
         widthSlider.setDoubleClickReturnValue (true, 100.0);
-        widthSlider.addListener (this);
         addAndMakeVisible (widthSlider);
+
+        modeBinding = std::make_unique<InternalComboBoxBinding> (stereoNode.getModeParameter(), modeBox);
+        modeBinding->onParameterChanged = [this] { updateWidthEnablement(); };
+        widthBinding = std::make_unique<InternalSliderBinding> (stereoNode.getWidthParameter(), widthSlider);
 
         updateWidthEnablement();
     }
@@ -55,8 +47,6 @@ public:
     ~StereoUtilityEditor() override
     {
         stereoNode.editorBeingDeleted (this);
-        modeBox.removeListener (this);
-        widthSlider.removeListener (this);
     }
 
     void paint (juce::Graphics& g) override
@@ -74,21 +64,6 @@ public:
         widthSlider.setBounds (getWidth() / 2 - 55, 74, 110, 120);
     }
 
-    void sliderValueChanged (juce::Slider* slider) override
-    {
-        if (slider == &widthSlider)
-            stereoNode.setWidth ((float) (widthSlider.getValue() / 100.0));
-    }
-
-    void comboBoxChanged (juce::ComboBox* box) override
-    {
-        if (box == &modeBox)
-        {
-            stereoNode.setMode ((StereoUtilityNode::Mode) (modeBox.getSelectedId() - 1));
-            updateWidthEnablement();
-        }
-    }
-
 private:
     void updateWidthEnablement()
     {
@@ -99,6 +74,10 @@ private:
     juce::Label titleLabel;
     juce::ComboBox modeBox;
     juce::Slider widthSlider;
+
+    // After the controls they bind, which need their items and styles set first
+    std::unique_ptr<InternalComboBoxBinding> modeBinding;
+    std::unique_ptr<InternalSliderBinding> widthBinding;
 };
 
 //==============================================================================
@@ -106,6 +85,23 @@ StereoUtilityNode::StereoUtilityNode()
     : AudioPluginInstance (BusesProperties().withInput ("Input", juce::AudioChannelSet::stereo(), true)
                                            .withOutput ("Output", juce::AudioChannelSet::stereo(), true))
 {
+    auto modeParameter = InternalParameter::makeChoice ("mode", "Mode", getModeNames(), (int) Mode::stereo);
+    modeParam = modeParameter.get();
+    addHostedParameter (std::move (modeParameter));
+
+    InternalParameter::Options widthOptions;
+    widthOptions.label = "%";
+    widthOptions.valueToText = [] (float v) { return juce::String (juce::roundToInt (v)) + " % width"; };
+
+    auto widthParameter = std::make_unique<InternalParameter> ("width", "Width", juce::NormalisableRange<float> (0.0f, 200.0f, 1.0f), 100.0f, widthOptions);
+    widthParam = widthParameter.get();
+    addHostedParameter (std::move (widthParameter));
+}
+
+juce::StringArray StereoUtilityNode::getModeNames()
+{
+    // In Mode order
+    return { "Stereo", "Swap L/R", "Mono (L+R)", "Left only", "Right only" };
 }
 
 StereoUtilityNode::~StereoUtilityNode() = default;
@@ -113,7 +109,7 @@ StereoUtilityNode::~StereoUtilityNode() = default;
 StereoUtilityNode::Matrix StereoUtilityNode::computeTargetMatrix() const
 {
     // Width scales the side signal: L' = M + wS, R' = M - wS
-    const float w = width.load (std::memory_order_relaxed);
+    const float w = getWidth();
     const float same = (1.0f + w) * 0.5f;
     const float cross = (1.0f - w) * 0.5f;
 
@@ -200,16 +196,6 @@ void StereoUtilityNode::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
     }
 }
 
-void StereoUtilityNode::setMode (Mode newMode)
-{
-    mode.store ((int) newMode, std::memory_order_relaxed);
-}
-
-void StereoUtilityNode::setWidth (float newWidth)
-{
-    width.store (juce::jlimit (0.0f, 2.0f, newWidth), std::memory_order_relaxed);
-}
-
 juce::AudioProcessorEditor* StereoUtilityNode::createEditor()
 {
     return new StereoUtilityEditor (*this);
@@ -237,8 +223,8 @@ void StereoUtilityNode::fillInPluginDescription (juce::PluginDescription& descri
 void StereoUtilityNode::getStateInformation (juce::MemoryBlock& destData)
 {
     juce::XmlElement xml ("STEREO_UTILITY_SETTINGS");
-    xml.setAttribute ("mode", mode.load (std::memory_order_relaxed));
-    xml.setAttribute ("width", (double) width.load (std::memory_order_relaxed));
+    xml.setAttribute ("mode", (int) getMode());
+    xml.setAttribute ("width", (double) getWidth());
     copyXmlToBinary (xml, destData);
 }
 
@@ -248,8 +234,8 @@ void StereoUtilityNode::setStateInformation (const void* data, int sizeInBytes)
     {
         if (xml->hasTagName ("STEREO_UTILITY_SETTINGS"))
         {
-            setMode ((Mode) juce::jlimit (0, 4, xml->getIntAttribute ("mode", (int) Mode::stereo)));
-            setWidth ((float) xml->getDoubleAttribute ("width", 1.0));
+            modeParam->set ((float) juce::jlimit (0, 4, xml->getIntAttribute ("mode", (int) Mode::stereo)));
+            widthParam->set ((float) xml->getDoubleAttribute ("width", 1.0) * 100.0f);
         }
     }
 }

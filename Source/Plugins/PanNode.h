@@ -15,6 +15,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "InternalParameter.h"
 
 //==============================================================================
 /**
@@ -22,7 +23,8 @@
     a selectable pan law. With a stereo input it acts as a balance control.
     0 added latency.
 */
-class PanNode : public juce::AudioPluginInstance
+class PanNode : public juce::AudioPluginInstance,
+                private juce::AudioProcessorParameter::Listener
 {
 public:
     // Level of each output at centre, for a mono input
@@ -56,9 +58,11 @@ public:
     void fillInPluginDescription (juce::PluginDescription& description) const override;
 
     //==============================================================================
+    // -100 = hard left, 0 = centre, +100 = hard right
+    InternalParameter& getPanParameter() noexcept { return *panParam; }
+
     // -1 = hard left, 0 = centre, +1 = hard right
-    void setPan (float newPan);
-    float getPan() const noexcept { return pan.load (std::memory_order_relaxed); }
+    float getPan() const noexcept { return panParam->get() / 100.0f; }
 
     void setPanLaw (PanLaw newLaw);
     PanLaw getPanLaw() const noexcept { return (PanLaw) panLaw.load (std::memory_order_relaxed); }
@@ -68,7 +72,10 @@ public:
 private:
     void updateTargetGains();
 
-    std::atomic<float> pan { 0.0f };
+    void parameterValueChanged (int, float) override    { updateTargetGains(); }
+    void parameterGestureChanged (int, bool) override   {}
+
+    InternalParameter* panParam = nullptr;
     std::atomic<int> panLaw { (int) PanLaw::minus3Db };
     std::atomic<bool> monoInput { true };
     std::atomic<float> targetGainLeft { 1.0f };

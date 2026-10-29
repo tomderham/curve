@@ -291,18 +291,8 @@ public:
   static int addPresetsToMenu(juce::PopupMenu &menu,
                               MainHostWindow &mainWindow,
                               GlobalShortcutManager::LocalActionMap *outLocalActions = nullptr) {
-    // Scan Presets folder for presets
-    auto appDataDir =
-        juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
-            .getChildFile("Application Support")
-            .getChildFile(
-                juce::JUCEApplication::getInstance()->getApplicationName());
-    auto presetsDir = appDataDir.getChildFile("Presets");
-    auto files = presetsDir.findChildFiles(juce::File::findFiles, false,
-                                           "*.filtergraph");
-
-    // Sort presets alphabetically
-    files.sort();
+    // Sorted alphabetically, matching MIDI program change numbers
+    auto files = PluginGraph::getPresetFiles();
 
     juce::File activeFile;
     if (mainWindow.graphHolder != nullptr &&
@@ -545,6 +535,9 @@ public:
       if (onOpenShortcutSettings)
         onOpenShortcutSettings();
     });
+    // Next to the keyboard shortcut: both are quick ways to change presets
+    if (mainWindow.graphHolder != nullptr)
+      settingsmenu.addSubMenu("MIDI Control", buildMidiControlMenu(mainWindow));
     settingsmenu.addItem("About...", [safeWindow] {
       if (auto* w = safeWindow.getComponent())
         w->showAboutBox();
@@ -583,6 +576,71 @@ public:
     menu.addSubMenu("Settings", settingsmenu, true);
 
     return menu;
+  }
+
+  static juce::PopupMenu buildMidiControlMenu(MainHostWindow &mainWindow) {
+    juce::PopupMenu m;
+    auto *engine = mainWindow.graphHolder->midiEngine.get();
+    juce::Component::SafePointer<MainHostWindow> safeWindow (&mainWindow);
+
+    const bool pcEnabled = MidiControlEngine::isProgramChangePresetSelectEnabled();
+    m.addItem("Program Change Selects Preset", true, pcEnabled,
+              [safeWindow, pcEnabled] {
+                if (auto *w = safeWindow.getComponent())
+                  if (w->graphHolder != nullptr)
+                    w->graphHolder->midiEngine->setProgramChangePresetSelectEnabled(!pcEnabled);
+              });
+    m.addSeparator();
+
+    for (const bool next : {true, false}) {
+      juce::String label = next ? "Next Preset Control" : "Previous Preset Control";
+      if (auto *mapping = engine->getGlobalMappings().findFor(MidiMappingTarget::forPresetStep(next)))
+        label << ": " << mapping->trigger.describe();
+      label << " (MIDI Learn)...";
+
+      m.addItem(label, [safeWindow, next] {
+        if (auto *w = safeWindow.getComponent())
+          learnPresetStepControl(*w, next);
+      });
+    }
+
+    m.addItem("Clear Preset Controls", !engine->getGlobalMappings().isEmpty(),
+              false, [safeWindow] {
+                if (auto *w = safeWindow.getComponent())
+                  if (w->graphHolder != nullptr)
+                    w->graphHolder->midiEngine->clearGlobalMappings();
+              });
+    return m;
+  }
+
+  // Waits for the next MIDI control, with a window the user can cancel
+  static void learnPresetStepControl(MainHostWindow &mainWindow, bool next) {
+    if (mainWindow.graphHolder == nullptr)
+      return;
+
+    juce::Process::makeForegroundProcess();
+
+    auto *alert = new juce::AlertWindow(
+        next ? "Next Preset Control" : "Previous Preset Control",
+        "Press a button or move a control on your MIDI controller.\n\n"
+        "Controllers must be enabled under MIDI Inputs in Audio Settings.",
+        juce::MessageBoxIconType::NoIcon);
+    alert->addButton("Cancel", 0, juce::KeyPress(juce::KeyPress::escapeKey));
+
+    juce::Component::SafePointer<juce::AlertWindow> safeAlert (alert);
+    juce::Component::SafePointer<MainHostWindow> safeWindow (&mainWindow);
+
+    mainWindow.graphHolder->midiEngine->learnPresetStep(next, [safeAlert](const MidiTrigger &) {
+      if (auto *a = safeAlert.getComponent())
+        a->exitModalState(1);
+    });
+
+    alert->enterModalState(true, juce::ModalCallbackFunction::create([safeWindow](int result) {
+      if (result == 0)
+        if (auto *w = safeWindow.getComponent())
+          if (w->graphHolder != nullptr)
+            w->graphHolder->midiEngine->cancelPresetStepLearn();
+    }), true);
   }
 
 private:

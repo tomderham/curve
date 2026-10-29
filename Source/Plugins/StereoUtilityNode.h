@@ -15,6 +15,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "InternalParameter.h"
 
 //==============================================================================
 /**
@@ -54,12 +55,14 @@ public:
     void fillInPluginDescription (juce::PluginDescription& description) const override;
 
     //==============================================================================
-    void setMode (Mode newMode);
-    Mode getMode() const noexcept { return (Mode) mode.load (std::memory_order_relaxed); }
+    InternalParameter& getModeParameter() noexcept  { return *modeParam; }
+    Mode getMode() const noexcept { return (Mode) juce::jlimit (0, 4, modeParam->getIndex()); }
 
-    // 0 = mono, 1 = unchanged, 2 = double the side signal. Applies in Stereo and Swap modes.
-    void setWidth (float newWidth);
-    float getWidth() const noexcept { return width.load (std::memory_order_relaxed); }
+    // 0 = mono, 100 = unchanged, 200 = double the side signal (%). Applies in Stereo and Swap modes.
+    InternalParameter& getWidthParameter() noexcept { return *widthParam; }
+    float getWidth() const noexcept { return widthParam->get() / 100.0f; }
+
+    static juce::StringArray getModeNames();
 
     static bool modeUsesWidth (Mode m) noexcept { return m == Mode::stereo || m == Mode::swap; }
 
@@ -69,8 +72,8 @@ private:
 
     Matrix computeTargetMatrix() const;
 
-    std::atomic<int> mode { (int) Mode::stereo };
-    std::atomic<float> width { 1.0f };
+    InternalParameter* modeParam = nullptr;
+    InternalParameter* widthParam = nullptr;
 
     std::array<juce::LinearSmoothedValue<float>, 4> smoothedMatrix;
 

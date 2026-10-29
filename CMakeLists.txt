@@ -38,6 +38,8 @@ target_sources(Curve PRIVATE
     Source/AudioConstants.h
     Source/AudioDiagnostics.h
     Source/HostStartup.cpp
+    Source/Midi/MidiControlEngine.cpp
+    Source/Midi/MidiMapping.cpp
     Source/Plugins/AudioRecorderNode.cpp
     Source/Plugins/ClipperNode.cpp
     Source/Plugins/CrossfeedNode.cpp

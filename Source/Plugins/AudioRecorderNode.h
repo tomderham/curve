@@ -15,6 +15,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "InternalParameter.h"
 
 //==============================================================================
 /**
@@ -22,7 +23,9 @@
     files directly to disk on a background thread with zero audio thread blocking.
 */
 class AudioRecorderNode : public juce::AudioPluginInstance,
-                          private juce::Thread
+                          private juce::Thread,
+                          private juce::AudioProcessorParameter::Listener,
+                          private juce::AsyncUpdater
 {
 public:
     AudioRecorderNode();
@@ -53,6 +56,9 @@ public:
     void fillInPluginDescription (juce::PluginDescription& description) const override;
 
     //==============================================================================
+    /** On while recording. Setting it (e.g. from MIDI) starts or stops a recording. */
+    InternalParameter& getRecordParameter() noexcept { return *recordParam; }
+
     void startRecording();
     void stopRecording();
     bool isRecording() const noexcept { return isRecordingFlag.load (std::memory_order_relaxed); }
@@ -62,6 +68,14 @@ public:
 
 private:
     void run() override;
+
+    void parameterValueChanged (int, float) override    { triggerAsyncUpdate(); }
+    void parameterGestureChanged (int, bool) override   {}
+
+    // Brings the recording in line with the Record parameter, on the message thread
+    void handleAsyncUpdate() override;
+
+    InternalParameter* recordParam = nullptr;
 
     std::atomic<bool> isRecordingFlag { false };
     std::atomic<juce::int64> samplesRecorded { 0 };

@@ -15,9 +15,7 @@
 #include "GainNode.h"
 
 //==============================================================================
-class GainEditor final : public juce::AudioProcessorEditor,
-                         private juce::Slider::Listener,
-                         private juce::Button::Listener
+class GainEditor final : public juce::AudioProcessorEditor
 {
 public:
     explicit GainEditor (GainNode& owner)
@@ -28,18 +26,11 @@ public:
 
         gainSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
         gainSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 80, 20);
-        gainSlider.setRange (-60.0, 60.0, 0.1);
-        gainSlider.setTextValueSuffix (" dB");
-        gainSlider.setValue (gainNode.getGainDb(), juce::dontSendNotification);
         gainSlider.setDoubleClickReturnValue (true, 0.0);
-        gainSlider.addListener (this);
         addAndMakeVisible (gainSlider);
 
         muteButton.setButtonText ("Mute");
-        muteButton.setClickingTogglesState (true);
-        muteButton.setToggleState (gainNode.isMuted(), juce::dontSendNotification);
         muteButton.setColour (juce::TextButton::buttonOnColourId, juce::Colours::red.darker (0.2f));
-        muteButton.addListener (this);
         addAndMakeVisible (muteButton);
 
         titleLabel.setText ("Gain Utility", juce::dontSendNotification);
@@ -51,8 +42,6 @@ public:
     ~GainEditor() override
     {
         gainNode.editorBeingDeleted (this);
-        gainSlider.removeListener (this);
-        muteButton.removeListener (this);
     }
 
     void paint (juce::Graphics& g) override
@@ -70,23 +59,15 @@ public:
         muteButton.setBounds (getWidth() / 2 - 40, 140, 80, 26);
     }
 
-    void sliderValueChanged (juce::Slider* slider) override
-    {
-        if (slider == &gainSlider)
-            gainNode.setGainDb ((float) gainSlider.getValue());
-    }
-
-    void buttonClicked (juce::Button* button) override
-    {
-        if (button == &muteButton)
-            gainNode.setMuted (muteButton.getToggleState());
-    }
-
 private:
     GainNode& gainNode;
     juce::Label titleLabel;
     juce::Slider gainSlider;
     juce::TextButton muteButton;
+
+    // Keep the controls and parameters in sync both ways (e.g. under MIDI control)
+    InternalSliderBinding gainBinding { gainNode.getGainParameter(), gainSlider };
+    InternalButtonBinding muteBinding { gainNode.getMuteParameter(), muteButton };
 };
 
 //==============================================================================
@@ -94,10 +75,28 @@ GainNode::GainNode()
     : AudioPluginInstance (BusesProperties().withInput ("Input", juce::AudioChannelSet::stereo(), true)
                                            .withOutput ("Output", juce::AudioChannelSet::stereo(), true))
 {
+    InternalParameter::Options gainOptions;
+    gainOptions.label = "dB";
+    gainOptions.valueToText = [] (float v) { return juce::String (v, 1) + " dB"; };
+
+    auto gain = std::make_unique<InternalParameter> ("gain", "Gain", juce::NormalisableRange<float> (-60.0f, 60.0f, 0.1f), 0.0f, gainOptions);
+    gainParam = gain.get();
+    addHostedParameter (std::move (gain));
+
+    auto mute = InternalParameter::makeBool ("mute", "Mute", false);
+    muteParam = mute.get();
+    addHostedParameter (std::move (mute));
+
+    gainParam->addListener (this);
+    muteParam->addListener (this);
     updateTargetGain();
 }
 
-GainNode::~GainNode() = default;
+GainNode::~GainNode()
+{
+    gainParam->removeListener (this);
+    muteParam->removeListener (this);
+}
 
 void GainNode::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
@@ -169,27 +168,15 @@ void GainNode::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&
     }
 }
 
-void GainNode::setGainDb (float newGainDb)
-{
-    gainDb.store (newGainDb, std::memory_order_relaxed);
-    updateTargetGain();
-}
-
-void GainNode::setMuted (bool shouldMute)
-{
-    muted.store (shouldMute, std::memory_order_relaxed);
-    updateTargetGain();
-}
-
 void GainNode::updateTargetGain()
 {
-    if (muted.load (std::memory_order_relaxed))
+    if (muteParam->isOn())
     {
         targetGainLinear.store (0.0f, std::memory_order_release);
     }
     else
     {
-        float db = gainDb.load (std::memory_order_relaxed);
+        float db = gainParam->get();
         float lin = juce::Decibels::decibelsToGain (db);
         targetGainLinear.store (lin, std::memory_order_release);
     }
@@ -227,8 +214,8 @@ void GainNode::fillInPluginDescription (juce::PluginDescription& description) co
 void GainNode::getStateInformation (juce::MemoryBlock& destData)
 {
     juce::XmlElement xml ("GAIN_SETTINGS");
-    xml.setAttribute ("gainDb", (double) gainDb.load (std::memory_order_relaxed));
-    xml.setAttribute ("muted", muted.load (std::memory_order_relaxed));
+    xml.setAttribute ("gainDb", (double) gainParam->get());
+    xml.setAttribute ("muted", muteParam->isOn());
     copyXmlToBinary (xml, destData);
 }
 
@@ -238,10 +225,8 @@ void GainNode::setStateInformation (const void* data, int sizeInBytes)
     {
         if (xml->hasTagName ("GAIN_SETTINGS"))
         {
-            float db = (float) xml->getDoubleAttribute ("gainDb", 0.0);
-            bool m = xml->getBoolAttribute ("muted", false);
-            setGainDb (db);
-            setMuted (m);
+            gainParam->set ((float) xml->getDoubleAttribute ("gainDb", 0.0));
+            muteParam->set (xml->getBoolAttribute ("muted", false) ? 1.0f : 0.0f);
         }
     }
 }

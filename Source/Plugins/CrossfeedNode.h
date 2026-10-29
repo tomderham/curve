@@ -15,6 +15,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "InternalParameter.h"
 
 //==============================================================================
 /**
@@ -33,8 +34,8 @@ public:
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
 
     //==============================================================================
-    juce::AudioProcessorEditor* createEditor() override { return nullptr; }
-    bool hasEditor() const override { return false; }
+    juce::AudioProcessorEditor* createEditor() override;
+    bool hasEditor() const override { return true; }
     const juce::String getName() const override { return "Headphone Crossfeed"; }
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return false; }
@@ -44,13 +45,19 @@ public:
     void setCurrentProgram (int) override {}
     const juce::String getProgramName (int) override { return {}; }
     void changeProgramName (int, const juce::String&) override {}
-    void getStateInformation (juce::MemoryBlock&) override {}
-    void setStateInformation (const void*, int) override {}
+    void getStateInformation (juce::MemoryBlock&) override;
+    void setStateInformation (const void*, int) override;
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
 
     void fillInPluginDescription (juce::PluginDescription& description) const override;
 
+    /** Level of the crossfeed path, 0..100%. At 100% the output matches earlier versions. */
+    InternalParameter& getAmountParameter() noexcept { return *amountParam; }
+
 private:
+    InternalParameter* amountParam = nullptr;
+    juce::LinearSmoothedValue<float> smoothedAmount;
+
     juce::dsp::Convolution directConvolution { juce::dsp::Convolution::Latency { 0 } };
     juce::dsp::Convolution crossConvolution  { juce::dsp::Convolution::Latency { 0 } };
 

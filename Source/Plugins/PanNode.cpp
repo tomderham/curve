@@ -16,7 +16,6 @@
 
 //==============================================================================
 class PanEditor final : public juce::AudioProcessorEditor,
-                        private juce::Slider::Listener,
                         private juce::ComboBox::Listener
 {
 public:
@@ -34,30 +33,7 @@ public:
 
         panSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
         panSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 80, 20);
-        panSlider.setRange (-100.0, 100.0, 1.0);
-        panSlider.textFromValueFunction = [] (double v)
-        {
-            const auto amount = juce::roundToInt (std::abs (v));
-            if (amount == 0)
-                return juce::String ("C");
-
-            return (v < 0.0 ? "L" : "R") + juce::String (amount);
-        };
-        panSlider.valueFromTextFunction = [] (const juce::String& text)
-        {
-            const auto t = text.trim().toUpperCase();
-            const auto amount = t.retainCharacters ("0123456789.").getDoubleValue();
-
-            if (t.startsWith ("L"))
-                return -amount;
-            if (t.startsWith ("R"))
-                return amount;
-
-            return t.getDoubleValue();
-        };
-        panSlider.setValue (panNode.getPan() * 100.0, juce::dontSendNotification);
         panSlider.setDoubleClickReturnValue (true, 0.0);
-        panSlider.addListener (this);
         addAndMakeVisible (panSlider);
 
         lawLabel.setText ("Pan law", juce::dontSendNotification);
@@ -78,7 +54,6 @@ public:
     ~PanEditor() override
     {
         panNode.editorBeingDeleted (this);
-        panSlider.removeListener (this);
         lawBox.removeListener (this);
     }
 
@@ -98,12 +73,6 @@ public:
         lawBox.setBounds (getWidth() / 2 - 10, 152, 100, 24);
     }
 
-    void sliderValueChanged (juce::Slider* slider) override
-    {
-        if (slider == &panSlider)
-            panNode.setPan ((float) (panSlider.getValue() / 100.0));
-    }
-
     void comboBoxChanged (juce::ComboBox* box) override
     {
         if (box == &lawBox)
@@ -116,6 +85,8 @@ private:
     juce::Slider panSlider;
     juce::Label lawLabel;
     juce::ComboBox lawBox;
+
+    InternalSliderBinding panBinding { panNode.getPanParameter(), panSlider };
 };
 
 //==============================================================================
@@ -123,10 +94,40 @@ PanNode::PanNode()
     : AudioPluginInstance (BusesProperties().withInput ("Input", juce::AudioChannelSet::mono(), true)
                                            .withOutput ("Output", juce::AudioChannelSet::stereo(), true))
 {
+    InternalParameter::Options options;
+    options.valueToText = [] (float v)
+    {
+        const auto amount = juce::roundToInt (std::abs (v));
+        if (amount == 0)
+            return juce::String ("C");
+
+        return (v < 0.0f ? "L" : "R") + juce::String (amount);
+    };
+    options.textToValue = [] (const juce::String& text)
+    {
+        const auto t = text.trim().toUpperCase();
+        const auto amount = t.retainCharacters ("0123456789.").getFloatValue();
+
+        if (t.startsWith ("L"))
+            return -amount;
+        if (t.startsWith ("R"))
+            return amount;
+
+        return t.getFloatValue();
+    };
+
+    auto panParameter = std::make_unique<InternalParameter> ("pan", "Pan", juce::NormalisableRange<float> (-100.0f, 100.0f, 1.0f), 0.0f, options);
+    panParam = panParameter.get();
+    addHostedParameter (std::move (panParameter));
+    panParam->addListener (this);
+
     updateTargetGains();
 }
 
-PanNode::~PanNode() = default;
+PanNode::~PanNode()
+{
+    panParam->removeListener (this);
+}
 
 void PanNode::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
@@ -200,12 +201,6 @@ void PanNode::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
         juce::FloatVectorOperations::multiply (outL, gainL, numSamples);
 }
 
-void PanNode::setPan (float newPan)
-{
-    pan.store (juce::jlimit (-1.0f, 1.0f, newPan), std::memory_order_relaxed);
-    updateTargetGains();
-}
-
 void PanNode::setPanLaw (PanLaw newLaw)
 {
     panLaw.store ((int) newLaw, std::memory_order_relaxed);
@@ -214,7 +209,7 @@ void PanNode::setPanLaw (PanLaw newLaw)
 
 void PanNode::updateTargetGains()
 {
-    const float p = pan.load (std::memory_order_relaxed);
+    const float p = getPan();
 
     // Balance: full level at centre, opposite side fades out
     float gainL = juce::jmin (1.0f, 1.0f - p);
@@ -281,7 +276,7 @@ void PanNode::fillInPluginDescription (juce::PluginDescription& description) con
 void PanNode::getStateInformation (juce::MemoryBlock& destData)
 {
     juce::XmlElement xml ("PAN_SETTINGS");
-    xml.setAttribute ("pan", (double) pan.load (std::memory_order_relaxed));
+    xml.setAttribute ("pan", (double) getPan());
     xml.setAttribute ("panLaw", panLaw.load (std::memory_order_relaxed));
     copyXmlToBinary (xml, destData);
 }
@@ -292,7 +287,7 @@ void PanNode::setStateInformation (const void* data, int sizeInBytes)
     {
         if (xml->hasTagName ("PAN_SETTINGS"))
         {
-            setPan ((float) xml->getDoubleAttribute ("pan", 0.0));
+            panParam->set ((float) xml->getDoubleAttribute ("pan", 0.0) * 100.0f);
             setPanLaw ((PanLaw) juce::jlimit (0, 3, xml->getIntAttribute ("panLaw", (int) PanLaw::minus3Db)));
         }
     }

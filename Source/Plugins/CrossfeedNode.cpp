@@ -338,11 +338,85 @@ namespace CrossfeedData
 }
 
 //==============================================================================
+//==============================================================================
+class CrossfeedEditor final : public juce::AudioProcessorEditor
+{
+public:
+    explicit CrossfeedEditor (CrossfeedNode& owner)
+        : AudioProcessorEditor (owner),
+          crossfeedNode (owner)
+    {
+        setSize (260, 170);
+
+        amountSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+        amountSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 80, 20);
+        amountSlider.setDoubleClickReturnValue (true, 100.0);
+        addAndMakeVisible (amountSlider);
+
+        titleLabel.setText ("Crossfeed Amount", juce::dontSendNotification);
+        titleLabel.setFont (juce::FontOptions (13.0f).withStyle ("Bold"));
+        titleLabel.setJustificationType (juce::Justification::centred);
+        addAndMakeVisible (titleLabel);
+    }
+
+    ~CrossfeedEditor() override
+    {
+        crossfeedNode.editorBeingDeleted (this);
+    }
+
+    void paint (juce::Graphics& g) override
+    {
+        g.fillAll (juce::Colour (0xff18181c));
+
+        g.setColour (juce::Colour (0xff2a2a32));
+        g.drawRect (getLocalBounds().toFloat(), 1.0f);
+    }
+
+    void resized() override
+    {
+        titleLabel.setBounds (10, 10, getWidth() - 20, 20);
+        amountSlider.setBounds (getWidth() / 2 - 55, 40, 110, 110);
+    }
+
+private:
+    CrossfeedNode& crossfeedNode;
+    juce::Label titleLabel;
+    juce::Slider amountSlider;
+    InternalSliderBinding amountBinding { crossfeedNode.getAmountParameter(), amountSlider };
+};
+
+//==============================================================================
 CrossfeedNode::CrossfeedNode()
     : AudioPluginInstance (BusesProperties()
                             .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
                             .withOutput ("Output", juce::AudioChannelSet::stereo(), true))
 {
+    InternalParameter::Options options;
+    options.label = "%";
+    options.valueToText = [] (float v) { return juce::String (juce::roundToInt (v)) + "%"; };
+
+    auto amount = std::make_unique<InternalParameter> ("amount", "Amount", juce::NormalisableRange<float> (0.0f, 100.0f, 1.0f), 100.0f, options);
+    amountParam = amount.get();
+    addHostedParameter (std::move (amount));
+}
+
+juce::AudioProcessorEditor* CrossfeedNode::createEditor()
+{
+    return new CrossfeedEditor (*this);
+}
+
+void CrossfeedNode::getStateInformation (juce::MemoryBlock& destData)
+{
+    juce::XmlElement xml ("CROSSFEED_SETTINGS");
+    xml.setAttribute ("amount", (double) amountParam->get());
+    copyXmlToBinary (xml, destData);
+}
+
+void CrossfeedNode::setStateInformation (const void* data, int sizeInBytes)
+{
+    if (auto xml = getXmlFromBinary (data, sizeInBytes))
+        if (xml->hasTagName ("CROSSFEED_SETTINGS"))
+            amountParam->set ((float) xml->getDoubleAttribute ("amount", 100.0));
 }
 
 CrossfeedNode::~CrossfeedNode()
@@ -425,6 +499,9 @@ void CrossfeedNode::prepareToPlay (double sampleRate, int samplesPerBlock)
     directConvolution.prepare (spec);
     crossConvolution.prepare (spec);
 
+    smoothedAmount.reset (sampleRate, 0.05);
+    smoothedAmount.setCurrentAndTargetValue (amountParam->get() / 100.0f);
+
     crossBuffer.setSize (2, maxBlock, false, true, false);
 }
 
@@ -452,6 +529,8 @@ void CrossfeedNode::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
     const int maxCapacity = crossBuffer.getNumSamples();
     if (maxCapacity <= 0)
         return;
+
+    smoothedAmount.setTargetValue (amountParam->get() / 100.0f);
 
     int samplesProcessed = 0;
 
@@ -484,8 +563,25 @@ void CrossfeedNode::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
         const auto* crossL = crossBuffer.getReadPointer (0);
         const auto* crossR = crossBuffer.getReadPointer (1);
 
-        juce::FloatVectorOperations::add (outL, crossR, chunkSize);
-        juce::FloatVectorOperations::add (outR, crossL, chunkSize);
+        if (smoothedAmount.isSmoothing())
+        {
+            for (int s = 0; s < chunkSize; ++s)
+            {
+                const auto amount = smoothedAmount.getNextValue();
+                outL[s] += amount * crossR[s];
+                outR[s] += amount * crossL[s];
+            }
+        }
+        else if (const auto amount = smoothedAmount.getCurrentValue(); amount == 1.0f)
+        {
+            juce::FloatVectorOperations::add (outL, crossR, chunkSize);
+            juce::FloatVectorOperations::add (outR, crossL, chunkSize);
+        }
+        else if (amount > 0.0f)
+        {
+            juce::FloatVectorOperations::addWithMultiply (outL, crossR, amount, chunkSize);
+            juce::FloatVectorOperations::addWithMultiply (outR, crossL, amount, chunkSize);
+        }
 
         samplesProcessed += chunkSize;
     }

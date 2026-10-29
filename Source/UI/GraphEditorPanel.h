@@ -48,6 +48,7 @@
 
 #include <JuceHeader.h>
 #include "../Plugins/PluginGraph.h"
+#include "../Midi/MidiControlEngine.h"
 #include "../AudioDiagnostics.h"
 #include "../AudioConstants.h"
 #include "IdleReleaseController.h"
@@ -72,11 +73,17 @@ public:
     void paint (Graphics&) override;
     void resized() override;
 
+    void paintOverChildren (Graphics&) override;
+
     void mouseDown (const MouseEvent&) override;
     void mouseUp   (const MouseEvent&) override;
     void mouseDrag (const MouseEvent&) override;
+    bool keyPressed (const KeyPress&) override;
 
     void changeListenerCallback (ChangeBroadcaster*) override;
+
+    /** Called when MIDI learn starts or stops, or its target changes. */
+    void midiLearnStateChanged();
 
     //==============================================================================
     void updateComponents();
@@ -96,6 +103,7 @@ public:
 
     //==============================================================================
     PluginGraph& graph;
+    MidiControlEngine* midiEngine = nullptr;
 
 private:
     struct PluginComponent;
@@ -301,6 +309,7 @@ public:
 
     //==============================================================================
     std::unique_ptr<GraphEditorPanel> graphPanel;
+    std::unique_ptr<MidiControlEngine> midiEngine;
 
     //==============================================================================
     void propagateDeviceSettingsToNodes();
@@ -311,6 +320,9 @@ public:
     void fadeInOutput()          { graphPlayer.startFadeIn(); }
     bool isTransitionFadedOut() const { return graphPlayer.isFullyFadedOut(); }
     void showUpdateBanner (const String& version, const String& downloadUrl);
+
+    /** Shows a message in the status bar in place of tooltips; an empty string clears it. */
+    void showStatusMessage (const String&);
 
 private:
     //==============================================================================

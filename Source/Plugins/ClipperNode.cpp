@@ -16,7 +16,6 @@
 
 //==============================================================================
 class ClipperEditor final : public juce::AudioProcessorEditor,
-                            private juce::Slider::Listener,
                             private juce::Timer
 {
 public:
@@ -33,11 +32,7 @@ public:
 
         ceilingSlider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
         ceilingSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 80, 20);
-        ceilingSlider.setRange (ClipperNode::minCeilingDb, ClipperNode::maxCeilingDb, 0.1);
-        ceilingSlider.setTextValueSuffix (" dBFS");
-        ceilingSlider.setValue (clipperNode.getCeilingDb(), juce::dontSendNotification);
         ceilingSlider.setDoubleClickReturnValue (true, -1.0);
-        ceilingSlider.addListener (this);
         addAndMakeVisible (ceilingSlider);
 
         infoLabel.setText ("Hard clip at ceiling, 0 latency.\nOnly protects when set below 0 dBFS.",
@@ -54,7 +49,6 @@ public:
     {
         stopTimer();
         clipperNode.editorBeingDeleted (this);
-        ceilingSlider.removeListener (this);
     }
 
     void paint (juce::Graphics& g) override
@@ -78,12 +72,6 @@ public:
         titleLabel.setBounds (10, 10, getWidth() - 20, 20);
         ceilingSlider.setBounds (getWidth() / 2 - 55, 34, 110, 100);
         infoLabel.setBounds (10, 166, getWidth() - 20, 34);
-    }
-
-    void sliderValueChanged (juce::Slider* slider) override
-    {
-        if (slider == &ceilingSlider)
-            clipperNode.setCeilingDb ((float) ceilingSlider.getValue());
     }
 
 private:
@@ -110,6 +98,8 @@ private:
     juce::Slider ceilingSlider;
     juce::Label infoLabel;
     int clipHoldTicks = 0;
+
+    InternalSliderBinding ceilingBinding { clipperNode.getCeilingParameter(), ceilingSlider };
 };
 
 //==============================================================================
@@ -117,9 +107,21 @@ ClipperNode::ClipperNode()
     : AudioPluginInstance (BusesProperties().withInput ("Input", juce::AudioChannelSet::stereo(), true)
                                            .withOutput ("Output", juce::AudioChannelSet::stereo(), true))
 {
+    InternalParameter::Options options;
+    options.label = "dBFS";
+    options.valueToText = [] (float v) { return juce::String (v, 1) + " dBFS"; };
+
+    auto ceiling = std::make_unique<InternalParameter> ("ceiling", "Ceiling",
+                                                        juce::NormalisableRange<float> (minCeilingDb, maxCeilingDb, 0.1f), -1.0f, options);
+    ceilingParam = ceiling.get();
+    addHostedParameter (std::move (ceiling));
+    ceilingParam->addListener (this);
 }
 
-ClipperNode::~ClipperNode() = default;
+ClipperNode::~ClipperNode()
+{
+    ceilingParam->removeListener (this);
+}
 
 void ClipperNode::prepareToPlay (double /*sampleRate*/, int /*samplesPerBlock*/)
 {
@@ -164,11 +166,9 @@ void ClipperNode::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuff
         clipped.store (true, std::memory_order_relaxed);
 }
 
-void ClipperNode::setCeilingDb (float newCeilingDb)
+void ClipperNode::parameterValueChanged (int, float)
 {
-    const auto db = juce::jlimit (minCeilingDb, maxCeilingDb, newCeilingDb);
-    ceilingDb.store (db, std::memory_order_relaxed);
-    ceilingLinear.store (juce::Decibels::decibelsToGain (db), std::memory_order_relaxed);
+    ceilingLinear.store (juce::Decibels::decibelsToGain (ceilingParam->get()), std::memory_order_relaxed);
 }
 
 juce::AudioProcessorEditor* ClipperNode::createEditor()
@@ -203,7 +203,7 @@ void ClipperNode::fillInPluginDescription (juce::PluginDescription& description)
 void ClipperNode::getStateInformation (juce::MemoryBlock& destData)
 {
     juce::XmlElement xml ("CLIPPER_SETTINGS");
-    xml.setAttribute ("ceilingDb", (double) ceilingDb.load (std::memory_order_relaxed));
+    xml.setAttribute ("ceilingDb", (double) getCeilingDb());
     copyXmlToBinary (xml, destData);
 }
 
@@ -212,6 +212,6 @@ void ClipperNode::setStateInformation (const void* data, int sizeInBytes)
     if (auto xml = getXmlFromBinary (data, sizeInBytes))
     {
         if (xml->hasTagName ("CLIPPER_SETTINGS"))
-            setCeilingDb ((float) xml->getDoubleAttribute ("ceilingDb", -1.0));
+            ceilingParam->set ((float) xml->getDoubleAttribute ("ceilingDb", -1.0));
     }
 }

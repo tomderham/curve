@@ -176,7 +176,7 @@ static String getTooltipForProcessor (const AudioProcessor& processor)
         return "Headphone Speaker Emulation: Mid-field studio speaker emulation processor (including crossfeed) for monitoring with headphones.";
 
     if (name == "Headphone Crossfeed")
-        return "Headphone Crossfeed: Crossfeed processor for natural soundstage imaging when monitoring with headphones.";
+        return "Headphone Crossfeed: Crossfeed processor for natural soundstage imaging when monitoring with headphones, with adjustable amount.";
 
     if (name == "Gain")
         return "Gain: Volume trim (-60 dB to +60 dB) and mute toggle.";
@@ -214,8 +214,8 @@ static String getTooltipForProcessor (const AudioProcessor& processor)
 class NodeBypassButton final : public Button
 {
 public:
-    explicit NodeBypassButton (std::function<bool()> isBypassedFn)
-        : Button ("Bypass"), isBypassed (std::move (isBypassedFn))
+    NodeBypassButton (std::function<bool()> isBypassedFn, std::function<bool()> isMidiLearningFn)
+        : Button ("Bypass"), isBypassed (std::move (isBypassedFn)), isMidiLearning (std::move (isMidiLearningFn))
     {
         setClickingTogglesState (false);
         setWantsKeyboardFocus (false);
@@ -252,6 +252,9 @@ public:
 
     String getTooltip() override
     {
+        if (isMidiLearning != nullptr && isMidiLearning())
+            return "Click to MIDI learn this node's bypass";
+
         return (isBypassed != nullptr && isBypassed()) ? "Bypassed - click to enable"
                                                        : "Bypass (click to toggle)";
     }
@@ -259,6 +262,7 @@ public:
 private:
     static constexpr float glyphSize = 14.0f;
     std::function<bool()> isBypassed;
+    std::function<bool()> isMidiLearning;
     Path glyphPath;
 };
 
@@ -286,8 +290,9 @@ struct GraphEditorPanel::PluginComponent final : public Component,
                 // No bypass for the graph's I/O nodes
                 if (dynamic_cast<AudioProcessorGraph::AudioGraphIOProcessor*> (processor) == nullptr)
                 {
-                    bypassButton = std::make_unique<NodeBypassButton> ([this] { return isNodeBypassed(); });
-                    bypassButton->onClick = [this] { toggleBypass(); };
+                    bypassButton = std::make_unique<NodeBypassButton> ([this] { return isNodeBypassed(); },
+                                                                       [this] { return isMidiLearning(); });
+                    bypassButton->onClick = [this] { bypassButtonClicked(); };
                     addAndMakeVisible (bypassButton.get());
                 }
             }
@@ -397,11 +402,24 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         g.setColour (boxColour);
         g.fillRect (boxArea.toFloat());
 
-        g.setColour (findColour (TextEditor::outlineColourId).withAlpha (0.6f));
-        g.drawRect (boxArea.toFloat(), 1.0f);
+        if (isMidiLearnTarget())
+        {
+            g.setColour (Curve::Colours::accent);
+            g.drawRect (boxArea.toFloat(), 2.0f);
+        }
+        else
+        {
+            g.setColour (findColour (TextEditor::outlineColourId).withAlpha (0.6f));
+            g.drawRect (boxArea.toFloat(), 1.0f);
+        }
 
         // Reserve the bypass slot on both sides to keep the name centred
         auto textArea = bypassButton != nullptr ? boxArea.reduced (bypassSlot + bypassMargin, 0) : boxArea;
+
+        // The slot opposite the bypass button shows whether the node has MIDI mappings
+        if (bypassButton != nullptr && graph.getMidiMappings().hasMappingsForNode (pluginID))
+            drawMidiBadge (g, boxArea.removeFromRight (bypassSlot + bypassMargin)
+                                     .withSizeKeepingCentre (bypassSlot, bypassSlot).toFloat());
 
         g.setColour (findColour (TextEditor::textColourId).withMultipliedAlpha (isBypassed ? 0.5f : 1.0f));
         g.setFont (font);
@@ -491,7 +509,16 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         if (formatSuffix != " (Internal)" && ! finalName.contains (formatSuffix))
             finalName += formatSuffix;
         setName (finalName);
-        setTooltip (getTooltipForProcessor (processor));
+
+        auto tooltip = getTooltipForProcessor (processor);
+
+        if (const auto mappings = graph.describeMidiMappingsForNode (pluginID); mappings.isNotEmpty())
+            tooltip << "  " << String::fromUTF8 ("\xe2\x80\xa2") << "  MIDI: " << mappings;
+
+        setTooltip (tooltip);
+
+        // Bypass and mappings can change without any change in size
+        repaint();
 
         {
             auto p = graph.getNodePosition (pluginID);
@@ -547,6 +574,15 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         {
             promptRenameNode();
         });
+
+        if (auto* engine = panel.midiEngine)
+        {
+            menu->addSeparator();
+            menu->addItem ("MIDI Learn", true, engine->isLearning(), [engine] { engine->setLearning (! engine->isLearning()); });
+
+            if (graph.getMidiMappings().hasMappingsForNode (pluginID))
+                menu->addItem ("Clear MIDI Mappings", [this] { graph.removeMidiMappingsForNode (pluginID); });
+        }
 
         menu->addSeparator();
         if (auto* proc = getProcessor())
@@ -604,13 +640,47 @@ struct GraphEditorPanel::PluginComponent final : public Component,
 
     void toggleBypass()
     {
-        if (auto* node = graph.graph.getNodeForId (pluginID))
-        {
-            node->setBypassed (! node->isBypassed());
-            graph.graph.sendChangeMessage();
-        }
-
+        graph.setNodeBypassed (pluginID, ! isNodeBypassed());
         repaint();
+    }
+
+    void bypassButtonClicked()
+    {
+        // In MIDI learn, the button picks bypass as the target instead of toggling it
+        if (isMidiLearning())
+            panel.midiEngine->selectLearnTarget (MidiMappingTarget::forBypass (pluginID));
+        else
+            toggleBypass();
+    }
+
+    bool isMidiLearning() const
+    {
+        return panel.midiEngine != nullptr && panel.midiEngine->isLearning();
+    }
+
+    bool isMidiLearnTarget() const
+    {
+        if (! isMidiLearning())
+            return false;
+
+        const auto& target = panel.midiEngine->getLearnTarget();
+        return target.has_value() && target->isNodeTarget() && target->nodeID == pluginID;
+    }
+
+    // A small DIN socket: a ring with five pins along its upper half
+    static void drawMidiBadge (Graphics& g, Rectangle<float> area)
+    {
+        const auto socket = area.withSizeKeepingCentre (12.0f, 12.0f);
+        const auto centre = socket.getCentre();
+
+        g.setColour (Curve::Colours::accent);
+        g.drawEllipse (socket, 1.2f);
+
+        for (int i = 0; i < 5; ++i)
+        {
+            const auto angle = -MathConstants<float>::halfPi + MathConstants<float>::pi * 0.25f * (float) i;
+            g.fillEllipse (Rectangle<float> (1.6f, 1.6f).withCentre (centre.getPointOnCircumference (3.2f, angle)));
+        }
     }
 
     void promptRenameNode()
@@ -1004,6 +1074,49 @@ void GraphEditorPanel::paint (Graphics& g)
     g.fillAll (getLookAndFeel().findColour (ResizableWindow::backgroundColourId));
 }
 
+void GraphEditorPanel::paintOverChildren (Graphics& g)
+{
+    if (midiEngine != nullptr && midiEngine->isLearning())
+    {
+        g.setColour (Curve::Colours::accent);
+        g.drawRect (getLocalBounds().toFloat(), 2.0f);
+    }
+}
+
+bool GraphEditorPanel::keyPressed (const KeyPress& key)
+{
+    if (midiEngine == nullptr || ! midiEngine->isLearning())
+        return false;
+
+    if (key == KeyPress::escapeKey)
+    {
+        midiEngine->setLearning (false);
+        return true;
+    }
+
+    if (key == KeyPress::deleteKey || key == KeyPress::backspaceKey)
+    {
+        midiEngine->removeMappingForLearnTarget();
+        return true;
+    }
+
+    return false;
+}
+
+void GraphEditorPanel::midiLearnStateChanged()
+{
+    const bool learning = midiEngine != nullptr && midiEngine->isLearning();
+
+    // Takes Esc and Delete while learning
+    setWantsKeyboardFocus (learning);
+
+    if (learning && isShowing())
+        grabKeyboardFocus();
+
+    updateComponents();
+    repaint();
+}
+
 void GraphEditorPanel::mouseDown (const MouseEvent& e)
 {
     if (e.source.isTouch())
@@ -1148,6 +1261,15 @@ void GraphEditorPanel::showPopupMenu (Point<int> localMousePos)
     if (auto* mainWindow = findParentComponentOfClass<MainHostWindow>())
     {
         mainWindow->addPluginsToMenu (*menu);
+
+        if (auto* engine = midiEngine)
+        {
+            menu->addSeparator();
+            menu->addItem ("MIDI Learn", true, engine->isLearning(), [engine] { engine->setLearning (! engine->isLearning()); });
+
+            if (engine->learnTargetHasMapping())
+                menu->addItem ("Remove MIDI Mapping for Selected Control", [engine] { engine->removeMappingForLearnTarget(); });
+        }
 
         menu->showMenuAsync (PopupMenu::Options{}.withTargetScreenArea (Rectangle<int>{}.withPosition (localPointToGlobal (localMousePos))),
                              ModalCallbackFunction::create ([this, localMousePos] (int r)
@@ -1295,7 +1417,13 @@ struct GraphDocumentComponent::TooltipBar final : public Component,
 
         auto bounds = getLocalBounds().reduced (12, 0);
 
-        if (tip.isNotEmpty())
+        if (message.isNotEmpty())
+        {
+            g.setColour (Curve::Colours::accent);
+            g.setFont (FontOptions { 13.0f });
+            g.drawFittedText (message, bounds, Justification::centred, 1);
+        }
+        else if (tip.isNotEmpty())
         {
             g.setColour (Colour (0xff93c5fd));
             g.setFont (FontOptions { 13.0f });
@@ -1328,7 +1456,16 @@ struct GraphDocumentComponent::TooltipBar final : public Component,
         }
     }
 
-    String tip;
+    void setMessage (const String& newMessage)
+    {
+        if (newMessage != message)
+        {
+            message = newMessage;
+            repaint();
+        }
+    }
+
+    String tip, message;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TooltipBar)
 };
@@ -1339,11 +1476,15 @@ GraphDocumentComponent::GraphDocumentComponent (AudioPluginFormatManager& fm,
     : graph (new PluginGraph (fm, kpl)),
       deviceManager (dm)
 {
+    midiEngine = std::make_unique<MidiControlEngine> (graphPlayer.getMidiMessageCollector());
+
     init();
 
     deviceManager.addChangeListener (graphPanel.get());
     deviceManager.addAudioCallback (&graphPlayer);
-    deviceManager.addMidiInputDeviceCallback ({}, &graphPlayer.getMidiMessageCollector());
+
+    // The engine forwards whatever isn't mapped to the graph's MIDI input
+    deviceManager.addMidiInputDeviceCallback ({}, midiEngine.get());
     deviceManager.addChangeListener (this);
 }
 
@@ -1369,6 +1510,18 @@ void GraphDocumentComponent::init()
     }
 
     keyState.addListener (&graphPlayer.getMidiMessageCollector());
+
+    graphPanel->midiEngine = midiEngine.get();
+    midiEngine->setGraph (graph.get());
+    midiEngine->onStatusMessage = [this] (const String& message) { showStatusMessage (message); };
+    midiEngine->onLearnStateChanged = [this]
+    {
+        if (graph != nullptr)
+            graph->setPluginWindowsFloating (midiEngine->isLearning());
+
+        if (graphPanel != nullptr)
+            graphPanel->midiLearnStateChanged();
+    };
 
     graph->graph.addChangeListener (this);
     graph->addChangeListener (this);
@@ -1484,6 +1637,12 @@ void GraphDocumentComponent::resized()
         graphPanel->setBounds (r);
 }
 
+void GraphDocumentComponent::showStatusMessage (const String& message)
+{
+    if (statusBar != nullptr)
+        statusBar->setMessage (message);
+}
+
 void GraphDocumentComponent::createNewPlugin (const PluginDescriptionAndPreference& desc, Point<int> pos)
 {
     graphPanel->createNewPlugin (desc, pos);
@@ -1492,7 +1651,12 @@ void GraphDocumentComponent::createNewPlugin (const PluginDescriptionAndPreferen
 void GraphDocumentComponent::releaseGraph()
 {
     deviceManager.removeAudioCallback (&graphPlayer);
-    deviceManager.removeMidiInputDeviceCallback ({}, &graphPlayer.getMidiMessageCollector());
+    deviceManager.removeMidiInputDeviceCallback ({}, midiEngine.get());
+
+    midiEngine->setLearning (false);
+    midiEngine->setGraph (nullptr);
+    midiEngine->onStatusMessage = nullptr;
+    midiEngine->onLearnStateChanged = nullptr;
 
     if (graphPanel != nullptr)
     {

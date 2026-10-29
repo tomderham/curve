@@ -35,6 +35,7 @@
 #pragma once
 
 #include "../UI/PluginWindow.h"
+#include "../Midi/MidiMapping.h"
 
 //==============================================================================
 /** A type that encapsulates a PluginDescription and some preferences regarding
@@ -96,6 +97,27 @@ public:
     static bool isConfiguredByAudioSettings (AudioProcessor&);
     bool closeAnyOpenPluginWindows();
 
+    // While MIDI learning, plugin windows float above the editor, so clicking the
+    // graph (e.g. a bypass button) doesn't hide the controls still to be touched.
+    void setPluginWindowsFloating (bool shouldFloat);
+
+    // Sets the node's bypass and notifies the graph, so the UI and the loopback tap follow.
+    void setNodeBypassed (NodeID, bool shouldBeBypassed);
+
+    // The node's custom name if it has one, otherwise its processor's name.
+    String getNodeDisplayName (NodeID) const;
+
+    //==============================================================================
+    // MIDI mappings for this preset's nodes. Changing them marks the preset as edited.
+    const MidiMappingSet& getMidiMappings() const { return midiMappings; }
+    void assignMidiMapping (const MidiMapping&);
+    void removeMidiMappingFor (const MidiMappingTarget&);
+    void removeMidiMappingsForNode (NodeID);
+
+    // e.g. "CC 21 · Ch 1 → Gain 1, Note C3 · Ch 1 → Bypass"
+    String describeMidiMappingsForNode (NodeID) const;
+    String describeMidiMappingTarget (const MidiMappingTarget&) const;
+
     //==============================================================================
     void audioProcessorParameterChanged (AudioProcessor*, int, float) override {}
     void audioProcessorChanged (AudioProcessor*, const ChangeDetails&) override { changed(); }
@@ -109,6 +131,11 @@ public:
 
     static const char* getFilenameSuffix()      { return ".filtergraph"; }
     static const char* getFilenameWildcard()    { return "*.filtergraph"; }
+
+    static File getPresetsDirectory();
+
+    // Sorted alphabetically: the order of the menu, its number shortcuts and MIDI program changes.
+    static Array<File> getPresetFiles();
 
     //==============================================================================
     void newDocument();
@@ -129,6 +156,8 @@ private:
     OwnedArray<PluginWindow> activePluginWindows;
     ScopedMessageBox messageBox;
     bool restorePluginWindowsOnLoad = false;
+    bool pluginWindowsFloating = false;
+    MidiMappingSet midiMappings;
 
     // State for the preset restore in progress. Plugins that can't be created
     // synchronously (e.g. AUv3) finish restoring after restoreFromXml() returns;
