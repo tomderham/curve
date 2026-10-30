@@ -16,6 +16,7 @@
 #include "GlobalShortcutManager.h"
 #include "GraphEditorPanel.h"
 #include "DockIconManager.h"
+#include "HelpBookManager.h"
 #include "LoginItemManager.h"
 #include "MainHostWindow.h"
 #include "SystemSleepManager.h"
@@ -538,6 +539,10 @@ public:
     // Next to the keyboard shortcut: both are quick ways to change presets
     if (mainWindow.graphHolder != nullptr)
       settingsmenu.addSubMenu("MIDI Control", buildMidiControlMenu(mainWindow));
+    settingsmenu.addSeparator();
+    settingsmenu.addItem("Curve Help", [] {
+      HelpBookManager::showHelp();
+    });
     settingsmenu.addItem("About...", [safeWindow] {
       if (auto* w = safeWindow.getComponent())
         w->showAboutBox();
