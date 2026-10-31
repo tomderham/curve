@@ -256,6 +256,13 @@ bool PluginGraph::closeAnyOpenPluginWindows()
     return ! wasEmpty;
 }
 
+void PluginGraph::openPresetPluginWindows()
+{
+    for (auto* node : graph.getNodes())
+        if (node->properties[openWithPresetProp])
+            getOrCreateWindowFor (node, PluginWindow::Type::normal);
+}
+
 void PluginGraph::setPluginWindowsFloating (bool shouldFloat)
 {
     pluginWindowsFloating = shouldFloat;
@@ -685,6 +692,9 @@ static XmlElement* createNodeXml (AudioProcessorGraph::Node* const node) noexcep
         if (node->isBypassed())
             e->setAttribute ("bypassed", true);
 
+        if (node->properties[PluginGraph::openWithPresetProp])
+            e->setAttribute (PluginGraph::openWithPresetProp, true);
+
         for (int i = 0; i < (int) PluginWindow::Type::numTypes; ++i)
         {
             auto type = (PluginWindow::Type) i;
@@ -902,7 +912,12 @@ void PluginGraph::asyncNodeRestoreFinished (std::unique_ptr<AudioPluginInstance>
     }
 
     if (pendingAsyncRestores == 0)
+    {
         showRestoreFailures();
+
+        // Their nodes didn't exist yet when MainHostWindow::loadPreset() opened the others
+        openPresetPluginWindows();
+    }
 }
 
 bool PluginGraph::finishNodeFromXml (std::unique_ptr<AudioPluginInstance> instance,
@@ -939,6 +954,9 @@ bool PluginGraph::finishNodeFromXml (std::unique_ptr<AudioPluginInstance> instan
         node->properties.set ("x", jlimit (0.0, 1.0, posX));
         node->properties.set ("y", jlimit (0.0, 1.0, posY));
         node->properties.set ("useARA", xml.getBoolAttribute ("useARA"));
+
+        if (xml.getBoolAttribute (openWithPresetProp))
+            node->properties.set (openWithPresetProp, true);
 
         if (const auto customName = xml.getStringAttribute ("customNodeName"); customName.isNotEmpty())
             node->properties.set ("customNodeName", customName);

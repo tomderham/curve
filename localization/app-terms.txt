@@ -6,6 +6,7 @@
 'Scan for new or updated VST3 plug-ins'
 Force macOS System Audio to loopback
 Prevent macOS from automatically sleeping
+Always Open Plug-in GUI with Preset
 Release audio interface when idle
 Parametric EQ (import from AutoEQ...)
 Parametric EQ (import from file...)
@@ -29,7 +30,6 @@ Save Plug-in State
 Check for Updates...
 Delete This Node
 Rename This Node
-Show Plug-in GUI
 Save As Preset...
 Mid/Side Decoder
 Mid/Side Encoder

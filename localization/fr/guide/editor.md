@@ -25,7 +25,9 @@ Cliquez sur le bouton d’alimentation du nœud. Cliquez de nouveau pour le réa
 
 ## Ouvrir la fenêtre d’un plug-in
 
-Double-cliquez sur le nœud, ou cliquez dessus avec le bouton droit et sélectionnez Show Plug-in GUI.
+Double-cliquez sur le nœud.
+
+Pour que la fenêtre s’ouvre à chaque chargement du preset, même si l’éditeur est fermé, cliquez avec le bouton droit sur le nœud, sélectionnez Always Open Plug-in GUI with Preset, puis utilisez Save As Preset... La fenêtre s’ouvre à l’emplacement qu’elle occupait lors de l’enregistrement.
 
 ## Menu du nœud
 
@@ -39,7 +41,7 @@ Cliquez avec le bouton droit sur un nœud pour accéder aux options suivantes :
 | Rename This Node | Modifie le nom affiché sur le nœud. |
 | MIDI Learn | Démarre [MIDI Learn](midi-control.md). |
 | Clear MIDI Mappings | Supprime les assignations MIDI du nœud. Affiché uniquement s’il en a. |
-| Show Plug-in GUI | Ouvre la fenêtre du plug-in. |
+| Always Open Plug-in GUI with Preset | Ouvre la fenêtre du plug-in à chaque chargement du preset. |
 | Import EQ from AutoEQ... | Affiché sur les nœuds Parametric EQ. Voir [EQ de casque et AutoEQ](eq-and-autoeq.md). |
 | Import EQ from file... | Affiché sur les nœuds Parametric EQ. Voir [EQ de casque et AutoEQ](eq-and-autoeq.md). |
 | Configure Audio I/O | Modifie le nombre de broches d’entrée et de sortie d’un plug-in. |

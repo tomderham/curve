@@ -97,6 +97,11 @@ public:
     static bool isConfiguredByAudioSettings (AudioProcessor&);
     bool closeAnyOpenPluginWindows();
 
+    // Opens the windows of nodes set to open with the preset. Called once the preset's audio is
+    // running, because plugin editors can be slow to open. Doesn't take focus from the current app.
+    void openPresetPluginWindows();
+    static inline const Identifier openWithPresetProp { "openWithPreset" };
+
     // While MIDI learning, plugin windows float above the editor, so clicking the
     // graph (e.g. a bypass button) doesn't hide the controls still to be touched.
     void setPluginWindowsFloating (bool shouldFloat);

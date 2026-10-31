@@ -25,7 +25,9 @@
 
 ## प्लग-इन की विंडो खोलें
 
-नोड पर डबल-क्लिक करें, या उस पर राइट-क्लिक करके Show Plug-in GUI चुनें।
+नोड पर डबल-क्लिक करें।
+
+एडिटर बंद होने पर भी हर बार प्रीसेट लोड होने पर विंडो खोलने के लिए, नोड पर राइट-क्लिक करें, Always Open Plug-in GUI with Preset चुनें, फिर Save As Preset... का उपयोग करें। विंडो उसी स्थान पर खुलती है जहाँ वह सेव करते समय थी।
 
 ## नोड मेनू
 
@@ -39,7 +41,7 @@
 | Rename This Node | नोड पर दिखने वाला नाम बदलता है। |
 | MIDI Learn | [MIDI Learn](midi-control.md) शुरू करता है। |
 | Clear MIDI Mappings | नोड की MIDI मैपिंग हटाता है। केवल तभी दिखता है जब कोई मैपिंग हो। |
-| Show Plug-in GUI | प्लग-इन की विंडो खोलता है। |
+| Always Open Plug-in GUI with Preset | हर बार प्रीसेट लोड होने पर प्लग-इन की विंडो खोलता है। |
 | Import EQ from AutoEQ... | Parametric EQ नोड पर दिखता है। [हेडफ़ोन EQ और AutoEQ](eq-and-autoeq.md) देखें। |
 | Import EQ from file... | Parametric EQ नोड पर दिखता है। [हेडफ़ोन EQ और AutoEQ](eq-and-autoeq.md) देखें। |
 | Configure Audio I/O | किसी प्लग-इन के इनपुट और आउटपुट पिन की संख्या बदलता है। |

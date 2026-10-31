@@ -25,7 +25,9 @@ Klicke auf die Ein/Aus-Taste am Node. Klicke erneut darauf, um den Node wieder z
 
 ## Das Fenster eines Plug-ins öffnen
 
-Doppelklicke auf den Node oder klicke mit der rechten Maustaste darauf und wähle Show Plug-in GUI.
+Doppelklicke auf den Node.
+
+Damit sich das Fenster bei jedem Laden des Presets öffnet, auch wenn der Editor geschlossen ist, klicke mit der rechten Maustaste auf den Node, wähle Always Open Plug-in GUI with Preset und verwende dann Save As Preset... Das Fenster öffnet sich an der Position, die es beim Speichern hatte.
 
 ## Node-Menü
 
@@ -39,7 +41,7 @@ Klicke mit der rechten Maustaste auf einen Node, um diese Optionen zu sehen:
 | Rename This Node | Ändert den auf dem Node angezeigten Namen. |
 | MIDI Learn | Startet [MIDI Learn](midi-control.md). |
 | Clear MIDI Mappings | Entfernt die MIDI-Zuweisungen des Nodes. Wird nur angezeigt, wenn es welche gibt. |
-| Show Plug-in GUI | Öffnet das Fenster des Plug-ins. |
+| Always Open Plug-in GUI with Preset | Öffnet das Fenster des Plug-ins bei jedem Laden des Presets. |
 | Import EQ from AutoEQ... | Wird bei Nodes vom Typ Parametric EQ angezeigt. Siehe [Kopfhörer-EQ und AutoEQ](eq-and-autoeq.md). |
 | Import EQ from file... | Wird bei Nodes vom Typ Parametric EQ angezeigt. Siehe [Kopfhörer-EQ und AutoEQ](eq-and-autoeq.md). |
 | Configure Audio I/O | Ändert die Anzahl der Eingangs- und Ausgangs-Pins eines Plug-ins. |

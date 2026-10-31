@@ -938,6 +938,8 @@ void MainHostWindow::loadPreset(juce::File file)
         // Smoothly fade in new preset audio
         if (hasActiveDevice)
             graphHolder->endPresetTransition();
+
+        graphHolder->graph->openPresetPluginWindows();
     }
 
     if (auto* rm = getResilienceManager())

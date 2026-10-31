@@ -25,7 +25,9 @@ Clique no botão liga/desliga do nó. Clique novamente para reativá-lo. Você t
 
 ## Abrir a janela de um plug-in
 
-Clique duas vezes no nó, ou clique nele com o botão direito e selecione Show Plug-in GUI.
+Clique duas vezes no nó.
+
+Para que a janela abra sempre que o preset for carregado, mesmo com o editor fechado, clique com o botão direito no nó, selecione Always Open Plug-in GUI with Preset e use Save As Preset... A janela abre na posição em que estava ao salvar.
 
 ## Menu do nó
 
@@ -39,7 +41,7 @@ Clique com o botão direito em um nó para ver estas opções:
 | Rename This Node | Altera o nome mostrado no nó. |
 | MIDI Learn | Inicia o [MIDI Learn](midi-control.md). |
 | Clear MIDI Mappings | Remove os mapeamentos MIDI do nó. Só aparece se ele tiver algum. |
-| Show Plug-in GUI | Abre a janela do plug-in. |
+| Always Open Plug-in GUI with Preset | Abre a janela do plug-in sempre que o preset é carregado. |
 | Import EQ from AutoEQ... | Aparece nos nós Parametric EQ. Consulte [EQ para fones de ouvido e AutoEQ](eq-and-autoeq.md). |
 | Import EQ from file... | Aparece nos nós Parametric EQ. Consulte [EQ para fones de ouvido e AutoEQ](eq-and-autoeq.md). |
 | Configure Audio I/O | Altera o número de pinos de entrada e saída de um plug-in. |

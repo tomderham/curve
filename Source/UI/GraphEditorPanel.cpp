@@ -565,6 +565,14 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         return false;
     }
 
+    bool isOpenedWithPreset() const
+    {
+        if (auto node = graph.graph.getNodeForId (pluginID))
+            return node->properties[PluginGraph::openWithPresetProp];
+
+        return false;
+    }
+
     void showPopupMenu (Point<int> localPos)
     {
         menu.reset (new PopupMenu);
@@ -589,7 +597,14 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         if (auto* proc = getProcessor())
         {
             if (proc->hasEditor())
-                menu->addItem ("Show Plug-in GUI", [this] { showWindow (PluginWindow::Type::normal); });
+                menu->addItem ("Always Open Plug-in GUI with Preset", true, isOpenedWithPreset(), [this]
+                {
+                    if (auto* node = graph.graph.getNodeForId (pluginID))
+                    {
+                        node->properties.set (PluginGraph::openWithPresetProp, ! isOpenedWithPreset());
+                        graph.changed();
+                    }
+                });
 
             if (AUNBandEQConverter::isAUNBandEQ (proc))
             {

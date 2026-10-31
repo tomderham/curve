@@ -25,7 +25,9 @@ Click the power button on the node. Click it again to re-enable the node. You ca
 
 ## Open a plug-in's window
 
-Double-click the node, or right-click it and select Show Plug-in GUI.
+Double-click the node.
+
+To open the window every time the preset loads, even with the editor closed, right-click the node, select Always Open Plug-in GUI with Preset, then use Save As Preset... The window opens where it was when you saved.
 
 ## Node menu
 
@@ -39,7 +41,7 @@ Right-click a node for these options:
 | Rename This Node | Changes the name shown on the node. |
 | MIDI Learn | Starts [MIDI Learn](midi-control.md). |
 | Clear MIDI Mappings | Removes the node's MIDI mappings. Shown only if it has some. |
-| Show Plug-in GUI | Opens the plug-in's window. |
+| Always Open Plug-in GUI with Preset | Opens the plug-in's window whenever the preset loads. |
 | Import EQ from AutoEQ... | Shown on Parametric EQ nodes. See [Headphone EQ and AutoEQ](eq-and-autoeq.md). |
 | Import EQ from file... | Shown on Parametric EQ nodes. See [Headphone EQ and AutoEQ](eq-and-autoeq.md). |
 | Configure Audio I/O | Changes the number of input and output pins on a plug-in. |

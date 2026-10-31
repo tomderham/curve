@@ -25,7 +25,9 @@ Haz clic en el botón de encendido del nodo. Vuelve a hacer clic para reactivarl
 
 ## Abrir la ventana de un plug-in
 
-Haz doble clic en el nodo, o haz clic con el botón derecho y selecciona Show Plug-in GUI.
+Haz doble clic en el nodo.
+
+Para que la ventana se abra cada vez que se cargue el preset, aunque el editor esté cerrado, haz clic con el botón derecho en el nodo, selecciona Always Open Plug-in GUI with Preset y usa Save As Preset... La ventana se abre en la posición que tenía al guardar.
 
 ## Menú del nodo
 
@@ -39,7 +41,7 @@ Haz clic con el botón derecho en un nodo para ver estas opciones:
 | Rename This Node | Cambia el nombre que se muestra en el nodo. |
 | MIDI Learn | Inicia [MIDI Learn](midi-control.md). |
 | Clear MIDI Mappings | Elimina las asignaciones MIDI del nodo. Solo se muestra si tiene alguna. |
-| Show Plug-in GUI | Abre la ventana del plug-in. |
+| Always Open Plug-in GUI with Preset | Abre la ventana del plug-in cada vez que se carga el preset. |
 | Import EQ from AutoEQ... | Se muestra en los nodos Parametric EQ. Consulta [EQ para auriculares y AutoEQ](eq-and-autoeq.md). |
 | Import EQ from file... | Se muestra en los nodos Parametric EQ. Consulta [EQ para auriculares y AutoEQ](eq-and-autoeq.md). |
 | Configure Audio I/O | Cambia el número de pines de entrada y salida de un plug-in. |

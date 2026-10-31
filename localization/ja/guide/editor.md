@@ -25,7 +25,9 @@
 
 ## プラグインのウインドウを開く
 
-ノードをダブルクリックするか、右クリックしてShow Plug-in GUIを選択します。
+ノードをダブルクリックします。
+
+エディタが閉じていてもプリセットの読み込み時に毎回ウインドウを開くには、ノードを右クリックしてAlways Open Plug-in GUI with Presetを選択し、Save As Preset...を使用します。ウインドウは保存時の位置に開きます。
 
 ## ノードメニュー
 
@@ -39,7 +41,7 @@
 | Rename This Node | ノードに表示される名前を変更します。 |
 | MIDI Learn | [MIDI Learn](midi-control.md)を開始します。 |
 | Clear MIDI Mappings | ノードのMIDIマッピングを削除します。マッピングがある場合にのみ表示されます。 |
-| Show Plug-in GUI | プラグインのウインドウを開きます。 |
+| Always Open Plug-in GUI with Preset | プリセットを読み込むたびにプラグインのウインドウを開きます。 |
 | Import EQ from AutoEQ... | Parametric EQノードに表示されます。[ヘッドフォンEQとAutoEQ](eq-and-autoeq.md)を参照してください。 |
 | Import EQ from file... | Parametric EQノードに表示されます。[ヘッドフォンEQとAutoEQ](eq-and-autoeq.md)を参照してください。 |
 | Configure Audio I/O | プラグインの入力ピンと出力ピンの数を変更します。 |

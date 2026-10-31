@@ -25,7 +25,9 @@
 
 ## 打开插件窗口
 
-连按节点，或右键点按节点并选择 Show Plug-in GUI。
+连按节点。
+
+要在每次载入预设时打开窗口（即使编辑器已关闭），请右键点按节点，选择 Always Open Plug-in GUI with Preset，然后使用 Save As Preset...。窗口会在存储时的位置打开。
 
 ## 节点菜单
 
@@ -39,7 +41,7 @@
 | Rename This Node | 更改节点上显示的名称。 |
 | MIDI Learn | 启动 [MIDI Learn](midi-control.md)。 |
 | Clear MIDI Mappings | 移除节点的 MIDI 映射。仅在节点有映射时显示。 |
-| Show Plug-in GUI | 打开插件的窗口。 |
+| Always Open Plug-in GUI with Preset | 每次载入预设时打开插件的窗口。 |
 | Import EQ from AutoEQ... | 显示在 Parametric EQ 节点上。请参阅[耳机 EQ 和 AutoEQ](eq-and-autoeq.md)。 |
 | Import EQ from file... | 显示在 Parametric EQ 节点上。请参阅[耳机 EQ 和 AutoEQ](eq-and-autoeq.md)。 |
 | Configure Audio I/O | 更改插件的输入和输出引脚数量。 |

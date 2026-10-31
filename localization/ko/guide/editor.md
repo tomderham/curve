@@ -25,7 +25,9 @@
 
 ## 플러그인 창 열기
 
-노드를 이중 클릭하거나, 오른쪽 클릭하고 Show Plug-in GUI를 선택합니다.
+노드를 이중 클릭합니다.
+
+편집기가 닫혀 있어도 프리셋을 불러올 때마다 창을 열려면 노드를 오른쪽 클릭하고 Always Open Plug-in GUI with Preset을 선택한 다음 Save As Preset...를 사용합니다. 창은 저장할 때의 위치에 열립니다.
 
 ## 노드 메뉴
 
@@ -39,7 +41,7 @@
 | Rename This Node | 노드에 표시되는 이름을 변경합니다. |
 | MIDI Learn | [MIDI Learn](midi-control.md)을 시작합니다. |
 | Clear MIDI Mappings | 노드의 MIDI 매핑을 제거합니다. 매핑이 있을 때만 표시됩니다. |
-| Show Plug-in GUI | 플러그인 창을 엽니다. |
+| Always Open Plug-in GUI with Preset | 프리셋을 불러올 때마다 플러그인 창을 엽니다. |
 | Import EQ from AutoEQ... | Parametric EQ 노드에 표시됩니다. [헤드폰 EQ 및 AutoEQ](eq-and-autoeq.md)를 참조하십시오. |
 | Import EQ from file... | Parametric EQ 노드에 표시됩니다. [헤드폰 EQ 및 AutoEQ](eq-and-autoeq.md)를 참조하십시오. |
 | Configure Audio I/O | 플러그인의 입력 및 출력 핀 수를 변경합니다. |
