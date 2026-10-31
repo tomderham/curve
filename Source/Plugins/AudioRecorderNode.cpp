@@ -74,7 +74,11 @@ public:
         if (recorderNode.isRecording())
         {
             g.setColour (juce::Colours::red);
-            g.fillEllipse ((float) getWidth() * 0.5f - 85.0f, 22.0f, 10.0f, 10.0f);
+
+            const auto textWidth = juce::GlyphArrangement::getStringWidth (statusLabel.getFont(), statusLabel.getText());
+            const auto dotX = juce::jmax (4.0f, ((float) getWidth() - textWidth) * 0.5f - 18.0f);
+
+            g.fillEllipse (dotX, 22.0f, 10.0f, 10.0f);
         }
     }
 
