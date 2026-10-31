@@ -278,8 +278,9 @@ private:
         // grabbed again. While the user drags, keep it inside the usable area of
         // the display the mouse is on, which still lets windows move between
         // displays, including ones arranged above or below. AppKit also calls this
-        // when a window is first shown, while the mouse may be on another display,
-        // so otherwise use the display the window itself is on.
+        // at other times, such as when a window is first shown or changes level,
+        // while the mouse may be down on another display, so otherwise use the
+        // display the window itself is on.
         void checkBounds (Rectangle<int>& bounds,
                           const Rectangle<int>& previousBounds,
                           const Rectangle<int>& limits,
@@ -298,7 +299,7 @@ private:
                 return;
 
             const auto& displays = Desktop::getInstance().getDisplays();
-            const auto* display = ModifierKeys::currentModifiers.isAnyMouseButtonDown()
+            const auto* display = window.isMouseButtonDown (true)
                                       ? displays.getDisplayForPoint (Desktop::getInstance().getMainMouseSource().getScreenPosition())
                                       : displays.getDisplayForRect (bounds);
 
