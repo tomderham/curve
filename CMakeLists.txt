@@ -5,6 +5,7 @@ project(Curve VERSION 1.2.2)
 project(Curve VERSION 1.2.3)
 project(Curve VERSION 1.3.0)
 project(Curve VERSION 1.3.1)
+project(Curve VERSION 1.3.2)
 
 set(CMAKE_OSX_DEPLOYMENT_TARGET "14.2" CACHE STRING "Minimum macOS version" FORCE)
 set(CMAKE_OSX_SYSROOT "macosx" CACHE STRING "Use the latest installed macOS SDK")
