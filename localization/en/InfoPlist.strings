@@ -1,0 +1,5 @@
+/* Must match the English text in CMakeLists.txt */
+NSMicrophoneUsageDescription = "Curve requires access to your audio interface to operate. If you don't select an external audio interface, the microphone might be selected.";
+NSAudioCaptureUsageDescription = "Curve needs audio access to capture and process system audio.";
+NSBluetoothAlwaysUsageDescription = "Curve requires access to Bluetooth to connect to Bluetooth MIDI devices.";
+NSBluetoothPeripheralUsageDescription = "Curve requires access to Bluetooth to connect to Bluetooth MIDI devices.";

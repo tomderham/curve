@@ -1,0 +1,4 @@
+NSMicrophoneUsageDescription = "Curve가 작동하려면 오디오 인터페이스에 접근해야 합니다. 외부 오디오 인터페이스를 선택하지 않으면 마이크가 선택될 수 있습니다.";
+NSAudioCaptureUsageDescription = "Curve가 시스템 오디오를 캡처하고 처리하려면 오디오 접근 권한이 필요합니다.";
+NSBluetoothAlwaysUsageDescription = "Curve가 Bluetooth MIDI 기기에 연결하려면 Bluetooth 접근 권한이 필요합니다.";
+NSBluetoothPeripheralUsageDescription = "Curve가 Bluetooth MIDI 기기에 연결하려면 Bluetooth 접근 권한이 필요합니다.";

@@ -1,0 +1,4 @@
+NSMicrophoneUsageDescription = "Curve 需要访问你的音频接口才能运行。如果你没有选择外部音频接口，则可能会选择麦克风。";
+NSAudioCaptureUsageDescription = "Curve 需要音频访问权限才能捕获和处理系统音频。";
+NSBluetoothAlwaysUsageDescription = "Curve 需要访问蓝牙才能连接蓝牙 MIDI 设备。";
+NSBluetoothPeripheralUsageDescription = "Curve 需要访问蓝牙才能连接蓝牙 MIDI 设备。";

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Builds Curve's Apple Help book and plain-text guide from docs/guide/*.md.
+"""Builds Curve's Apple Help book and plain-text guide from docs/guide/*.md, plus the
+translations in localization/<language>/ (see localization/README.md).
 
 Uses only the Python standard library, plus Xcode's hiutil for the search indexes.
 The converter supports just the Markdown the guide uses: headings, paragraphs, bold,
@@ -17,10 +18,27 @@ import subprocess
 from pathlib import Path
 
 HELP_BUNDLE_ID = "com.thomasderham.curve.help"
+# Matches the Settings menu item, which stays in English for now
 BOOK_TITLE = "Curve Help"
 
+# The sidebar's first link, for each language. The key is the name of the language's .lproj folder.
+WELCOME = {
+    "en": "Welcome",
+    "de": "Willkommen",
+    "es": "Bienvenida",
+    "fr": "Bienvenue",
+    "hi": "स्वागत है",
+    "ja": "ようこそ",
+    "ko": "시작하기",
+    "pt": "Boas-vindas",
+    "zh-Hans": "欢迎",
+}
+
+# Languages where a single character can be a search term
+SINGLE_CHARACTER_TERMS = {"ja", "ko", "zh-Hans"}
+
 PAGE_TEMPLATE = """<!doctype html>
-<html lang="en">
+<html lang="{language}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -110,7 +128,7 @@ def inline(text):
 
 
 def slug(text):
-    return re.sub(r"[^a-z0-9]+", "-", re.sub(r"[*`]", "", text).lower()).strip("-")
+    return re.sub(r"[\W_]+", "-", re.sub(r"[*`]", "", text).lower()).strip("-")
 
 
 def parse_list(lines, start, indent):
@@ -188,9 +206,9 @@ def convert(markdown):
     return "\n".join(output)
 
 
-def toc_html(guide_dir):
+def toc_html(guide_dir, language):
     """The index page's headings and links are the sidebar's sections and pages."""
-    output = ['<ul><li><a href="index.html">Welcome</a></li></ul>']
+    output = [f'<ul><li><a href="index.html">{html.escape(WELCOME[language])}</a></li></ul>']
 
     for line in (guide_dir / "README.md").read_text(encoding="utf-8").splitlines():
         if line.startswith("## "):
@@ -208,12 +226,41 @@ def page_title(markdown, fallback):
     return match.group(1) if match else fallback
 
 
-def build_book(guide_dir, resources_dir, version):
+def build_book_pages(guide_dir, book, language):
+    pages_dir = book / "Contents" / "Resources" / f"{language}.lproj"
+    pages_dir.mkdir(parents=True)
+
+    (pages_dir / "style.css").write_text(STYLESHEET, encoding="utf-8")
+    (pages_dir / "toc.js").write_text(TOC_SCRIPT.format(toc=json.dumps(toc_html(guide_dir, language))), encoding="utf-8")
+
+    for source in sorted(guide_dir.glob("*.md")):
+        markdown = source.read_text(encoding="utf-8")
+        title = page_title(markdown, source.stem)
+        is_index = source.name == "README.md"
+        target = pages_dir / ("index.html" if is_index else source.with_suffix(".html").name)
+
+        target.write_text(PAGE_TEMPLATE.format(
+            language=language,
+            # Help Viewer uses this tag to find the book's title page
+            apple_title=f'<meta name="AppleTitle" content="{BOOK_TITLE}">\n' if is_index else "",
+            title=html.escape(title),
+            body=convert(markdown)), encoding="utf-8")
+
+    images = guide_dir / "images"
+
+    if images.is_dir():
+        shutil.copytree(images, pages_dir / "images")
+
+    # Spotlight-format index (required since macOS 10.14), plus the older format for search in Help Viewer
+    index_options = ["-Ca", "-l", language] + (["-m", "1"] if language in SINGLE_CHARACTER_TERMS else [])
+    subprocess.run(["hiutil", "-I", "corespotlight", *index_options, "-f", str(pages_dir / "Curve.cshelpindex"), str(pages_dir)], check=True)
+    subprocess.run(["hiutil", "-I", "lsm", *index_options, "-f", str(pages_dir / "Curve.helpindex"), str(pages_dir)], check=True)
+
+
+def build_book(guide_dir, translations, resources_dir, version):
     book = resources_dir / "Curve.help"
     shutil.rmtree(book, ignore_errors=True)
-
-    pages_dir = book / "Contents" / "Resources" / "en.lproj"
-    pages_dir.mkdir(parents=True)
+    (book / "Contents").mkdir(parents=True)
 
     with open(book / "Contents" / "Info.plist", "wb") as info:
         plistlib.dump({
@@ -226,34 +273,26 @@ def build_book(guide_dir, resources_dir, version):
             "CFBundleSignature": "hbwr",
             "CFBundleVersion": version,
             "HPDBookAccessPath": "index.html",
+            "HPDBookCSIndexPath": "Curve.cshelpindex",
             "HPDBookIndexPath": "Curve.helpindex",
             "HPDBookTitle": BOOK_TITLE,
             "HPDBookType": "3",
         }, info)
 
-    (pages_dir / "style.css").write_text(STYLESHEET, encoding="utf-8")
-    (pages_dir / "toc.js").write_text(TOC_SCRIPT.format(toc=json.dumps(toc_html(guide_dir))), encoding="utf-8")
+    build_book_pages(guide_dir, book, "en")
 
-    for source in sorted(guide_dir.glob("*.md")):
-        markdown = source.read_text(encoding="utf-8")
-        title = page_title(markdown, source.stem)
-        is_index = source.name == "README.md"
-        target = pages_dir / ("index.html" if is_index else source.with_suffix(".html").name)
+    for language, folder in translations.items():
+        build_book_pages(folder / "guide", book, language)
 
-        target.write_text(PAGE_TEMPLATE.format(
-            # Help Viewer uses this tag to find the book's title page
-            apple_title=f'<meta name="AppleTitle" content="{BOOK_TITLE}">\n' if is_index else "",
-            title=html.escape(title),
-            body=convert(markdown)), encoding="utf-8")
 
-    images = guide_dir / "images"
-
-    if images.is_dir():
-        shutil.copytree(images, pages_dir / "images")
-
-    # Spotlight-format index (required since macOS 10.14), plus the older format for search in Help Viewer
-    subprocess.run(["hiutil", "-I", "corespotlight", "-Caf", str(pages_dir / "Curve.cshelpindex"), str(pages_dir)], check=True)
-    subprocess.run(["hiutil", "-I", "lsm", "-Caf", str(pages_dir / "Curve.helpindex"), str(pages_dir)], check=True)
+def copy_app_strings(localization_dir, translations, resources_dir):
+    """Translated Info.plist strings, such as the permission prompts. The app needs an en.lproj
+    too: without one, someone who prefers English but also lists German would get German."""
+    for language, folder in {"en": localization_dir / "en", **translations}.items():
+        target = resources_dir / f"{language}.lproj"
+        shutil.rmtree(target, ignore_errors=True)
+        target.mkdir()
+        shutil.copy(folder / "InfoPlist.strings", target)
 
 
 def copy_plain_text_guide(guide_dir, resources_dir):
@@ -265,11 +304,16 @@ def copy_plain_text_guide(guide_dir, resources_dir):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--guide", type=Path, required=True, help="folder containing the guide's Markdown files")
+    parser.add_argument("--localization", type=Path, required=True, help="folder containing a subfolder for each language")
     parser.add_argument("--resources", type=Path, required=True, help="the app bundle's Resources folder")
     parser.add_argument("--version", required=True, help="Curve version")
     args = parser.parse_args()
 
-    build_book(args.guide, args.resources, args.version)
+    translations = {folder.name: folder for folder in sorted(args.localization.iterdir())
+                    if (folder / "guide").is_dir()}
+
+    build_book(args.guide, translations, args.resources, args.version)
+    copy_app_strings(args.localization, translations, args.resources)
     copy_plain_text_guide(args.guide, args.resources)
 
 

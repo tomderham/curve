@@ -32,6 +32,6 @@ macOS may not switch AirPods automatically while Curve has an audio interface op
 
 Curve then releases the interface after 5 seconds of silence, and reopens it when another app starts using it. This only happens if Curve can reliably wake again, so the interface isn't released in these cases:
 
-- Your input is a physical microphone or line input on a separate device. Virtual devices such as BlackHole are fine.
+- Your input is a physical microphone or line input on a separate device. Virtual devices such as BlackHole are fine. The same applies to an input on your output interface if the Audio Input node is connected in your preset.
 - Another app is using the device.
 - Curve is busy, for example recording.

@@ -1,0 +1,71 @@
+# Labels from the app's interface, as used in docs/guide. The app is English only for now, so
+# translated Help pages must keep each of these exactly as written here.
+# scripts/check_translations.py enforces that. Longest first, so that a label inside a longer
+# label isn't counted twice.
+'Scan for new or updated AudioUnit plug-ins'
+'Scan for new or updated VST3 plug-ins'
+Force macOS System Audio to loopback
+Prevent macOS from automatically sleeping
+Release audio interface when idle
+Parametric EQ (import from AutoEQ...)
+Parametric EQ (import from file...)
+Headphone Speaker Emulation
+Program Change Selects Preset
+Auto-Check for App Updates
+Always enforce sample rate
+Previous Preset Control
+Import EQ from AutoEQ...
+Import EQ from file...
+Clear Preset Controls
+Interface Loopback (In)
+Next Preset Control
+Global Menu Shortcut
+Clear MIDI Mappings
+Disconnect All Pins
+Configure Audio I/O
+Headphone Crossfeed
+Load Plug-in State
+Save Plug-in State
+Check for Updates...
+Delete This Node
+Rename This Node
+Show Plug-in GUI
+Save As Preset...
+Mid/Side Decoder
+Mid/Side Encoder
+Plug-in Manager
+Reset to Default
+Record Shortcut
+Audio Settings
+Audio Recorder
+Stereo Utility
+Toggle Bypass
+Curve Plugins
+Parametric EQ
+Open at Login
+Show in Dock
+Invert Phase
+Audio Output
+Audio Input
+MIDI Output
+MIDI Input
+Show Editor
+Hide Editor
+Use this EQ
+Save Preset
+Sync Index
+MIDI Learn
+MIDI Control
+Curve Help
+Audio I/O
+MIDI I/O
+Options...
+About...
+Settings
+Disable
+Clipper
+Delay
+Gain
+Pan
+Quit
+Save

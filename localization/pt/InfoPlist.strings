@@ -1,0 +1,4 @@
+NSMicrophoneUsageDescription = "O Curve precisa acessar sua interface de áudio para funcionar. Se você não selecionar uma interface de áudio externa, o microfone poderá ser selecionado.";
+NSAudioCaptureUsageDescription = "O Curve precisa de acesso ao áudio para capturar e processar o áudio do sistema.";
+NSBluetoothAlwaysUsageDescription = "O Curve precisa acessar o Bluetooth para se conectar a dispositivos MIDI Bluetooth.";
+NSBluetoothPeripheralUsageDescription = "O Curve precisa acessar o Bluetooth para se conectar a dispositivos MIDI Bluetooth.";

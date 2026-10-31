@@ -1,0 +1,4 @@
+NSMicrophoneUsageDescription = "Curveの動作にはオーディオインターフェイスへのアクセスが必要です。外部オーディオインターフェイスを選択しない場合、マイクが選択されることがあります。";
+NSAudioCaptureUsageDescription = "Curveはシステムオーディオをキャプチャして処理するためにオーディオへのアクセスを必要とします。";
+NSBluetoothAlwaysUsageDescription = "CurveはBluetooth MIDIデバイスに接続するためにBluetoothへのアクセスを必要とします。";
+NSBluetoothPeripheralUsageDescription = "CurveはBluetooth MIDIデバイスに接続するためにBluetoothへのアクセスを必要とします。";

@@ -1,0 +1,4 @@
+NSMicrophoneUsageDescription = "Curve को चलने के लिए आपके ऑडियो इंटरफ़ेस की एक्सेस चाहिए। यदि आप कोई बाहरी ऑडियो इंटरफ़ेस नहीं चुनते हैं, तो माइक्रोफ़ोन चुना जा सकता है।";
+NSAudioCaptureUsageDescription = "सिस्टम ऑडियो को कैप्चर और प्रोसेस करने के लिए Curve को ऑडियो एक्सेस चाहिए।";
+NSBluetoothAlwaysUsageDescription = "Bluetooth MIDI डिवाइस से कनेक्ट करने के लिए Curve को Bluetooth की एक्सेस चाहिए।";
+NSBluetoothPeripheralUsageDescription = "Bluetooth MIDI डिवाइस से कनेक्ट करने के लिए Curve को Bluetooth की एक्सेस चाहिए।";

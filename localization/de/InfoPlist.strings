@@ -1,0 +1,4 @@
+NSMicrophoneUsageDescription = "Curve benötigt Zugriff auf dein Audio-Interface. Wenn du kein externes Audio-Interface auswählst, wird möglicherweise das Mikrofon verwendet.";
+NSAudioCaptureUsageDescription = "Curve benötigt Audiozugriff, um Systemaudio aufzunehmen und zu bearbeiten.";
+NSBluetoothAlwaysUsageDescription = "Curve benötigt Zugriff auf Bluetooth, um eine Verbindung zu Bluetooth-MIDI-Geräten herzustellen.";
+NSBluetoothPeripheralUsageDescription = "Curve benötigt Zugriff auf Bluetooth, um eine Verbindung zu Bluetooth-MIDI-Geräten herzustellen.";
