@@ -14,6 +14,7 @@
 #include "MidiControlEngine.h"
 #include "../Plugins/PluginGraph.h"
 #include "../UI/MainHostWindow.h"
+#include "../UI/IdleReleaseController.h"
 
 static constexpr const char* globalMappingsKey = "midiPresetMappings";
 static constexpr const char* programChangeSelectsPresetKey = "midiProgramChangeSelectsPreset";
@@ -99,6 +100,7 @@ MidiControlEngine::MidiControlEngine (MidiMessageCollector& collector)
 
 MidiControlEngine::~MidiControlEngine()
 {
+    isAlive->store (false, std::memory_order_release);
     cancelPendingUpdate();
     setGraph (nullptr);
 }
@@ -223,7 +225,7 @@ void MidiControlEngine::handleIncomingMidiMessage (MidiInput*, const MidiMessage
 
     if (! consume)
     {
-        passThrough.addMessageToQueue (message);
+        forwardToGraph (message);
         return;
     }
 
@@ -233,6 +235,46 @@ void MidiControlEngine::handleIncomingMidiMessage (MidiInput*, const MidiMessage
     }
 
     triggerAsyncUpdate();
+}
+
+void MidiControlEngine::forwardToGraph (const MidiMessage& message)
+{
+    // Keep-alive traffic from a controller must neither hold the interface open nor wake it
+    if (message.isActiveSense() || message.isMidiClock())
+    {
+        passThrough.addMessageToQueue (message);
+        return;
+    }
+
+    auto* idle = getIdleReleaseController();
+
+    if (idle == nullptr || ! idle->noteMidiActivity())
+    {
+        passThrough.addMessageToQueue (message);
+        return;
+    }
+
+    {
+        const ScopedLock sl (heldLock);
+        heldWhileReleased.push_back (message);
+    }
+
+    // Runs after the wake that noteMidiActivity() queued, once the device has restarted
+    MessageManager::callAsync ([this, token = isAlive]
+    {
+        if (! token->load (std::memory_order_acquire))
+            return;
+
+        std::vector<MidiMessage> toForward;
+
+        {
+            const ScopedLock sl (heldLock);
+            toForward.swap (heldWhileReleased);
+        }
+
+        for (auto& m : toForward)
+            passThrough.addMessageToQueue (m);
+    });
 }
 
 void MidiControlEngine::handleAsyncUpdate()

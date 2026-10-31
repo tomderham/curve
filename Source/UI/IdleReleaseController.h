@@ -82,8 +82,8 @@ namespace IdleReleaseCoreAudio
     automatic switching), and re-opens it as soon as another app starts using the
     configured interface.
 
-    Release only happens when it can be woken again reliably: any active input is a loopback
-    fed by other apps (the output interface itself, or a virtual device), no other process is
+    Release only happens when it can be woken again reliably: no physical input is in use (an
+    active input is either unconnected in the preset or a virtual device), no other process is
     using those devices, and the host isn't busy (e.g. recording). See docs/airpods-idle-release.md.
 */
 class AudioResilienceManager;
@@ -96,7 +96,8 @@ public:
 
     /** holdOutput (true) makes the graph output start silent when the device next starts;
         holdOutput (false) fades it in. Used to resume without a click. */
-    IdleReleaseController (juce::AudioDeviceManager& dm, BusyPredicate isHostBusyIn, OutputHold holdOutputIn);
+    IdleReleaseController (juce::AudioDeviceManager& dm, BusyPredicate isHostBusyIn,
+                           BusyPredicate isAudioInputConnectedIn, OutputHold holdOutputIn);
     ~IdleReleaseController() override;
 
     /** Re-reads the idleReleaseEnabled setting. Resumes if now disabled. */
@@ -104,6 +105,17 @@ public:
 
     /** Re-opens the interface immediately if it is currently released. */
     void resumeIfReleased();
+
+    /** Call on the message thread when the graph's connections change. Re-opens the interface if
+        it is released and the preset now uses a physical input. */
+    void graphChanged();
+
+    /** Call from any thread when MIDI destined for the graph arrives. Restarts the silence
+        countdown, and wakes the interface if it is released (on the message thread).
+        Returns true if it was released, in which case the message would be lost when the
+        device restarts: the caller must hold it and forward it from a message-thread callback
+        posted after this call (which therefore runs after the wake). */
+    bool noteMidiActivity();
 
     static bool isEnabledInSettings();
     static void setEnabledInSettings (bool shouldBeEnabled);
@@ -114,18 +126,21 @@ private:
     /** Returns why the interface can't be released right now, or nullptr if it can.
         On success, wakeDevicesOut holds the devices whose use by another app should wake Curve. */
     const char* getReasonNotToRelease (juce::StringArray& wakeDevicesOut) const;
+    bool isPhysicalInputActive() const;
     void release (const juce::StringArray& devicesToWatch);
     void resume (const char* reason);
     void armWakeListeners();
 
     juce::AudioDeviceManager& deviceManager;
     BusyPredicate isHostBusy;
+    BusyPredicate isAudioInputConnected;
     OutputHold holdOutput;
 
     static constexpr int idleSeconds = 5;
 
     bool enabled = false;
-    bool released = false;
+    std::atomic<bool> released { false };
+    bool physicalInputWasActive = false;
     const char* lastBlockingReason = nullptr;
 
     juce::StringArray wakeDeviceNames;

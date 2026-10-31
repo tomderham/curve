@@ -94,6 +94,14 @@ private:
 
     CriticalSection pendingLock;
     std::vector<PendingMessage> pending;
+
+    /** Passes a message on to the graph. If the audio interface is released for idleness, wakes it
+        and holds the message until the device is running again, because restarting it clears the collector. */
+    void forwardToGraph (const MidiMessage&);
+
+    CriticalSection heldLock;
+    std::vector<MidiMessage> heldWhileReleased;
+    std::shared_ptr<std::atomic<bool>> isAlive = std::make_shared<std::atomic<bool>> (true);
     bool presetLoaded = false;
 
     // Learn state (message thread), plus a flag the MIDI thread reads

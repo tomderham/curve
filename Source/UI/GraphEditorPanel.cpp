@@ -46,6 +46,7 @@
 
 #include <JuceHeader.h>
 #include "GraphEditorPanel.h"
+#include "IdleReleaseController.h"
 #include "CurveColours.h"
 #include "FilteredAudioDeviceSelectorComponent.h"
 #include "../Plugins/InternalPlugins.h"
@@ -1749,6 +1750,10 @@ bool GraphDocumentComponent::closeAnyOpenPluginWindows()
 void GraphDocumentComponent::changeListenerCallback (ChangeBroadcaster* source)
 {
     updateMidiOutput();
+
+    if (source == &graph->graph)
+        if (auto* idle = getIdleReleaseController())
+            idle->graphChanged();
 
     if (source == &deviceManager)
     {

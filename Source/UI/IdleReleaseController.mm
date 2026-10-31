@@ -156,8 +156,10 @@ namespace IdleReleaseCoreAudio
 }
 
 //==============================================================================
-IdleReleaseController::IdleReleaseController (juce::AudioDeviceManager& dm, BusyPredicate isHostBusyIn, OutputHold holdOutputIn)
-    : deviceManager (dm), isHostBusy (std::move (isHostBusyIn)), holdOutput (std::move (holdOutputIn))
+IdleReleaseController::IdleReleaseController (juce::AudioDeviceManager& dm, BusyPredicate isHostBusyIn,
+                                              BusyPredicate isAudioInputConnectedIn, OutputHold holdOutputIn)
+    : deviceManager (dm), isHostBusy (std::move (isHostBusyIn)),
+      isAudioInputConnected (std::move (isAudioInputConnectedIn)), holdOutput (std::move (holdOutputIn))
 {
     IdleAudioActivity::markActiveNow();
     settingsChanged();
@@ -211,6 +213,32 @@ void IdleReleaseController::resumeIfReleased()
         resume ("requested");
 }
 
+bool IdleReleaseController::noteMidiActivity()
+{
+    IdleAudioActivity::markActiveNow();
+
+    if (! released.load (std::memory_order_acquire))
+        return false;
+
+    auto aliveToken = isAlive;
+
+    juce::MessageManager::callAsync ([this, aliveToken]
+    {
+        if (aliveToken->load (std::memory_order_acquire) && released)
+            resume ("MIDI input received");
+    });
+
+    return true;
+}
+
+void IdleReleaseController::graphChanged()
+{
+    // The preset started using a live input, which can't wake Curve by itself. The reopened device
+    // then fails getReasonNotToRelease(), so this can't turn into a release/wake loop.
+    if (released && physicalInputWasActive && isAudioInputConnected != nullptr && isAudioInputConnected())
+        resume ("the Audio Input node was connected");
+}
+
 const char* IdleReleaseController::getReasonNotToRelease (juce::StringArray& wakeDevicesOut) const
 {
     wakeDevicesOut.clear();
@@ -238,20 +266,27 @@ const char* IdleReleaseController::getReasonNotToRelease (juce::StringArray& wak
     // Loopback tap, and a hardware loopback on the interface such as RME TotalMix)
     wakeDevicesOut.add (setup.outputDeviceName);
 
-    if (! device->getActiveInputChannels().isZero()
-        && setup.inputDeviceName.isNotEmpty()
-        && setup.inputDeviceName != setup.outputDeviceName)
+    if (! device->getActiveInputChannels().isZero() && setup.inputDeviceName.isNotEmpty())
     {
-        // A separate input can only wake Curve if other apps feed it, i.e. a virtual device such as
-        // BlackHole. A separate microphone or line input couldn't, so never release for those.
-        // (Inputs on the output interface itself are allowed: a live microphone routed by the preset
-        // reaches the output, so the silence countdown keeps the interface open.)
+        // An input can only wake Curve if other apps feed it, i.e. a virtual device such as BlackHole.
+        // A microphone or line input couldn't, because nothing can hear it once the device is closed.
         const auto inputID = IdleReleaseCoreAudio::findDeviceID (setup.inputDeviceName);
+        const auto isVirtual = inputID != 0 && IdleReleaseCoreAudio::isVirtualDevice (inputID);
 
-        if (inputID == 0 || ! IdleReleaseCoreAudio::isVirtualDevice (inputID))
-            return "audio input is a separate physical device, which couldn't wake Curve";
+        if (setup.inputDeviceName != setup.outputDeviceName)
+        {
+            if (! isVirtual)
+                return "audio input is a separate physical device, which couldn't wake Curve";
 
-        wakeDevicesOut.add (setup.inputDeviceName);
+            wakeDevicesOut.add (setup.inputDeviceName);
+        }
+        else if (! isVirtual && isAudioInputConnected != nullptr && isAudioInputConnected())
+        {
+            // Other apps can wake the output interface, but a live input routed by the preset can't.
+            // Silence doesn't prove it's unused, as it may just be a pause in playing. This includes
+            // hardware loopback such as RME TotalMix, which Curve can't tell from a live input.
+            return "the Audio Input node is connected to a physical input, which couldn't wake Curve";
+        }
     }
 
     for (auto& name : wakeDevicesOut)
@@ -269,6 +304,23 @@ const char* IdleReleaseController::getReasonNotToRelease (juce::StringArray& wak
     }
 
     return nullptr;
+}
+
+bool IdleReleaseController::isPhysicalInputActive() const
+{
+    auto* device = deviceManager.getCurrentAudioDevice();
+
+    if (device == nullptr || device->getActiveInputChannels().isZero())
+        return false;
+
+    juce::AudioDeviceManager::AudioDeviceSetup setup;
+    deviceManager.getAudioDeviceSetup (setup);
+
+    if (setup.inputDeviceName.isEmpty())
+        return false;
+
+    const auto inputID = IdleReleaseCoreAudio::findDeviceID (setup.inputDeviceName);
+    return inputID == 0 || ! IdleReleaseCoreAudio::isVirtualDevice (inputID);
 }
 
 void IdleReleaseController::timerCallback()
@@ -329,6 +381,7 @@ void IdleReleaseController::release (const juce::StringArray& devicesToWatch)
         return;
 
     wakeDeviceNames = devicesToWatch;
+    physicalInputWasActive = isPhysicalInputActive();
     rm->enterIdleRelease();
     released = true;
     armWakeListeners();

@@ -476,6 +476,21 @@ public:
               if (recorder->isRecording())
                 return true;
       return false;
+    }, [] {
+      // Whether the preset routes the Audio Input node to anything
+      using IONode = juce::AudioProcessorGraph::AudioGraphIOProcessor;
+      if (auto *app = dynamic_cast<PluginHostApp *>(
+              juce::JUCEApplication::getInstance()))
+        if (app->mainWindow != nullptr && app->mainWindow->graphHolder != nullptr &&
+            app->mainWindow->graphHolder->graph != nullptr) {
+          auto &graph = app->mainWindow->graphHolder->graph->graph;
+          for (auto &connection : graph.getConnections())
+            if (auto *node = graph.getNodeForId(connection.source.nodeID))
+              if (auto *io = dynamic_cast<IONode *>(node->getProcessor()))
+                if (io->getType() == IONode::audioInputNode)
+                  return true;
+        }
+      return false;
     }, [](bool shouldHold) {
       if (auto *app = dynamic_cast<PluginHostApp *>(
               juce::JUCEApplication::getInstance()))
