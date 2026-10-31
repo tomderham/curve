@@ -2,7 +2,7 @@
 
 O editor mostra seu preset como um grafo de nós. O áudio flui das saídas de cada nó, na parte inferior do nó, para as entradas do nó seguinte, na parte superior. Para abri-lo, selecione Show Editor no menu do Curve. Para fechá-lo, clique no botão de fechar ou selecione Hide Editor. O áudio continua funcionando em ambos os casos.
 
-A barra de status na parte inferior do editor mostra dicas e descreve o que estiver sob o ponteiro.
+A barra de status na parte inferior do editor mostra dicas e descreve o que estiver sob o ponteiro. Para um plug-in, ela também mostra o fabricante e o formato, por exemplo AudioUnit ou VST3.
 
 ## Adicionar um nó
 

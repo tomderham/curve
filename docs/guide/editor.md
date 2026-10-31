@@ -2,7 +2,7 @@
 
 The editor shows your preset as a graph of nodes. Audio flows from each node's outputs, at the bottom of the node, to the inputs of the next node, at the top of the node. To open it, select Show Editor from Curve's menu. To close it, click its close button or select Hide Editor. Audio keeps running either way.
 
-The status bar at the bottom of the editor gives hints, and describes whatever is under the pointer.
+The status bar at the bottom of the editor gives hints, and describes whatever is under the pointer. For a plug-in, that includes its manufacturer and format, such as AudioUnit or VST3.
 
 ## Add a node
 

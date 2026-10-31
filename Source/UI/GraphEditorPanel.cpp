@@ -506,10 +506,7 @@ struct GraphEditorPanel::PluginComponent final : public Component,
 
         setSize (w, h);
 
-        String finalName = displayName;
-        if (formatSuffix != " (Internal)" && ! finalName.contains (formatSuffix))
-            finalName += formatSuffix;
-        setName (finalName);
+        setName (displayName);
 
         auto tooltip = getTooltipForProcessor (processor);
 
@@ -827,7 +824,6 @@ struct GraphEditorPanel::PluginComponent final : public Component,
     std::unique_ptr<PopupMenu> menu;
     std::unique_ptr<FileChooser> fileChooser;
     AudioProcessorParameter* observedBypassParam = nullptr;
-    const String formatSuffix = getFormatSuffix (getProcessor());
     static constexpr int bypassSlot = 20;
     static constexpr int bypassMargin = 2;
     std::unique_ptr<NodeBypassButton> bypassButton;

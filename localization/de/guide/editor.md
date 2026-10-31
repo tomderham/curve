@@ -2,7 +2,7 @@
 
 Der Editor zeigt dein Preset als Graph aus Nodes. Der Ton fließt von den Ausgängen eines Nodes, unten am Node, zu den Eingängen des nächsten Nodes, oben am Node. Um ihn zu öffnen, wähle Show Editor in Curves Menü. Um ihn zu schließen, klicke auf die Schließen-Taste oder wähle Hide Editor. Die Audioverarbeitung läuft in beiden Fällen weiter.
 
-Die Statusleiste unten im Editor gibt Hinweise und beschreibt, was sich gerade unter dem Mauszeiger befindet.
+Die Statusleiste unten im Editor gibt Hinweise und beschreibt, was sich gerade unter dem Mauszeiger befindet. Bei einem Plug-in zeigt sie auch Hersteller und Format, zum Beispiel AudioUnit oder VST3.
 
 ## Einen Node hinzufügen
 

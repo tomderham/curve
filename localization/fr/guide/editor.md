@@ -2,7 +2,7 @@
 
 L’éditeur affiche votre preset sous forme de graphe de nœuds. L’audio circule des sorties de chaque nœud, en bas du nœud, vers les entrées du nœud suivant, en haut du nœud. Pour l’ouvrir, sélectionnez Show Editor dans le menu de Curve. Pour le fermer, cliquez sur son bouton de fermeture ou sélectionnez Hide Editor. L’audio continue de fonctionner dans les deux cas.
 
-La barre d’état en bas de l’éditeur donne des conseils et décrit ce qui se trouve sous le pointeur.
+La barre d’état en bas de l’éditeur donne des conseils et décrit ce qui se trouve sous le pointeur. Pour un plug-in, elle indique aussi le fabricant et le format, par exemple AudioUnit ou VST3.
 
 ## Ajouter un nœud
 
