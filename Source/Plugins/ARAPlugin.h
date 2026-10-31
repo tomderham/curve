@@ -1353,6 +1353,19 @@ public:
         return inner->checkBusesLayoutSupported (layout);
     }
 
+    bool applyBusLayouts (const BusesLayout& layouts) override
+    {
+        {
+            // The inner plugin renders into our buffers, so its layout must always match ours
+            std::lock_guard<std::mutex> lock (innerMutex);
+
+            if (! inner->setBusesLayout (layouts))
+                return false;
+        }
+
+        return AudioPluginInstance::applyBusLayouts (layouts);
+    }
+
     bool canAddBus (bool) const override
     {
         std::lock_guard<std::mutex> lock (innerMutex);
