@@ -49,6 +49,7 @@
 #include "IdleReleaseController.h"
 #include "CurveColours.h"
 #include "FilteredAudioDeviceSelectorComponent.h"
+#include "GitHubUpdater.h"
 #include "../Plugins/InternalPlugins.h"
 #include "../Plugins/MeterNode.h"
 #include "MainHostWindow.h"
@@ -1568,6 +1569,10 @@ public:
         updateButton.onClick = [this] { if (updateCallback) updateCallback(); };
         addAndMakeVisible (updateButton);
 
+        whatsNewButton.setButtonText (TRANS ("What's New"));
+        whatsNewButton.onClick = [] { URL (GitHubUpdater::releasesUrl).launchInDefaultBrowser(); };
+        addAndMakeVisible (whatsNewButton);
+
         dismissButton.setButtonText (String::charToString (0x00D7)); // ×
         dismissButton.onClick = [this] { if (dismissCallback) dismissCallback(); };
         addAndMakeVisible (dismissButton);
@@ -1587,6 +1592,8 @@ public:
         r.removeFromRight (8);
         updateButton.setBounds (r.removeFromRight (95));
         r.removeFromRight (8);
+        whatsNewButton.setBounds (r.removeFromRight (90));
+        r.removeFromRight (8);
         label.setBounds (r);
     }
 
@@ -1596,6 +1603,7 @@ private:
     std::function<void()> dismissCallback;
     Label label;
     TextButton updateButton;
+    TextButton whatsNewButton;
     TextButton dismissButton;
 };
 

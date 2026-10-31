@@ -34,6 +34,9 @@ public:
         activeDownload.reset();
     }
 
+    // Every release's notes, so someone a few versions behind can see all that's new
+    static constexpr const char* releasesUrl = "https://github.com/tomderham/curve/releases";
+
     std::shared_ptr<std::atomic<GitHubUpdater*>> getLifetimeToken() const { return threadState; }
 
     std::function<void(const juce::String& version, const juce::String& downloadUrl)> onUpdateAvailable;
@@ -329,13 +332,20 @@ private:
     void handleUpdateFound (juce::DynamicObject* releaseData)
     {
         juce::WeakReference<GitHubUpdater> weakSelf (this);
-        juce::NativeMessageBox::showOkCancelBox (
-            juce::MessageBoxIconType::InfoIcon,
-            "Update Available",
-            "A new version (" + releaseData->getProperty ("tag_name").toString() + ") of Curve is available. Would you like to download it?",
-            nullptr,
+        juce::NativeMessageBox::showAsync (
+            juce::MessageBoxOptions()
+                .withIconType (juce::MessageBoxIconType::InfoIcon)
+                .withTitle ("Update Available")
+                .withMessage ("A new version (" + releaseData->getProperty ("tag_name").toString() + ") of Curve is available. Would you like to download it?")
+                .withButton ("Download")
+                .withButton ("What's New")
+                .withButton ("Later"),
             juce::ModalCallbackFunction::create ([weakSelf, releaseDataVar = juce::var(releaseData)] (int result) {
-                if (result == 1) // OK
+                if (result == 1) // What's New
+                {
+                    juce::URL (releasesUrl).launchInDefaultBrowser();
+                }
+                else if (result == 0) // Download
                 {
                     if (auto* self = weakSelf.get())
                     {
