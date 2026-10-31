@@ -606,7 +606,12 @@ void MainHostWindow::addPluginsToMenu (PopupMenu& m)
 
         pluginsMenu.addSeparator();
 
-        // Group 4: Routing and stereo utilities
+        // Group 4: Metering
+        addInternalByName ("Meter");
+
+        pluginsMenu.addSeparator();
+
+        // Group 5: Routing and stereo utilities
         addInternalByName ("Pan");
         addInternalByName ("Stereo Utility");
         addInternalByName ("Mid/Side Encoder");
@@ -615,7 +620,7 @@ void MainHostWindow::addPluginsToMenu (PopupMenu& m)
 
         pluginsMenu.addSeparator();
 
-        // Group 5: Recording
+        // Group 6: Recording
         addInternalByName ("Audio Recorder");
 
         // Catch-all: add any future internal plugins not explicitly categorized

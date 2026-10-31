@@ -55,6 +55,7 @@
 #include "GainNode.h"
 #include "InternalPlugins.h"
 #include "InvertPhaseNode.h"
+#include "MeterNode.h"
 #include "MidSideNode.h"
 #include "OutputInterfaceLoopbackNode.h"
 #include "PanNode.h"
@@ -226,6 +227,18 @@ static const std::vector<PluginDescription>& getStaticInternalDescriptions()
         dlay.numOutputChannels = 2;
         result.push_back (dlay);
 
+        PluginDescription metr;
+        metr.name = "Meter";
+        metr.descriptiveName = "Meter";
+        metr.pluginFormatName = "Internal";
+        metr.category = "Plugins";
+        metr.fileOrIdentifier = "Meter";
+        metr.uniqueId = 0x4D455452; // "METR"
+        metr.isInstrument = false;
+        metr.numInputChannels = 2;
+        metr.numOutputChannels = 0;
+        result.push_back (metr);
+
         return result;
     }();
 
@@ -290,7 +303,8 @@ InternalPluginFormat::InternalPluginFormat()
         [] { return std::make_unique<StereoUtilityNode>(); },
         [] { return std::make_unique<MidSideNode> (MidSideNode::Mode::encode); },
         [] { return std::make_unique<MidSideNode> (MidSideNode::Mode::decode); },
-        [] { return std::make_unique<DelayNode>(); }
+        [] { return std::make_unique<DelayNode>(); },
+        [] { return std::make_unique<MeterNode>(); }
     }
 {
 }

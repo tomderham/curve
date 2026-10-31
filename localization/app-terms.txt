@@ -63,7 +63,11 @@ Options...
 About...
 Settings
 Disable
+Loudness
+Spectrum
+Levels
 Clipper
+Meter
 Delay
 Gain
 Pan

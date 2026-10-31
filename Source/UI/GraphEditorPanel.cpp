@@ -50,6 +50,7 @@
 #include "CurveColours.h"
 #include "FilteredAudioDeviceSelectorComponent.h"
 #include "../Plugins/InternalPlugins.h"
+#include "../Plugins/MeterNode.h"
 #include "MainHostWindow.h"
 #include "../Plugins/OutputInterfaceLoopbackNode.h"
 #include "../Calibration/AUNBandEQConverter.h"
@@ -188,6 +189,9 @@ static String getTooltipForProcessor (const AudioProcessor& processor)
     if (name == "Clipper")
         return "Clipper: Hard clips each channel at a ceiling (-50 to 0 dBFS) as a safety guard; 0 latency.";
 
+    if (name == "Meter")
+        return "Meter: Shows levels, VU, loudness or a spectrum of its input. Connect it from any pin; it measures only while its window is open.";
+
     if (name == "Pan")
         return "Pan: Places a mono input in the stereo output with a selectable pan law; balance control for stereo input.";
 
@@ -288,8 +292,9 @@ struct GraphEditorPanel::PluginComponent final : public Component,
 
                 setTooltip (getTooltipForProcessor (*processor));
 
-                // No bypass for the graph's I/O nodes
-                if (dynamic_cast<AudioProcessorGraph::AudioGraphIOProcessor*> (processor) == nullptr)
+                // No bypass for the graph's I/O nodes, or for meters, which don't change the audio
+                if (dynamic_cast<AudioProcessorGraph::AudioGraphIOProcessor*> (processor) == nullptr
+                    && dynamic_cast<MeterNode*> (processor) == nullptr)
                 {
                     bypassButton = std::make_unique<NodeBypassButton> ([this] { return isNodeBypassed(); },
                                                                        [this] { return isMidiLearning(); });

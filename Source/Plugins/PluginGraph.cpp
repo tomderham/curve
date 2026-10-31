@@ -36,6 +36,7 @@
 #include "../UI/MainHostWindow.h"
 #include "PluginGraph.h"
 #include "InternalPlugins.h"
+#include "MeterNode.h"
 #include "OutputInterfaceLoopbackNode.h"
 #include "../UI/GraphEditorPanel.h"
 #include "../AudioConstants.h"
@@ -140,7 +141,9 @@ void PluginGraph::addPluginCallback (std::unique_ptr<AudioPluginInstance> instan
         }
        #endif
 
-        instance->enableAllBuses();
+        // A meter starts as a branch: its output stays off until I/O configuration enables it
+        if (dynamic_cast<MeterNode*> (instance.get()) == nullptr)
+            instance->enableAllBuses();
 
         if (auto node = graph.addNode (std::move (instance)))
         {

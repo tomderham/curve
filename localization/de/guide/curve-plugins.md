@@ -15,6 +15,7 @@ Curve enthält die folgenden Plug-ins. Um ein Plug-in zu einem Preset hinzuzufü
 
 - **Gain:** Lautstärkeanpassung von -60 dB bis +60 dB, mit Stummschalter. Mehrkanalig.
 - **Clipper:** begrenzt jeden Kanal hart an einem Ceiling zwischen -50 und 0 dBFS, als Schutz vor EQ-Anhebungen, mit Clipping-Anzeige. Einen zusätzlichen Schutz bietet er nur, wenn das Ceiling unter 0 dBFS liegt. Keine Latenz. Mehrkanalig.
+- **Meter:** zeigt für alles, was Sie damit verbinden, eine von vier Ansichten. Levels zeigt RMS, gemittelt über etwa 300 ms (ein Sinus liegt 3 dB unter seinem Spitzenwert), True Peak in dBTP und die Stereokorrelation, wobei +1 Mono und -1 gegenphasig bedeutet. VU zeigt Zeigerinstrumente mit 300 ms Anstiegszeit, und Sie können wählen, welcher Pegel 0 VU anzeigt: -20, -18, -14 oder -10 dBFS. Loudness zeigt Momentary, Short-term und Integrated LUFS (ITU-R BS.1770 / EBU R128) mit dem Verlauf der letzten Minute. Spectrum zeigt die kombinierte Leistung beider Kanäle, und L/R legt sie getrennt übereinander. Clip leuchtet, wenn ein Sample 0 dBFS überschreitet, und bleibt bis zum Anklicken an. Es misst nur, solange sein Fenster geöffnet ist, und die integrierte Lautheit beginnt bei jedem Öffnen des Fensters neu. Standardmäßig hat es keine Ausgänge, verbinden Sie es also als Abzweig von einem beliebigen Pin. Um es in die Kette einzufügen, ergänzen Sie mit Configure Audio I/O Ausgänge; der Ton läuft dann unverändert durch. Keine Latenz. Mono oder Stereo.
 - **Invert Phase:** kehrt die Polarität jedes Kanals um. Mehrkanalig.
 
 ## Routing und Stereo

@@ -15,6 +15,7 @@ O Curve inclui estes plug-ins. Para adicionar um plug-in a um preset, clique com
 
 - **Gain:** ajuste de volume de -60 dB a +60 dB, com botão de mudo. Multicanal.
 - **Clipper:** corta cada canal em um teto de -50 a 0 dBFS, como proteção contra reforços de EQ, com indicador de clipping. Só adiciona proteção quando o teto está abaixo de 0 dBFS. Sem latência. Multicanal.
+- **Meter:** mostra uma de quatro visualizações do que você conectar a ele. Levels mostra RMS, com média de cerca de 300 ms (uma senoide lê 3 dB abaixo do pico), true peak em dBTP e correlação estéreo, em que +1 é mono e -1 está fora de fase. VU mostra medidores de agulha com subida de 300 ms, e você pode escolher o nível que lê 0 VU: -20, -18, -14 ou -10 dBFS. Loudness mostra LUFS momentâneo, de curto prazo e integrado (ITU-R BS.1770 / EBU R128), com o histórico do último minuto. Spectrum mostra a potência combinada dos dois canais, e L/R os sobrepõe separadamente. Clip acende quando uma amostra ultrapassa 0 dBFS e fica aceso até ser clicado. Só mede enquanto sua janela está aberta, e a loudness integrada recomeça sempre que a janela é aberta. Por padrão, não tem saídas, então conecte-o como derivação a partir de qualquer pino. Para colocá-lo em linha, adicione saídas com Configure Audio I/O, e o áudio passará sem alterações. Sem latência. Mono ou estéreo.
 - **Invert Phase:** inverte a polaridade de cada canal. Multicanal.
 
 ## Roteamento e estéreo

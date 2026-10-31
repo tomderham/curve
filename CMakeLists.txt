@@ -50,6 +50,7 @@ target_sources(Curve PRIVATE
     Source/Plugins/IOConfigurationWindow.cpp
     Source/Plugins/InternalPlugins.cpp
     Source/Plugins/InvertPhaseNode.cpp
+    Source/Plugins/MeterNode.cpp
     Source/Plugins/MidSideNode.cpp
     Source/Plugins/PanNode.cpp
     Source/Plugins/PluginGraph.cpp
