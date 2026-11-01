@@ -173,6 +173,23 @@ Point<double> PluginGraph::getNodePosition (NodeID nodeID) const
     return {};
 }
 
+void PluginGraph::setNodePositionFree (NodeID nodeID, bool isFree)
+{
+    if (auto* n = graph.getNodeForId (nodeID))
+    {
+        if (isFree)
+            n->properties.set (freePositionProp, true);
+        else
+            n->properties.remove (freePositionProp);
+    }
+}
+
+bool PluginGraph::isNodePositionFree (NodeID nodeID) const
+{
+    auto* n = graph.getNodeForId (nodeID);
+    return n != nullptr && n->properties[freePositionProp];
+}
+
 //==============================================================================
 // The graph deletes removed nodes up to 500ms later (with its old render sequence),
 // so deactivate loopback nodes now, or the tap health check rebuilds the tap for
@@ -698,6 +715,9 @@ static XmlElement* createNodeXml (AudioProcessorGraph::Node* const node) noexcep
         if (node->properties[PluginGraph::openWithPresetProp])
             e->setAttribute (PluginGraph::openWithPresetProp, true);
 
+        if (node->properties[PluginGraph::freePositionProp])
+            e->setAttribute (PluginGraph::freePositionProp, true);
+
         for (int i = 0; i < (int) PluginWindow::Type::numTypes; ++i)
         {
             auto type = (PluginWindow::Type) i;
@@ -960,6 +980,9 @@ bool PluginGraph::finishNodeFromXml (std::unique_ptr<AudioPluginInstance> instan
 
         if (xml.getBoolAttribute (openWithPresetProp))
             node->properties.set (openWithPresetProp, true);
+
+        if (xml.getBoolAttribute (freePositionProp))
+            node->properties.set (freePositionProp, true);
 
         if (const auto customName = xml.getStringAttribute ("customNodeName"); customName.isNotEmpty())
             node->properties.set ("customNodeName", customName);

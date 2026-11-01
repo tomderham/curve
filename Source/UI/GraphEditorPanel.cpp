@@ -50,6 +50,7 @@
 #include "CurveColours.h"
 #include "FilteredAudioDeviceSelectorComponent.h"
 #include "GitHubUpdater.h"
+#include "GraphLayout.h"
 #include "../Plugins/InternalPlugins.h"
 #include "../Plugins/MeterNode.h"
 #include "MainHostWindow.h"
@@ -57,6 +58,20 @@
 #include "../Calibration/AUNBandEQConverter.h"
 #include "../Calibration/AutoEQDataManager.h"
 
+
+//==============================================================================
+// Nodes and pins all sit on this grid, so that aligned nodes get straight wires
+static constexpr int graphGridSize = 20;
+
+// Pins start this far from a node's left edge, so a straight wire means aligned
+// nodes. The minimum width centres a stereo pair of pins.
+static constexpr int graphPinInset = 60;
+static constexpr int graphMinNodeWidth = graphPinInset * 2 + graphGridSize;
+
+static int snapToGraphGrid (double value)
+{
+    return roundToInt (value / graphGridSize) * graphGridSize;
+}
 
 //==============================================================================
 struct GraphEditorPanel::PinComponent final : public Component,
@@ -95,17 +110,14 @@ struct GraphEditorPanel::PinComponent final : public Component,
 
     void paint (Graphics& g) override
     {
-        auto w = (float) getWidth();
-        auto h = (float) getHeight();
+        const auto dot = getLocalBounds().toFloat().withSizeKeepingCentre (9.0f, 9.0f);
+        const auto colour = pin.isMIDI() ? Curve::Colours::midiWire : Curve::Colours::audioWire;
 
-        Path p;
-        p.addEllipse (w * 0.25f, h * 0.25f, w * 0.5f, h * 0.5f);
-        p.addRectangle (w * 0.4f, isInput ? (0.5f * h) : 0.0f, w * 0.2f, h * 0.5f);
-
-        auto colour = (pin.isMIDI() ? Colours::red : Colours::green);
+        g.setColour (findColour (TextEditor::backgroundColourId));
+        g.fillEllipse (dot.expanded (1.5f));
 
         g.setColour (colour.withRotatedHue ((float) busIdx / 5.0f));
-        g.fillPath (p);
+        g.fillEllipse (dot);
     }
 
     void mouseDown (const MouseEvent& e) override
@@ -293,6 +305,8 @@ struct GraphEditorPanel::PluginComponent final : public Component,
 
                 setTooltip (getTooltipForProcessor (*processor));
 
+                kindColour = getKindColour (*processor);
+
                 // No bypass for the graph's I/O nodes, or for meters, which don't change the audio
                 if (dynamic_cast<AudioProcessorGraph::AudioGraphIOProcessor*> (processor) == nullptr
                     && dynamic_cast<MeterNode*> (processor) == nullptr)
@@ -346,6 +360,8 @@ struct GraphEditorPanel::PluginComponent final : public Component,
 
         if (! e.mods.isPopupMenu())
         {
+            panel.setDraggingNode (true);
+
             auto pos = originalPos + e.getOffsetFromDragStart();
 
             if (getParentComponent() != nullptr)
@@ -357,7 +373,15 @@ struct GraphEditorPanel::PluginComponent final : public Component,
                                    { pos.x / (double) getParentWidth(),
                                      pos.y / (double) getParentHeight() });
 
-            panel.updateComponents();
+            // Option places the node freely, off the grid
+            graph.setNodePositionFree (pluginID, e.mods.isAltDown());
+
+            // Nothing else changes until the node reaches another grid cell
+            if (const auto bounds = getBoundsForPosition (getWidth(), getHeight()); bounds != getBounds())
+            {
+                setBounds (bounds);
+                panel.updateConnectorsForNode (pluginID);
+            }
         }
     }
 
@@ -368,6 +392,8 @@ struct GraphEditorPanel::PluginComponent final : public Component,
             stopTimer();
             callAfterDelay (250, []() { PopupMenu::dismissAllActiveMenus(); });
         }
+
+        panel.setDraggingNode (false);
 
         if (e.mouseWasDraggedSinceMouseDown())
         {
@@ -401,23 +427,36 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         auto boxArea = getLocalBounds().reduced (4, pinSize);
         const bool isBypassed = isNodeBypassed();
 
+        // Stays opaque when bypassed, since wires pass behind the node
         auto boxColour = findColour (TextEditor::backgroundColourId);
 
         if (isBypassed)
-            boxColour = boxColour.brighter();
+            boxColour = boxColour.interpolatedWith (findColour (ResizableWindow::backgroundColourId), 0.6f);
+
+        const auto box = boxArea.toFloat();
 
         g.setColour (boxColour);
-        g.fillRect (boxArea.toFloat());
+        g.fillRoundedRectangle (box, cornerSize);
+
+        {
+            Path outline;
+            outline.addRoundedRectangle (box, cornerSize);
+
+            Graphics::ScopedSaveState clip (g);
+            g.reduceClipRegion (outline);
+            g.setColour (kindColour.withMultipliedAlpha (isBypassed ? 0.4f : 1.0f));
+            g.fillRect (box.withWidth (3.0f));
+        }
 
         if (isMidiLearnTarget())
         {
             g.setColour (Curve::Colours::accent);
-            g.drawRect (boxArea.toFloat(), 2.0f);
+            g.drawRoundedRectangle (box, cornerSize, 2.0f);
         }
         else
         {
-            g.setColour (findColour (TextEditor::outlineColourId).withAlpha (0.6f));
-            g.drawRect (boxArea.toFloat(), 1.0f);
+            g.setColour (findColour (TextEditor::outlineColourId).withAlpha (isBypassed ? 0.3f : 0.6f));
+            g.drawRoundedRectangle (box, cornerSize, 1.0f);
         }
 
         // Reserve the bypass slot on both sides to keep the name centred
@@ -451,21 +490,56 @@ struct GraphEditorPanel::PluginComponent final : public Component,
                 {
                     const bool isInput = pin->isInput;
                     auto channelIndex = pin->pin.channelIndex;
-                    int busIdx = 0;
-                    processor->getOffsetInBusBufferForAbsoluteChannelIndex (isInput, channelIndex, busIdx);
 
-                    const int total = isInput ? numIns : numOuts;
-                    const int index = pin->pin.isMIDI() ? (total - 1) : channelIndex;
-
-                    auto totalSpaces = static_cast<float> (total) + (static_cast<float> (jmax (0, processor->getBusCount (isInput) - 1)) * 0.5f);
-                    auto indexPos = static_cast<float> (index) + (static_cast<float> (busIdx) * 0.5f);
-
-                    pin->setBounds (proportionOfWidth ((1.0f + indexPos) / (totalSpaces + 1.0f)) - pinSize / 2,
-                                    pin->isInput ? 0 : (getHeight() - pinSize),
+                    // Pins straddle the box's edge
+                    pin->setBounds (graphPinInset + getPinSlot (*processor, isInput, channelIndex) * graphGridSize - pinSize / 2,
+                                    pin->isInput ? pinSize / 2 : (getHeight() - pinSize - pinSize / 2),
                                     pinSize, pinSize);
                 }
             }
         }
+    }
+
+    // Disabled buses take no space, and an empty slot sets enabled buses apart
+    static int getNumBusGaps (const AudioProcessor& processor, bool isInput, int lastBus)
+    {
+        int numEnabled = 0;
+
+        for (int i = 0; i <= lastBus; ++i)
+            if (processor.getChannelCountOfBus (isInput, i) > 0)
+                ++numEnabled;
+
+        return jmax (0, numEnabled - 1);
+    }
+
+    static int getPinSlot (const AudioProcessor& processor, bool isInput, int channelIndex)
+    {
+        int busIdx = 0;
+
+        if (channelIndex == AudioProcessorGraph::midiChannelIndex)
+            return (isInput ? processor.getTotalNumInputChannels() : processor.getTotalNumOutputChannels())
+                 + getNumBusGaps (processor, isInput, processor.getBusCount (isInput) - 1);
+
+        processor.getOffsetInBusBufferForAbsoluteChannelIndex (isInput, channelIndex, busIdx);
+        return channelIndex + getNumBusGaps (processor, isInput, busIdx);
+    }
+
+    static int getNumPinSlots (const AudioProcessor& processor, bool isInput)
+    {
+        const bool hasMidi = isInput ? processor.acceptsMidi() : processor.producesMidi();
+        return getPinSlot (processor, isInput, AudioProcessorGraph::midiChannelIndex) + (hasMidi ? 1 : 0);
+    }
+
+    Rectangle<int> getBoundsForPosition (int w, int h) const
+    {
+        const auto p = graph.getNodePosition (pluginID);
+        const auto left = p.x * getParentWidth() - w * 0.5;
+        const auto top = p.y * getParentHeight() - h * 0.5;
+
+        if (graph.isNodePositionFree (pluginID))
+            return { roundToInt (left), roundToInt (top), w, h };
+
+        return { snapToGraphGrid (left), snapToGraphGrid (top), w, h };
     }
 
     Point<float> getPinPos (int index, bool isInput) const
@@ -492,10 +566,11 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         if (processor.producesMidi())
             ++numOuts;
 
-        int w = 100;
         int h = 60;
 
-        w = jmax (w, (jmax (numIns, numOuts) + 1) * 20);
+        const auto numSlots = jmax (getNumPinSlots (processor, true), getNumPinSlots (processor, false));
+
+        int w = jmax (graphMinNodeWidth, graphPinInset * 2 + (numSlots - 1) * graphGridSize);
 
         String displayName = processor.getName();
         if (auto* node = graph.graph.getNodeForId (pluginID))
@@ -510,7 +585,9 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         if (textWidth > 300)
             h = 100;
 
-        setSize (w, h);
+        w = graphGridSize * (int) std::ceil (w / (double) graphGridSize);
+
+        setBounds (getBoundsForPosition (w, h));
 
         setName (displayName);
 
@@ -523,11 +600,6 @@ struct GraphEditorPanel::PluginComponent final : public Component,
 
         // Bypass and mappings can change without any change in size
         repaint();
-
-        {
-            auto p = graph.getNodePosition (pluginID);
-            setCentreRelative ((float) p.x, (float) p.y);
-        }
 
         if (numIns != numInputs || numOuts != numOutputs)
         {
@@ -686,6 +758,19 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         return target.has_value() && target->isNodeTarget() && target->nodeID == pluginID;
     }
 
+    static Colour getKindColour (AudioProcessor& processor)
+    {
+        if (dynamic_cast<AudioProcessorGraph::AudioGraphIOProcessor*> (&processor) != nullptr
+            || PluginGraph::isConfiguredByAudioSettings (processor))
+            return Curve::Colours::nodeInterface;
+
+        if (auto* instance = dynamic_cast<AudioPluginInstance*> (&processor))
+            if (instance->getPluginDescription().pluginFormatName != "Internal")
+                return Curve::Colours::nodeExternal;
+
+        return Curve::Colours::nodeInternal;
+    }
+
     // A small DIN socket: a ring with five pins along its upper half
     static void drawMidiBadge (Graphics& g, Rectangle<float> area)
     {
@@ -825,14 +910,16 @@ struct GraphEditorPanel::PluginComponent final : public Component,
     int numInputs = 0, numOutputs = 0;
     int pinSize = 16;
     Point<int> originalPos, originalTouchPos;
-    Font font = FontOptions { 13.0f, Font::bold };
+    Font font = FontOptions { 13.0f };
     int numIns = 0, numOuts = 0;
     std::unique_ptr<PopupMenu> menu;
     std::unique_ptr<FileChooser> fileChooser;
     AudioProcessorParameter* observedBypassParam = nullptr;
     static constexpr int bypassSlot = 20;
-    static constexpr int bypassMargin = 2;
+    static constexpr int bypassMargin = 6;
+    static constexpr float cornerSize = 6.0f;
     std::unique_ptr<NodeBypassButton> bypassButton;
+    Colour kindColour = Curve::Colours::nodeInternal;
 };
 
 
@@ -843,7 +930,6 @@ struct GraphEditorPanel::ConnectorComponent final : public Component,
     explicit ConnectorComponent (GraphEditorPanel& p)
         : panel (p), graph (p.graph)
     {
-        setAlwaysOnTop (true);
     }
 
     void setInput (AudioProcessorGraph::NodeAndChannel newSource)
@@ -890,7 +976,14 @@ struct GraphEditorPanel::ConnectorComponent final : public Component,
         Point<float> p1, p2;
         getPoints (p1, p2);
 
-        auto newBounds = Rectangle<float> (p1, p2).expanded (4.0f).getSmallestIntegerContainer();
+        lastInputPos = p1;
+        lastOutputPos = p2;
+
+        // The curve stays within its control points; the margin covers the arrow
+        const auto route = getRoute();
+        const Point<float> points[] { route.start, route.end, route.spineStart, route.spineEnd, route.control1, route.control2 };
+        auto newBounds = Rectangle<float>::findAreaContainingPoints (points, (int) std::size (points))
+                             .expanded (8.0f).getSmallestIntegerContainer();
 
         if (newBounds != getBounds())
             setBounds (newBounds);
@@ -912,13 +1005,103 @@ struct GraphEditorPanel::ConnectorComponent final : public Component,
             p2 = dest->getPinPos (connection.destination.channelIndex, true);
     }
 
+    // Wires leave and enter their pins vertically, however the nodes are placed. Going
+    // down, the reach stays within the gap, so that close nodes get a flat S, not a loop.
+    static std::pair<Point<float>, Point<float>> getControlPoints (Point<float> p1, Point<float> p2)
+    {
+        const auto drop = p2.y - p1.y;
+        const auto reach = drop > 0.0f ? jmax (6.0f, drop * 0.5f)
+                                       : jmax (20.0f, -drop * 0.5f);
+
+        return { p1.translated (0.0f, reach), p2.translated (0.0f, -reach) };
+    }
+
+    // Consecutive channels between the same two nodes share one line (the spine),
+    // which forks out to each pin
+    struct Route
+    {
+        Point<float> start, spineStart, control1, control2, spineEnd, end;
+        float forkLength = 0.0f;
+        bool bundled = false;
+    };
+
+    Route getRoute() const
+    {
+        Route r;
+        getPoints (r.start, r.end);
+
+        auto* src = panel.getComponentForPlugin (connection.source.nodeID);
+        auto* dest = panel.getComponentForPlugin (connection.destination.nodeID);
+
+        r.spineStart = r.start;
+        r.spineEnd = r.end;
+
+        if (isInBundle() && src != nullptr && dest != nullptr)
+        {
+            const auto middleOfPins = [this] (PluginComponent& node, int channel, bool isInput)
+            {
+                return (node.getPinPos (channel - bundleBefore, isInput)
+                        + node.getPinPos (channel + bundleAfter, isInput)) * 0.5f;
+            };
+
+            const auto from = middleOfPins (*src, connection.source.channelIndex, false);
+            const auto to = middleOfPins (*dest, connection.destination.channelIndex, true);
+            const auto drop = to.y - from.y;
+
+            // Close, aligned nodes look best with their wires left parallel
+            if (drop >= 48.0f || (drop >= 24.0f && std::abs (to.x - from.x) >= 1.0f))
+            {
+                r.bundled = true;
+                r.forkLength = jmin (16.0f, drop / 3.0f);
+                r.spineStart = from.translated (0.0f, r.forkLength);
+                r.spineEnd = to.translated (0.0f, -r.forkLength);
+            }
+        }
+
+        std::tie (r.control1, r.control2) = getControlPoints (r.spineStart, r.spineEnd);
+        return r;
+    }
+
+    bool isInBundle() const { return bundleBefore + bundleAfter > 0; }
+
+    void setBundle (int channelsBefore, int channelsAfter)
+    {
+        if (bundleBefore != channelsBefore || bundleAfter != channelsAfter)
+        {
+            bundleBefore = channelsBefore;
+            bundleAfter = channelsAfter;
+            resizeToFit();
+        }
+    }
+
+    bool sharesBundleWith (const ConnectorComponent& other) const
+    {
+        const auto offset = connection.source.channelIndex - other.connection.source.channelIndex;
+
+        return connection.source.nodeID == other.connection.source.nodeID
+            && connection.destination.nodeID == other.connection.destination.nodeID
+            && connection.destination.channelIndex - other.connection.destination.channelIndex == offset
+            && offset >= -other.bundleBefore && offset <= other.bundleAfter;
+    }
+
+    void setStyle (Colour newColour)
+    {
+        if (colour != newColour)
+        {
+            colour = newColour;
+            repaint();
+        }
+    }
+
+    Colour getBaseColour() const
+    {
+        return connection.source.isMIDI() || connection.destination.isMIDI() ? Curve::Colours::midiWire
+                                                                             : Curve::Colours::audioWire;
+    }
+
     void paint (Graphics& g) override
     {
-        if (connection.source.isMIDI() || connection.destination.isMIDI())
-            g.setColour (Colours::red);
-        else
-            g.setColour (Colours::green);
-
+        g.setColour (colour);
         g.fillPath (linePath);
     }
 
@@ -929,7 +1112,7 @@ struct GraphEditorPanel::ConnectorComponent final : public Component,
         if (hitPath.contains (pos))
         {
             double distanceFromStart, distanceFromEnd;
-            getDistancesFromEnds (pos, distanceFromStart, distanceFromEnd);
+            getDistancesFromEnds (getPosition().toFloat() + pos, distanceFromStart, distanceFromEnd);
 
             // avoid clicking the connector when over a pin
             return distanceFromStart > 7.0 && distanceFromEnd > 7.0;
@@ -985,32 +1168,63 @@ struct GraphEditorPanel::ConnectorComponent final : public Component,
         p1 -= getPosition().toFloat();
         p2 -= getPosition().toFloat();
 
-        linePath.clear();
-        linePath.startNewSubPath (p1);
-        linePath.cubicTo (p1.x, p1.y + (p2.y - p1.y) * 0.33f,
-                          p2.x, p1.y + (p2.y - p1.y) * 0.66f,
-                          p2.x, p2.y);
+        const auto origin = getPosition().toFloat();
+        const auto route = getRoute();
+        const auto s1 = route.spineStart - origin, s2 = route.spineEnd - origin;
+        const auto c1 = route.control1 - origin, c2 = route.control2 - origin;
+
+        // Only the first wire of a bundle draws the spine, so that it isn't drawn twice
+        Path spine;
+
+        if (! route.bundled || bundleBefore == 0)
+        {
+            spine.startNewSubPath (s1);
+            spine.cubicTo (c1, c2, s2);
+        }
+
+        Path forks;
+
+        if (route.bundled)
+        {
+            const auto bend = route.forkLength * 0.5f;
+
+            forks.startNewSubPath (p1);
+            forks.cubicTo (p1.translated (0.0f, bend), s1.translated (0.0f, -bend), s1);
+            forks.startNewSubPath (s2);
+            forks.cubicTo (s2.translated (0.0f, bend), p2.translated (0.0f, -bend), p2);
+        }
+
+        Path centreLine (forks);
+        centreLine.addPath (spine);
 
         PathStrokeType wideStroke (8.0f);
-        wideStroke.createStrokedPath (hitPath, linePath);
+        wideStroke.createStrokedPath (hitPath, centreLine);
 
-        PathStrokeType stroke (2.5f);
-        stroke.createStrokedPath (linePath, linePath);
+        PathStrokeType (2.0f, PathStrokeType::curved, PathStrokeType::rounded).createStrokedPath (linePath, forks);
 
-        auto arrowW = 5.0f;
-        auto arrowL = 4.0f;
+        Path strokedSpine;
+        // Thicker with each channel, so a bundle can't be taken for a mono wire
+        const auto spineWidth = route.bundled ? jmin (6.0f, 2.0f + (float) (1 + bundleBefore + bundleAfter)) : 2.0f;
 
-        Path arrow;
-        arrow.addTriangle (-arrowL, arrowW,
-                           -arrowL, -arrowW,
-                           arrowL, 0.0f);
+        PathStrokeType (spineWidth, PathStrokeType::curved, PathStrokeType::rounded)
+            .createStrokedPath (strokedSpine, spine);
 
-        arrow.applyTransform (AffineTransform()
-                                .rotated (MathConstants<float>::halfPi - (float) atan2 (p2.x - p1.x, p2.y - p1.y))
-                                .translated ((p1 + p2) * 0.5f));
-
-        linePath.addPath (arrow);
+        linePath.addPath (strokedSpine);
         linePath.setUsingNonZeroWinding (true);
+
+        // Flow is top to bottom, so only a wire clearly going against it needs an arrow
+        if (p2.y < p1.y - 40.0f)
+        {
+            const auto middle = (p1 + (c1 + c2) * 3.0f + p2) / 8.0f;
+            const auto direction = (p2 + c2) - (p1 + c1);
+
+            Path arrow;
+            arrow.addTriangle (-4.0f, 5.0f, -4.0f, -5.0f, 4.0f, 0.0f);
+            arrow.applyTransform (AffineTransform::rotation (std::atan2 (direction.y, direction.x))
+                                                  .translated (middle));
+
+            linePath.addPath (arrow);
+        }
     }
 
     void getDistancesFromEnds (Point<float> p, double& distanceFromStart, double& distanceFromEnd) const
@@ -1027,6 +1241,8 @@ struct GraphEditorPanel::ConnectorComponent final : public Component,
     AudioProcessorGraph::Connection connection { { {}, 0 }, { {}, 0 } };
     Point<float> lastInputPos, lastOutputPos;
     Path linePath, hitPath;
+    Colour colour = Curve::Colours::audioWire;
+    int bundleBefore = 0, bundleAfter = 0;
     bool dragging = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ConnectorComponent)
@@ -1076,10 +1292,13 @@ GraphEditorPanel::GraphEditorPanel (PluginGraph& g)  : graph (g)
 
     graph.addChangeListener (this);
     setOpaque (true);
+
+    addMouseListener (&hoverTracker, true);
 }
 
 GraphEditorPanel::~GraphEditorPanel()
 {
+    removeMouseListener (&hoverTracker);
     graph.removeChangeListener (this);
     burgerButton = nullptr;
     draggingConnector = nullptr;
@@ -1090,6 +1309,27 @@ GraphEditorPanel::~GraphEditorPanel()
 void GraphEditorPanel::paint (Graphics& g)
 {
     g.fillAll (getLookAndFeel().findColour (ResizableWindow::backgroundColourId));
+
+    if (draggingNode)
+    {
+        // A cached tile at device resolution, as this redraws throughout a drag
+        const auto scale = g.getInternalContext().getPhysicalPixelScaleFactor();
+        const auto tileSize = roundToInt ((float) graphGridSize * scale);
+
+        if (gridTile.getWidth() != tileSize)
+        {
+            gridTile = Image (Image::ARGB, tileSize, tileSize, true);
+            Graphics tile (gridTile);
+            tile.setColour (Colours::white.withAlpha (0.16f));
+            tile.fillEllipse (gridTile.getBounds().toFloat().withSizeKeepingCentre (2.0f * scale, 2.0f * scale));
+        }
+
+        // The dot is mid-tile, so move it onto the grid's intersections
+        const auto halfGrid = (float) graphGridSize * 0.5f;
+
+        g.setFillType (FillType (gridTile, AffineTransform::scale (1.0f / scale).translated (halfGrid, halfGrid)));
+        g.fillRect (getLocalBounds());
+    }
 }
 
 void GraphEditorPanel::paintOverChildren (Graphics& g)
@@ -1235,12 +1475,28 @@ void GraphEditorPanel::updateComponents()
         auto* node = graph.graph.getNodeForId (comp->pluginID);
 
         if (node == nullptr || node->getProcessor() != comp->processorAtCreation)
+        {
+            // The node may be mid-drag, and its ID may come back as a different node
+            setDraggingNode (false);
+            layoutBeforeTidy.clear();
+
+            if (comp->pluginID == hoveredNode)
+                hoveredNode = {};
+
             nodes.remove (i);
+        }
     }
 
     for (int i = connectors.size(); --i >= 0;)
+    {
         if (! graph.graph.isConnected (connectors.getUnchecked (i)->connection))
+        {
+            if (connectors.getUnchecked (i) == hoveredConnector)
+                hoveredConnector = nullptr;
+
             connectors.remove (i);
+        }
+    }
 
     for (auto* fc : nodes)
         fc->update();
@@ -1266,10 +1522,193 @@ void GraphEditorPanel::updateComponents()
             auto* comp = connectors.add (new ConnectorComponent (*this));
             addAndMakeVisible (comp);
 
+            // Behind the nodes, so that wires never cross a node's name
+            comp->toBack();
+
             comp->setInput (c.source);
             comp->setOutput (c.destination);
         }
     }
+
+    updateConnectorBundles();
+    updateConnectorStyles();
+}
+
+bool GraphEditorPanel::isSameBus (AudioProcessorGraph::NodeID nodeID, bool isInput, int channelA, int channelB) const
+{
+    auto* node = graph.graph.getNodeForId (nodeID);
+
+    if (node == nullptr || node->getProcessor() == nullptr)
+        return false;
+
+    int busA = 0, busB = 0;
+    node->getProcessor()->getOffsetInBusBufferForAbsoluteChannelIndex (isInput, channelA, busA);
+    node->getProcessor()->getOffsetInBusBufferForAbsoluteChannelIndex (isInput, channelB, busB);
+
+    return busA == busB;
+}
+
+void GraphEditorPanel::updateConnectorBundles()
+{
+    for (auto* cc : connectors)
+    {
+        const auto countConnected = [this, cc] (int step)
+        {
+            int count = 0;
+
+            if (cc->connection.source.isMIDI() || cc->connection.destination.isMIDI())
+                return count;
+
+            for (auto c = cc->connection;; ++count)
+            {
+                c.source.channelIndex += step;
+                c.destination.channelIndex += step;
+
+                // Separate buses stay separate wires, e.g. a main input and a sidechain
+                if (! graph.graph.isConnected (c)
+                    || ! isSameBus (c.source.nodeID, false, cc->connection.source.channelIndex, c.source.channelIndex)
+                    || ! isSameBus (c.destination.nodeID, true, cc->connection.destination.channelIndex, c.destination.channelIndex))
+                    return count;
+            }
+        };
+
+        cc->setBundle (countConnected (-1), countConnected (1));
+    }
+}
+
+void GraphEditorPanel::updateConnectorsForNode (AudioProcessorGraph::NodeID nodeID)
+{
+    for (auto* cc : connectors)
+        if (cc->connection.source.nodeID == nodeID || cc->connection.destination.nodeID == nodeID)
+            cc->update();
+}
+
+void GraphEditorPanel::updateConnectorStyles()
+{
+    const auto isMeter = [this] (AudioProcessorGraph::NodeID nodeID)
+    {
+        auto* node = graph.graph.getNodeForId (nodeID);
+        return node != nullptr && dynamic_cast<MeterNode*> (node->getProcessor()) != nullptr;
+    };
+
+    for (auto* cc : connectors)
+    {
+        const auto& c = cc->connection;
+        const bool touchesHoveredNode = hoveredNode != AudioProcessorGraph::NodeID()
+                                     && (c.source.nodeID == hoveredNode || c.destination.nodeID == hoveredNode);
+
+        auto colour = cc->getBaseColour();
+
+        // A meter only taps the signal, so its wires recede from the signal path
+        if (isMeter (c.destination.nodeID))
+            colour = colour.withMultipliedAlpha (0.4f);
+
+        if (touchesHoveredNode || (hoveredConnector != nullptr && cc->sharesBundleWith (*hoveredConnector)))
+            colour = Curve::Colours::accent;
+        else if (hoveredNode != AudioProcessorGraph::NodeID())
+            colour = colour.withMultipliedAlpha (0.45f);
+
+        cc->setStyle (colour);
+    }
+}
+
+void GraphEditorPanel::setHoverTarget (Component* target)
+{
+    AudioProcessorGraph::NodeID newNode;
+    ConnectorComponent* newConnector = nullptr;
+
+    if (target != nullptr)
+    {
+        if (auto* connector = dynamic_cast<ConnectorComponent*> (target))
+            newConnector = connector != draggingConnector.get() ? connector : nullptr;
+        else if (auto* node = dynamic_cast<PluginComponent*> (target))
+            newNode = node->pluginID;
+        else if (auto* parent = target->findParentComponentOfClass<PluginComponent>())
+            newNode = parent->pluginID;
+    }
+
+    if (newNode != hoveredNode || newConnector != hoveredConnector)
+    {
+        hoveredNode = newNode;
+        hoveredConnector = newConnector;
+        updateConnectorStyles();
+    }
+}
+
+void GraphEditorPanel::setDraggingNode (bool isDragging)
+{
+    if (draggingNode != isDragging)
+    {
+        draggingNode = isDragging;
+
+        // The layout has moved on from the one that undo would restore
+        if (isDragging)
+            layoutBeforeTidy.clear();
+
+        repaint();
+    }
+}
+
+void GraphEditorPanel::tidyLayout()
+{
+    // Every node in the graph needs a component, for its size
+    updateComponents();
+
+    if (getWidth() <= 0 || getHeight() <= 0 || nodes.isEmpty())
+        return;
+
+    std::vector<Curve::GraphLayout::NodeInfo> infos;
+    std::vector<AudioProcessorGraph::NodeID> ids;
+
+    for (auto* comp : nodes)
+    {
+        auto* io = dynamic_cast<AudioProcessorGraph::AudioGraphIOProcessor*> (comp->getProcessor());
+
+        infos.push_back ({ comp->getWidth(), comp->getHeight(), io != nullptr && ! io->isInput(), graphPinInset });
+        ids.push_back (comp->pluginID);
+    }
+
+    const auto indexOf = [&ids] (AudioProcessorGraph::NodeID nodeID)
+    {
+        return (int) std::distance (ids.begin(), std::find (ids.begin(), ids.end(), nodeID));
+    };
+
+    std::vector<Curve::GraphLayout::Edge> edges;
+
+    for (auto& c : graph.graph.getConnections())
+        edges.emplace_back (indexOf (c.source.nodeID), indexOf (c.destination.nodeID));
+
+    Curve::GraphLayout::Options options;
+    options.nodeGap = graphGridSize;
+    options.areaWidth = getWidth();
+    options.areaHeight = getHeight();
+
+    const auto centres = Curve::GraphLayout::arrange (infos, edges, options);
+
+    layoutBeforeTidy.clear();
+
+    for (size_t i = 0; i < ids.size(); ++i)
+    {
+        layoutBeforeTidy.push_back ({ ids[i], graph.getNodePosition (ids[i]), graph.isNodePositionFree (ids[i]) });
+        graph.setNodePosition (ids[i], { centres[i].x / getWidth(), centres[i].y / getHeight() });
+        graph.setNodePositionFree (ids[i], false);
+    }
+
+    graph.setChangedFlag (true);
+    updateComponents();
+}
+
+void GraphEditorPanel::undoTidyLayout()
+{
+    for (const auto& saved : layoutBeforeTidy)
+    {
+        graph.setNodePosition (saved.nodeID, saved.position);
+        graph.setNodePositionFree (saved.nodeID, saved.isFree);
+    }
+
+    layoutBeforeTidy.clear();
+    graph.setChangedFlag (true);
+    updateComponents();
 }
 
 void GraphEditorPanel::showPopupMenu (Point<int> localMousePos)
@@ -1279,6 +1718,12 @@ void GraphEditorPanel::showPopupMenu (Point<int> localMousePos)
     if (auto* mainWindow = findParentComponentOfClass<MainHostWindow>())
     {
         mainWindow->addPluginsToMenu (*menu);
+
+        menu->addSeparator();
+        menu->addItem ("Tidy Up Layout", ! nodes.isEmpty(), false, [this] { tidyLayout(); });
+
+        if (! layoutBeforeTidy.empty())
+            menu->addItem ("Undo Tidy Up", [this] { undoTidyLayout(); });
 
         menu->showMenuAsync (PopupMenu::Options{}.withTargetScreenArea (Rectangle<int>{}.withPosition (localPointToGlobal (localMousePos))),
                              ModalCallbackFunction::create ([this, localMousePos] (int r)
@@ -1317,7 +1762,12 @@ void GraphEditorPanel::beginConnectorDrag (AudioProcessorGraph::NodeAndChannel s
     draggingConnector->setOutput (dest);
 
     addAndMakeVisible (draggingConnector.get());
+    draggingConnector->setAlwaysOnTop (true);
+    draggingConnector->setStyle (Curve::Colours::accent);
     draggingConnector->toFront (false);
+
+    // A wire taken from the graph mustn't stay the hovered one
+    setHoverTarget (nullptr);
 
     dragConnector (e);
 }

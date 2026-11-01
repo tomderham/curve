@@ -88,6 +88,10 @@ public:
     //==============================================================================
     void updateComponents();
 
+    /** Arranges the nodes by signal flow; the previous layout can be restored. */
+    void tidyLayout();
+    void undoTidyLayout();
+
     //==============================================================================
     void showPopupMenu (Point<int> position);
 
@@ -121,6 +125,41 @@ private:
     PluginComponent* getComponentForPlugin (AudioProcessorGraph::NodeID) const;
     ConnectorComponent* getComponentForConnection (const AudioProcessorGraph::Connection&) const;
     PinComponent* findPinAt (Point<float>) const;
+
+    void updateConnectorsForNode (AudioProcessorGraph::NodeID);
+    bool isSameBus (AudioProcessorGraph::NodeID, bool isInput, int channelA, int channelB) const;
+    void updateConnectorBundles();
+    void updateConnectorStyles();
+    void setHoverTarget (Component*);
+    void setDraggingNode (bool);
+
+    //==============================================================================
+    // Set to what's under the mouse; a node's pins and buttons count as the node
+    struct HoverTracker final : public MouseListener
+    {
+        explicit HoverTracker (GraphEditorPanel& p) : panel (p) {}
+
+        void mouseEnter (const MouseEvent& e) override  { panel.setHoverTarget (e.eventComponent); }
+        void mouseExit (const MouseEvent&) override     { panel.setHoverTarget (nullptr); }
+
+        GraphEditorPanel& panel;
+    };
+
+    HoverTracker hoverTracker { *this };
+    AudioProcessorGraph::NodeID hoveredNode;
+    ConnectorComponent* hoveredConnector = nullptr;
+
+    bool draggingNode = false;
+    Image gridTile;
+
+    struct SavedNodePosition
+    {
+        AudioProcessorGraph::NodeID nodeID;
+        Point<double> position;
+        bool isFree = false;
+    };
+
+    std::vector<SavedNodePosition> layoutBeforeTidy;
 
     //==============================================================================
     Point<int> originalTouchPos;

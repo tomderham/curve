@@ -84,6 +84,10 @@ public:
     void setNodePosition (NodeID, Point<double>);
     Point<double> getNodePosition (NodeID) const;
 
+    /** A node with a free position ignores the graph editor's grid. */
+    void setNodePositionFree (NodeID, bool);
+    bool isNodePositionFree (NodeID) const;
+
     //==============================================================================
     // Remove nodes through these rather than graph.removeNode()/clear() directly,
     // so loopback nodes stop holding the shared tap open as soon as they leave the graph.
@@ -101,6 +105,7 @@ public:
     // running, because plugin editors can be slow to open. Doesn't take focus from the current app.
     void openPresetPluginWindows();
     static inline const Identifier openWithPresetProp { "openWithPreset" };
+    static inline const Identifier freePositionProp { "freePosition" };
 
     // While MIDI learning, plugin windows float above the editor, so clicking the
     // graph (e.g. a bypass button) doesn't hide the controls still to be touched.

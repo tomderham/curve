@@ -19,6 +19,14 @@ You can also drag a plug-in file, or an [EQ file](eq-and-autoeq.md), onto the ed
 
 Drag from a pin on one node to a pin on another. Audio pins are green and MIDI pins are red. You can connect one output to several inputs and build any chain you like.
 
+Consecutive channels running between the same two nodes, such as a stereo pair, are drawn as one thicker line that forks out to each pin. The channels stay separate, nothing is mixed down. Drag the line to reconnect one channel at a time.
+
+## Arrange nodes
+
+Drag a node to move it. Nodes snap to a grid, so aligned nodes get straight wires. Hold Option while dragging to place a node freely. Dragging it again without Option puts it back on the grid.
+
+To arrange the whole graph by signal flow, right-click the background and select Tidy Up Layout. Undo Tidy Up then restores your layout, until you next move a node.
+
 ## Bypass a node
 
 Click the power button on the node. Click it again to re-enable the node. You can also right-click the node and select Toggle Bypass.
