@@ -1,3 +1,5 @@
+<img src="docs/images/curve-icon.png" width="128" height="128" alt="Curve app icon">
+
 # Curve
 
 Curve is a free, lightweight, background audio plugin host for macOS (Sonoma 14.2 and above), running natively on both Apple Silicon and Intel-based Macs.
@@ -33,7 +35,10 @@ Download the pre-built `Curve.app` from the latest [GitHub Release](https://gith
 
 Curve's icon is added to the macOS menu bar as shown below. The editor window opens on first use, but after that you won't see any open windows or a Dock icon. Curve's menu can be accessed from the menu bar icon or, when open, from the burger icon at the top left of the editor window.
 </br>
-<img width="37" height="29" alt="Screenshot 2026-02-08 at 12 03 19 AM" src="https://github.com/user-attachments/assets/4d7738ad-f9ca-4b98-9c4e-c98b868ae126" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/menu-bar-icon-white.png">
+  <img src="docs/images/menu-bar-icon-black.png" width="22" height="22" alt="Curve's menu bar icon, a disc with a curve cut out of it">
+</picture>
 
 1. If you use third-party plugins, select Settings -> 'Plug-in Manager', click Options... and scan for AU and VST3 plugins.
 2. Select Settings -> 'Audio Settings' and choose your interfaces, channels, sample rate and buffer size.
