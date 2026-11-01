@@ -93,7 +93,7 @@ public:
             watchdogDeadline.load(std::memory_order_relaxed) - now);
 
         if (remainingMs <= 0) {
-          // Plugin hung for >15s; exit immediately to avoid a zombie
+          // Plugin hung past the scan timeout; exit immediately to avoid a zombie
           std::_Exit(1);
         }
 
@@ -123,7 +123,7 @@ private:
     ScopedWatchdogArmer(std::atomic<bool> &armed,
                         std::atomic<juce::uint32> &deadline,
                         std::condition_variable &cv,
-                        juce::uint32 timeoutMs = 15000)
+                        juce::uint32 timeoutMs = pluginScanTimeoutMs)
         : isArmed(armed), cvRef(cv) {
       deadline.store(juce::Time::getMillisecondCounter() + timeoutMs,
                      std::memory_order_relaxed);
@@ -146,12 +146,21 @@ private:
 
     const std::lock_guard<std::mutex> lock(mutex);
 
-    if (const auto results = doScan(mb); !results.isEmpty()) {
-      sendResults(results);
-    } else {
-      pendingBlocks.emplace(mb);
-      triggerAsyncUpdate();
+    if (!needsMessageThread(mb)) {
+      if (const auto results = doScan(mb); !results.isEmpty()) {
+        sendResults(results);
+        return;
+      }
     }
+
+    pendingBlocks.emplace(mb);
+    triggerAsyncUpdate();
+  }
+
+  // VST3 modules may touch AppKit as they load, which throws on other threads
+  static bool needsMessageThread(const MemoryBlock &block) {
+    MemoryInputStream stream{block, false};
+    return stream.readString() == VST3PluginFormat::getFormatName();
   }
 
   void handleConnectionLost() override {
@@ -193,9 +202,15 @@ private:
     OwnedArray<PluginDescription> results;
 
     if (matchingFormat != nullptr) {
-      ScopedWatchdogArmer armer(watchdogArmed, watchdogDeadline, watchdogCv,
-                                15000);
-      matchingFormat->findAllTypesForFile(results, identifier);
+      ScopedWatchdogArmer armer(watchdogArmed, watchdogDeadline, watchdogCv);
+
+      // An exception left to reach this thread's entry point would end the
+      // thread silently, leaving a worker that can't read messages
+      try {
+        matchingFormat->findAllTypesForFile(results, identifier);
+      } catch (...) {
+        results.clear();
+      }
     }
 
     return results;
@@ -351,7 +366,8 @@ public:
   void initialise(const String &commandLine) override {
     auto scannerSubprocess = std::make_unique<PluginScannerSubprocess>();
 
-    if (scannerSubprocess->initialiseFromCommandLine(commandLine, processUID)) {
+    if (scannerSubprocess->initialiseFromCommandLine(commandLine, processUID,
+                                                     pluginScanHardLimitMs)) {
       storedScannerSubprocess = std::move(scannerSubprocess);
       return;
     }

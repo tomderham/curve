@@ -23,6 +23,8 @@ Curveは変更を自動で保存しません。Save As Preset...を使用して�
 
 Settings > Plug-in Managerを選択し、そのプラグインのフォーマットのスキャンを実行します。[Curveを使い始める](getting-started.md)を参照してください。
 
+Plug-in Managerのリストの一番下に赤色で表示され、カテゴリがScan failedになっている場合は、プラグインがクラッシュしたか、読み込みに30秒以上かかったため、以後のスキャンではスキップされます。右クリックしてRetry Scanを選択するか、Remove from Listを選択して削除します。
+
 ## プラグインのピン数が正しくない
 
 ノードを右クリックしてConfigure Audio I/Oを選択します。

@@ -23,6 +23,8 @@ O Curve não salva alterações automaticamente. Use Save As Preset... e substit
 
 Selecione Settings > Plug-in Manager e execute a verificação para o formato desse plug-in. Consulte [Primeiros passos](getting-started.md).
 
+Se ele aparecer em vermelho no fim da lista do Plug-in Manager, com Scan failed como categoria, o plug-in travou ou levou mais de 30 segundos para carregar, e as verificações agora o ignoram. Clique nele com o botão direito e selecione Retry Scan, ou selecione Remove from List para removê-lo.
+
 ## Um plug-in tem o número errado de pinos
 
 Clique com o botão direito no nó dele e selecione Configure Audio I/O.

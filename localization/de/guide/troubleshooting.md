@@ -23,6 +23,8 @@ Curve speichert Änderungen nicht automatisch. Verwende Save As Preset... und er
 
 Wähle Settings > Plug-in Manager und starte den Scan für das Format dieses Plug-ins. Siehe [Erste Schritte](getting-started.md).
 
+Wird es rot am Ende der Liste im Plug-in Manager angezeigt, mit Scan failed als Kategorie, ist das Plug-in abgestürzt oder hat länger als 30 Sekunden zum Laden gebraucht, und Scans überspringen es nun. Klicke mit der rechten Maustaste darauf und wähle Retry Scan, oder wähle Remove from List, um den Eintrag zu entfernen.
+
 ## Ein Plug-in hat die falsche Anzahl an Pins
 
 Klicke mit der rechten Maustaste auf seinen Node und wähle Configure Audio I/O.

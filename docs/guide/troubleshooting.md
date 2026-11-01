@@ -23,6 +23,8 @@ Curve doesn't save changes automatically. Use Save As Preset... and replace the 
 
 Select Settings > Plug-in Manager and run the scan for that plug-in's format. See [Getting started](getting-started.md).
 
+If it's shown in red at the bottom of the Plug-in Manager list, with Scan failed as its category, the plug-in crashed or took more than 30 seconds to load, and scans now skip it. Right-click it and select Retry Scan, or select Remove from List to clear it.
+
 ## A plug-in has the wrong number of pins
 
 Right-click its node and select Configure Audio I/O.

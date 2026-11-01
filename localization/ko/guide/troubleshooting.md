@@ -23,6 +23,8 @@ Curve는 변경 사항을 자동으로 저장하지 않습니다. Save As Preset
 
 Settings > Plug-in Manager를 선택하고 해당 플러그인 포맷의 스캔을 실행합니다. [Curve 시작하기](getting-started.md)를 참조하십시오.
 
+Plug-in Manager 목록 맨 아래에 빨간색으로 표시되고 카테고리가 Scan failed이면, 플러그인이 충돌했거나 로드하는 데 30초 넘게 걸린 것이며 이후 스캔에서는 건너뜁니다. 해당 항목을 오른쪽 클릭하고 Retry Scan을 선택하거나, 제거하려면 Remove from List를 선택하십시오.
+
 ## 플러그인의 핀 수가 잘못됨
 
 노드를 오른쪽 클릭하고 Configure Audio I/O를 선택합니다.

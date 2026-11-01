@@ -31,6 +31,7 @@ Check for Updates...
 Delete This Node
 Rename This Node
 Save As Preset...
+Remove from List
 Mid/Side Decoder
 Mid/Side Encoder
 Plug-in Manager
@@ -46,6 +47,7 @@ Open at Login
 Show in Dock
 Invert Phase
 Audio Output
+Scan failed
 Audio Input
 MIDI Output
 MIDI Input
@@ -57,6 +59,7 @@ Sync Index
 MIDI Learn
 MIDI Control
 Curve Help
+Retry Scan
 Audio I/O
 MIDI I/O
 Options...

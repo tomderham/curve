@@ -66,6 +66,12 @@ PropertiesFile* getUserSettings();
 
 constexpr const char* processUID = "juceaudiopluginhost";
 
+// Longest one plug-in may take to load during a scan. Large instruments can
+// take 20s on a cold start, and the worker's IPC thread can't answer pings
+// while it waits, so the ping and coordinator limits must both outlast this.
+constexpr int pluginScanTimeoutMs = 30000;
+constexpr int pluginScanHardLimitMs = pluginScanTimeoutMs + 5000;
+
 //==============================================================================
 class MainHostWindow final : public DocumentWindow,
                              public ApplicationCommandTarget,

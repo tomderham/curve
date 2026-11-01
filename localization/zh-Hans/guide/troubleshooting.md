@@ -23,6 +23,8 @@ Curve 不会自动存储更改。请使用 Save As Preset... 并替换现有预�
 
 选择 Settings > Plug-in Manager 并对该插件的格式运行扫描。请参阅[入门指南](getting-started.md)。
 
+如果它以红色显示在 Plug-in Manager 列表底部，且类别为 Scan failed，说明该插件崩溃了或加载时间超过 30 秒，之后的扫描会跳过它。右键点按它并选择 Retry Scan，或选择 Remove from List 将其清除。
+
 ## 插件的引脚数量不对
 
 右键点按其节点并选择 Configure Audio I/O。

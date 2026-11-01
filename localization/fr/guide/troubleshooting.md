@@ -23,6 +23,8 @@ Curve n’enregistre pas les modifications automatiquement. Utilisez Save As Pre
 
 Sélectionnez Settings > Plug-in Manager et lancez la recherche pour le format de ce plug-in. Voir [Prise en main](getting-started.md).
 
+S’il apparaît en rouge en bas de la liste du Plug-in Manager, avec Scan failed comme catégorie, le plug-in a planté ou a mis plus de 30 secondes à se charger, et les recherches l’ignorent désormais. Cliquez dessus avec le bouton droit et sélectionnez Retry Scan, ou sélectionnez Remove from List pour le retirer.
+
 ## Un plug-in n’a pas le bon nombre de broches
 
 Cliquez avec le bouton droit sur son nœud et sélectionnez Configure Audio I/O.

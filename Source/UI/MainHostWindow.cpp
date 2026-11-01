@@ -208,9 +208,9 @@ private:
 
             if (response.state == Superprocess::State::timeout)
             {
-                if (Time::getMillisecondCounter() - startTime > 20000)
+                if (Time::getMillisecondCounter() - startTime > (uint32) pluginScanHardLimitMs)
                 {
-                    // 20s per-plugin timeout exceeded; kill worker and abort this plugin scan
+                    // Per-plugin timeout exceeded; kill worker and abort this plugin scan
                     superprocess = nullptr;
                     return false;
                 }
@@ -260,13 +260,21 @@ public:
                                const File& pedal,
                                PropertiesFile* props,
                                bool async)
-        : PluginListComponent (manager, listToRepresent, pedal, props, async)
+        : PluginListComponent (manager, listToRepresent, pedal, props, async),
+          rowsModel (*this, manager, listToRepresent, pedal)
     {
 
         // Use out-of-process plugin scanning for crash isolation
         getAppProperties().getUserSettings()->setValue (scanModeKey, juce::var (1));
 
+        getTableListBox().setModel (&rowsModel);
+
         handleResize();
+    }
+
+    ~CustomPluginListComponent() override
+    {
+        getTableListBox().setModel (rowsModel.getJuceModel());
     }
 
     void resized() override
@@ -275,10 +283,223 @@ public:
     }
 
 private:
+    /*  Sits in front of JUCE's table model and takes over the rows for plug-ins that failed to
+        scan. JUCE shows those by raw identifier, skips them on every rescan, and doesn't say
+        that they must be removed before they can be tried again.
+    */
+    class FailedPluginRowsModel final : public TableListBoxModel
+    {
+    public:
+        FailedPluginRowsModel (CustomPluginListComponent& ownerIn,
+                               AudioPluginFormatManager& formatManagerIn,
+                               KnownPluginList& listIn,
+                               const File& crashedPluginsFileIn)
+            : owner (ownerIn),
+              formatManager (formatManagerIn),
+              list (listIn),
+              crashedPluginsFile (crashedPluginsFileIn),
+              juceModel (*ownerIn.getTableListBox().getTableListBoxModel())
+        {
+        }
+
+        TableListBoxModel* getJuceModel() const         { return &juceModel; }
+
+        int getNumRows() override                       { return juceModel.getNumRows(); }
+        void deleteKeyPressed (int row) override        { juceModel.deleteKeyPressed (row); }
+        void sortOrderChanged (int column, bool forwards) override { juceModel.sortOrderChanged (column, forwards); }
+
+        void paintRowBackground (Graphics& g, int row, int width, int height, bool selected) override
+        {
+            juceModel.paintRowBackground (g, row, width, height, selected);
+        }
+
+        void paintCell (Graphics& g, int row, int columnId, int width, int height, bool selected) override
+        {
+            const auto identifier = getFailedPlugin (row);
+
+            if (identifier.isEmpty())
+            {
+                juceModel.paintCell (g, row, columnId, width, height, selected);
+                return;
+            }
+
+            if (const auto text = getCellText (identifier, columnId); text.isNotEmpty())
+            {
+                g.setColour (Colours::red);
+                g.setFont (owner.withDefaultMetrics (FontOptions ((float) height * 0.7f, Font::bold)));
+                g.drawFittedText (text, 4, 0, width - 6, height, Justification::centredLeft, 1, 0.9f);
+            }
+        }
+
+        void cellClicked (int row, int columnId, const MouseEvent& e) override
+        {
+            const auto identifier = getFailedPlugin (row);
+            const auto rows = getTargetRows (row);
+
+            // JUCE's own menu only acts on the clicked row
+            if (! e.mods.isPopupMenu() || (identifier.isEmpty() && rows.size() < 2))
+            {
+                juceModel.cellClicked (row, columnId, e);
+                return;
+            }
+
+            StringArray targets;
+            Array<PluginDescription> knownTargets;
+            const auto types = list.getTypes();
+
+            for (const auto targetRow : rows)
+            {
+                if (isPositiveAndBelow (targetRow, types.size()))
+                    knownTargets.add (types.getReference (targetRow));
+                else if (const auto failed = getFailedPlugin (targetRow); failed.isNotEmpty())
+                    targets.add (failed);
+            }
+
+            PopupMenu menu;
+
+            if (identifier.isNotEmpty())
+            {
+                auto* format = findFormat (identifier);
+
+                menu.addItem (PopupMenu::Item ("Retry Scan")
+                                .setEnabled (format != nullptr)
+                                .setAction ([this, targets, format]
+                                            {
+                                                // Only one scan can run at a time, so a selection
+                                                // of several formats retries the clicked one's
+                                                StringArray toScan;
+
+                                                for (const auto& target : targets)
+                                                    if (findFormat (target) == format)
+                                                        toScan.add (target);
+
+                                                for (const auto& target : toScan)
+                                                    clearFailure (target);
+
+                                                owner.scanFor (*format, toScan);
+                                            }));
+            }
+
+            menu.addItem (PopupMenu::Item ("Remove from List")
+                            .setAction ([this, targets, knownTargets]
+                                        {
+                                            for (const auto& target : targets)
+                                                clearFailure (target);
+
+                                            for (const auto& known : knownTargets)
+                                                list.removeType (known);
+                                        }));
+
+            menu.showMenuAsync (PopupMenu::Options().withTargetComponent (e.originalComponent)
+                                                    .withMousePosition()
+                                                    .withDeletionCheck (owner));
+        }
+
+    private:
+        // Failed plug-ins follow the known ones in JUCE's table. Empty for a known plug-in.
+        String getFailedPlugin (int row) const
+        {
+            return list.getBlacklistedFiles()[row - list.getNumTypes()];
+        }
+
+        // The menu acts on the whole selection, unless the clicked row isn't part of it
+        Array<int> getTargetRows (int clickedRow) const
+        {
+            auto& table = owner.getTableListBox();
+
+            if (! table.isRowSelected (clickedRow))
+                return { clickedRow };
+
+            Array<int> rows;
+            const auto selected = table.getSelectedRows();
+
+            for (int i = 0; i < selected.size(); ++i)
+                rows.add (selected[i]);
+
+            return rows;
+        }
+
+        // JUCE blacklists everything in its crash list when a scan starts, so clear both
+        void clearFailure (const String& identifier)
+        {
+            list.removeFromBlacklist (identifier);
+
+            StringArray crashed;
+            crashedPluginsFile.readLines (crashed);
+
+            if (crashed.contains (identifier))
+            {
+                crashed.removeString (identifier);
+                crashedPluginsFile.replaceWithText (crashed.joinIntoString ("\n"), true, true);
+            }
+        }
+
+        AudioPluginFormat* findFormat (const String& identifier) const
+        {
+            for (auto* format : formatManager.getFormats())
+                if (format->canScanForPlugins() && format->fileMightContainThisPluginType (identifier))
+                    return format;
+
+            return nullptr;
+        }
+
+        String getCellText (const String& identifier, int columnId)
+        {
+            // Column IDs match the ones PluginListComponent adds to its header
+            enum { nameColumn = 1, formatColumn = 2, categoryColumn = 3, descriptionColumn = 5 };
+
+            if (columnId == nameColumn)
+                return getDisplayName (identifier);
+
+            if (columnId == formatColumn)
+                if (auto* format = findFormat (identifier))
+                    return format->getName();
+
+            // The default window is too narrow to show the description column
+            if (columnId == categoryColumn)
+                return "Scan failed";
+
+            if (columnId == descriptionColumn)
+                return "Failed to load during scan. Right-click to retry.";
+
+            return {};
+        }
+
+        // Asking the format only reads system metadata, so this doesn't load the plug-in
+        const String& getDisplayName (const String& identifier)
+        {
+            const auto cached = displayNames.find (identifier);
+
+            if (cached != displayNames.end())
+                return cached->second;
+
+            auto name = identifier;
+
+            if (auto* format = findFormat (identifier))
+                name = format->getNameOfPluginFromIdentifier (identifier);
+
+            if (name == identifier && File::isAbsolutePath (identifier))
+                name = File (identifier).getFileNameWithoutExtension();
+
+            return displayNames.emplace (identifier, name).first->second;
+        }
+
+        CustomPluginListComponent& owner;
+        AudioPluginFormatManager& formatManager;
+        KnownPluginList& list;
+        File crashedPluginsFile;
+        TableListBoxModel& juceModel;
+        std::map<String, String> displayNames;
+
+        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FailedPluginRowsModel)
+    };
+
     void handleResize()
     {
         PluginListComponent::resized();
     }
+
+    FailedPluginRowsModel rowsModel;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CustomPluginListComponent)
 };
