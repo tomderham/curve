@@ -112,6 +112,48 @@ static void testAnchorsAlignNodesOfDifferentWidths()
     CHECK (! overlaps (nodes, row));
 }
 
+static bool fits (const std::vector<NodeInfo>& nodes, const std::vector<Centre>& c, int width, int height)
+{
+    for (size_t i = 0; i < nodes.size(); ++i)
+        if (c[i].x - nodes[i].width * 0.5 < 0 || c[i].x + nodes[i].width * 0.5 > width
+            || c[i].y - nodes[i].height * 0.5 < 0 || c[i].y + nodes[i].height * 0.5 > height)
+            return false;
+
+    return true;
+}
+
+static void testLargeGraphFitsItsRequiredArea()
+{
+    // The shape of a large preset: 8 rows, 5 nodes wide
+    const std::vector<NodeInfo> nodes { { 140, 60 }, { 140, 60 }, { 200, 60 }, { 140, 60 }, { 140, 60 }, { 140, 60 },
+                                        { 140, 60 }, { 140, 60 }, { 140, 60 }, { 140, 60 }, { 140, 60 }, { 200, 60 },
+                                        { 140, 60 }, { 140, 60 }, { 140, 60 }, { 220, 60, true } };
+    const std::vector<Edge> edges { { 0, 3 }, { 0, 4 }, { 1, 5 }, { 5, 6 }, { 3, 7 }, { 7, 8 }, { 2, 9 }, { 6, 9 }, { 8, 9 },
+                                    { 9, 10 }, { 9, 11 }, { 9, 12 }, { 9, 13 }, { 9, 14 }, { 11, 15 }, { 10, 15 }, { 12, 15 }, { 13, 15 } };
+
+    Extent required;
+    const auto small = arrange (nodes, edges, {}, &required);
+
+    CHECK (required.width > 800 || required.height > 600);
+    CHECK (! overlaps (nodes, small));
+
+    // Too small: the top left stays visible
+    for (size_t i = 0; i < nodes.size(); ++i)
+    {
+        CHECK (small[i].x - nodes[i].width * 0.5 >= 19.9);
+        CHECK (small[i].y - nodes[i].height * 0.5 >= 19.9);
+    }
+
+    // Given what it asked for, everything is on screen
+    Options big;
+    big.areaWidth = required.width;
+    big.areaHeight = required.height;
+
+    const auto c = arrange (nodes, edges, big);
+    CHECK (fits (nodes, c, big.areaWidth, big.areaHeight));
+    CHECK (! overlaps (nodes, c));
+}
+
 int main()
 {
     testEmpty();
@@ -122,6 +164,7 @@ int main()
     testPinnedNodeStaysBelowItsInputs();
     testDuplicateAndSelfEdgesIgnored();
     testAnchorsAlignNodesOfDifferentWidths();
+    testLargeGraphFitsItsRequiredArea();
 
     std::printf (failures == 0 ? "All graph layout tests passed\n" : "%d failure(s)\n", failures);
     return failures == 0 ? 0 : 1;

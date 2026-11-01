@@ -9,6 +9,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>
 #include <utility>
 #include <vector>
 
@@ -30,12 +31,14 @@ namespace GraphLayout
 
     struct Options
     {
-        int minRowGap = 40, maxRowGap = 80;
+        int minRowGap = 20, maxRowGap = 80;
         int nodeGap = 20;
         int areaWidth = 800, areaHeight = 600;
+        int margin = 20; // Kept clear around the edges of the area
     };
 
     struct Centre { double x = 0.0, y = 0.0; };
+    struct Extent { int width = 0, height = 0; };
 
     namespace detail
     {
@@ -73,12 +76,14 @@ namespace GraphLayout
         }
     }
 
-    /** Returns each node's centre, within the area where it fits. Rows wider than
-        the area stay centred on it and overflow evenly.
+    /** Returns each node's centre. If the nodes don't fit the area, they overflow to
+        the right and bottom, keeping the top left visible. The area they need,
+        margins included, goes in requiredArea.
     */
     inline std::vector<Centre> arrange (const std::vector<NodeInfo>& nodes,
                                         const std::vector<Edge>& edges,
-                                        const Options& options)
+                                        const Options& options,
+                                        Extent* requiredArea = nullptr)
     {
         const auto numNodes = nodes.size();
         std::vector<Centre> result (numNodes);
@@ -262,7 +267,8 @@ namespace GraphLayout
                                                       options.minRowGap, options.maxRowGap)
                                         : 0;
 
-        double top = (options.areaHeight - totalHeight - numGaps * rowGap) * 0.5;
+        const auto contentHeight = totalHeight + numGaps * rowGap;
+        double top = std::max ((double) options.margin, (options.areaHeight - contentHeight) * 0.5);
         size_t heightIndex = 0;
 
         for (const auto& r : rows)
@@ -287,7 +293,12 @@ namespace GraphLayout
             right = std::max (right, x[i] - nodes[i].getAnchor() + nodes[i].width);
         }
 
-        const auto offset = options.areaWidth * 0.5 - (left + right) * 0.5;
+        const auto contentWidth = right - left;
+        const auto offset = std::max ((double) options.margin, (options.areaWidth - contentWidth) * 0.5) - left;
+
+        if (requiredArea != nullptr)
+            *requiredArea = { (int) std::ceil (contentWidth) + options.margin * 2,
+                              contentHeight + options.margin * 2 };
 
         for (size_t i = 0; i < numNodes; ++i)
             result[i].x = x[i] - nodes[i].getAnchor() + nodes[i].width * 0.5 + offset;

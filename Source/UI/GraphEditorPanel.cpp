@@ -1683,6 +1683,29 @@ void GraphEditorPanel::tidyLayout()
     options.areaWidth = getWidth();
     options.areaHeight = getHeight();
 
+    // Nothing can zoom the graph, so a window too small for it has to grow
+    Curve::GraphLayout::Extent required;
+    Curve::GraphLayout::arrange (infos, edges, options, &required);
+
+    windowBeforeTidy = {};
+
+    if (auto* window = getTopLevelComponent(); window != nullptr
+        && (required.width > getWidth() || required.height > getHeight()))
+    {
+        windowBeforeTidy = window->getBounds();
+
+        const auto newBounds = windowBeforeTidy.withWidth (windowBeforeTidy.getWidth() + jmax (0, required.width - getWidth()))
+                                               .withHeight (windowBeforeTidy.getHeight() + jmax (0, required.height - getHeight()));
+
+        if (auto* display = Desktop::getInstance().getDisplays().getDisplayForRect (windowBeforeTidy))
+            window->setBounds (newBounds.constrainedWithin (display->userBounds.toNearestInt()));
+        else
+            window->setBounds (newBounds);
+
+        options.areaWidth = getWidth();
+        options.areaHeight = getHeight();
+    }
+
     const auto centres = Curve::GraphLayout::arrange (infos, edges, options);
 
     layoutBeforeTidy.clear();
@@ -1700,6 +1723,9 @@ void GraphEditorPanel::tidyLayout()
 
 void GraphEditorPanel::undoTidyLayout()
 {
+    if (auto* window = getTopLevelComponent(); window != nullptr && ! windowBeforeTidy.isEmpty())
+        window->setBounds (windowBeforeTidy);
+
     for (const auto& saved : layoutBeforeTidy)
     {
         graph.setNodePosition (saved.nodeID, saved.position);

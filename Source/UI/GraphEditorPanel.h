@@ -160,6 +160,7 @@ private:
     };
 
     std::vector<SavedNodePosition> layoutBeforeTidy;
+    Rectangle<int> windowBeforeTidy;
 
     //==============================================================================
     Point<int> originalTouchPos;

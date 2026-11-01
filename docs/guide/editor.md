@@ -25,7 +25,7 @@ Consecutive channels running between the same two nodes, such as a stereo pair, 
 
 Drag a node to move it. Nodes snap to a grid, so aligned nodes get straight wires. Hold Option while dragging to place a node freely. Dragging it again without Option puts it back on the grid.
 
-To arrange the whole graph by signal flow, right-click the background and select Tidy Up Layout. Undo Tidy Up then restores your layout, until you next move a node.
+To arrange the whole graph by signal flow, right-click the background and select Tidy Up Layout. If the graph needs more room, the window grows to fit, up to the size of your screen. Undo Tidy Up then restores your layout and window size, until you next move a node.
 
 ## Bypass a node
 
