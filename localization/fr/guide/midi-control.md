@@ -2,7 +2,18 @@
 
 Un contrôleur ou un clavier MIDI peut jouer des plug-ins d’instrument, modifier des paramètres de plug-ins, contourner des nœuds et changer de preset. Activez-le sous les entrées MIDI dans [Audio Settings](audio-settings.md).
 
-Pour jouer d’un instrument ou envoyer du MIDI à tout autre plug-in, un nœud MIDI Input doit être connecté à ce plug-in. Le contrôle des paramètres, du contournement et des presets avec MIDI Learn ne nécessite ni nœud MIDI Input ni connexion dans le preset.
+## Choisir comment contrôler un plug-in
+
+Il existe deux façons de contrôler un plug-in depuis votre contrôleur :
+
+- **Connecter le MIDI au plug-in.** Un nœud MIDI Input envoie le MIDI directement à la broche d’entrée ambre du plug-in, et le plug-in décide quoi en faire. Utilisez cette méthode pour jouer d’un instrument et pour profiter de toute assignation MIDI intégrée au plug-in.
+- **Utiliser MIDI Learn de Curve.** Curve lit lui-même le contrôleur, puis modifie pour vous les paramètres ou le contournement du plug-in. Cela ne nécessite ni nœud MIDI Input ni connexion. Utilisez cette méthode pour les plug-ins sans broche d’entrée ambre et pour le contournement.
+
+MIDI Learn n’atteint que les paramètres qu’un plug-in met à la disposition de son hôte. Certains plug-ins, surtout les gros instruments, ne rendent disponible qu’une partie de leurs commandes. Si le déplacement d’une commande dans la fenêtre du plug-in pendant MIDI Learn n’a aucun effet, Curve ne peut pas assigner cette commande.
+
+Si un plug-in possède une broche d’entrée ambre et sa propre fonction MIDI Learn, c’est souvent le choix le plus simple, car elle atteint généralement toutes les commandes. Connectez un nœud MIDI Input au plug-in, puis configurez l’assignation dans la fenêtre du plug-in. Son manuel explique comment faire.
+
+Utilisez une seule méthode pour chaque bouton. Une commande assignée avec MIDI Learn de Curve n’atteint pas les plug-ins par le nœud MIDI Input, le plug-in n’y réagira donc pas.
 
 ## Jouer d’un plug-in d’instrument
 

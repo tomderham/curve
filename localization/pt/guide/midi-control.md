@@ -2,7 +2,18 @@
 
 Um controlador ou teclado MIDI pode tocar plug-ins de instrumento, alterar parâmetros de plug-ins, ignorar nós e alternar presets. Ative-o nas entradas MIDI em [Audio Settings](audio-settings.md).
 
-Para tocar um instrumento, ou enviar MIDI a qualquer outro plug-in, é preciso um nó MIDI Input conectado a esse plug-in. Controlar parâmetros, bypass e presets com o MIDI Learn não exige um nó MIDI Input nem conexões no preset.
+## Escolher como controlar um plug-in
+
+Há duas formas de controlar um plug-in pelo seu controlador:
+
+- **Conectar MIDI ao plug-in.** Um nó MIDI Input envia MIDI diretamente ao pino de entrada âmbar do plug-in, e o plug-in decide o que fazer com ele. Use esta forma para tocar um instrumento e para aproveitar qualquer mapeamento MIDI integrado ao plug-in.
+- **Usar o MIDI Learn do Curve.** O próprio Curve lê o controlador e altera para você os parâmetros ou o bypass do plug-in. Isso não exige um nó MIDI Input nem conexões. Use esta forma para plug-ins sem pino de entrada âmbar e para o bypass.
+
+O MIDI Learn só alcança os parâmetros que um plug-in disponibiliza ao host. Alguns plug-ins, principalmente instrumentos grandes, disponibilizam apenas parte dos controles. Se mover um controle na janela do plug-in durante o MIDI Learn não tiver efeito, o Curve não poderá mapear esse controle.
+
+Se um plug-in tiver um pino de entrada âmbar e um recurso próprio de MIDI Learn, essa costuma ser a opção mais fácil, porque normalmente alcança todos os controles. Conecte um nó MIDI Input ao plug-in e configure o mapeamento na janela do plug-in. O manual dele explica como.
+
+Use um único método para cada botão. Um controle mapeado com o MIDI Learn do Curve não chega aos plug-ins pelo nó MIDI Input, portanto o plug-in não responderá a ele.
 
 ## Tocar um plug-in de instrumento
 

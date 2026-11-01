@@ -2,7 +2,18 @@
 
 Ein MIDI-Controller oder -Keyboard kann Instrument-Plug-ins spielen, Plug-in-Parameter ändern, Nodes umgehen und Presets wechseln. Aktiviere ihn unter den MIDI-Eingängen in [Audio Settings](audio-settings.md).
 
-Um ein Instrument zu spielen oder MIDI an ein anderes Plug-in zu senden, muss ein Node MIDI Input mit diesem Plug-in verbunden sein. Für die Steuerung von Parametern, Bypass und Presets mit MIDI Learn sind weder ein Node MIDI Input noch Verbindungen im Preset nötig.
+## Wählen, wie du ein Plug-in steuerst
+
+Es gibt zwei Wege, ein Plug-in mit deinem Controller zu steuern:
+
+- **MIDI mit dem Plug-in verbinden.** Ein Node MIDI Input sendet MIDI direkt an den bernsteinfarbenen Eingangs-Pin des Plug-ins, und das Plug-in entscheidet, was damit geschieht. Nutze das, um ein Instrument zu spielen und um eine im Plug-in eingebaute MIDI-Zuweisung zu verwenden.
+- **Curves MIDI Learn verwenden.** Curve liest den Controller selbst und ändert dann für dich die Parameter oder den Bypass des Plug-ins. Dafür sind weder ein Node MIDI Input noch Verbindungen nötig. Nutze das für Plug-ins ohne bernsteinfarbenen Eingangs-Pin und für den Bypass.
+
+MIDI Learn erreicht nur die Parameter, die ein Plug-in seinem Host zur Verfügung stellt. Manche Plug-ins, vor allem große Instrumente, stellen nur einen Teil ihrer Regler bereit. Wenn das Bewegen eines Reglers im Plug-in-Fenster während MIDI Learn nichts bewirkt, kann Curve diesen Regler nicht zuweisen.
+
+Hat ein Plug-in einen bernsteinfarbenen Eingangs-Pin und eine eigene MIDI-Learn-Funktion, ist das oft die einfachere Wahl, weil sie meist jeden Regler erreicht. Verbinde einen Node MIDI Input mit dem Plug-in und richte die Zuweisung dann im Fenster des Plug-ins ein. Wie das geht, steht in seinem Handbuch.
+
+Verwende für jeden Regler oder Taster nur eine Methode. Ein mit Curves MIDI Learn zugewiesenes Bedienelement erreicht Plug-ins nicht über den Node MIDI Input, das Plug-in reagiert also nicht darauf.
 
 ## Ein Instrument-Plug-in spielen
 

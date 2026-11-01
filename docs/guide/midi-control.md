@@ -2,7 +2,18 @@
 
 A MIDI controller or keyboard can play instrument plug-ins, change plug-in parameters, bypass nodes and switch presets. Enable it under MIDI inputs in [Audio Settings](audio-settings.md).
 
-Playing an instrument, or sending MIDI to any other plug-in, needs a MIDI Input node connected to that plug-in. Controlling parameters, bypass and presets with MIDI Learn doesn't need a MIDI Input node or any connections in the preset.
+## Choose how to control a plug-in
+
+There are two ways to control a plug-in from your controller:
+
+- **Connect MIDI to the plug-in.** A MIDI Input node sends MIDI straight to the plug-in's amber input pin, and the plug-in decides what to do with it. Use this to play an instrument, and to use any MIDI mapping built into the plug-in.
+- **Use Curve's MIDI Learn.** Curve reads the controller itself, then changes the plug-in's parameters or bypass for you. This needs no MIDI Input node or connections. Use this for plug-ins with no amber input pin, and for bypass.
+
+MIDI Learn can only reach the parameters that a plug-in makes available to its host. Some plug-ins, especially large instruments, make only some of their controls available. If moving a control in the plug-in's window during MIDI Learn has no effect, Curve can't map that control.
+
+If a plug-in has an amber input pin and its own MIDI learn feature, that's often the easier choice, because it can usually reach every control. Connect a MIDI Input node to the plug-in, then set up the mapping in the plug-in's window. Its manual explains how.
+
+Use one method for each knob or button. A control mapped with Curve's MIDI Learn doesn't reach plug-ins through the MIDI Input node, so the plug-in won't respond to it.
 
 ## Play an instrument plug-in
 
