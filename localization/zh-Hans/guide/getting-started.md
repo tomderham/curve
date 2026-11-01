@@ -32,9 +32,9 @@ Curve 运行在菜单栏中，因此默认情况下其图标显示在菜单栏�
 
 预设是编辑器中一条由已连接节点组成的链。如果编辑器没有打开，请从 Curve 菜单中选择 Show Editor。
 
-1. 你会看到 Audio Input、Interface Loopback (In) 和 Audio Output 节点，已启用的通道显示为绿色引脚。
+1. 你会看到 Audio Input、Interface Loopback (In) 和 Audio Output 节点，已启用的通道显示为灰色引脚。
 2. 右键点按编辑器背景并选择一个插件。其节点随即出现，输入在顶部，输出在底部。
-3. 从输入节点的绿色引脚拖到插件的输入引脚。
+3. 从输入节点的灰色引脚拖到插件的输入引脚。
 4. 从插件的输出引脚拖到 Audio Output 节点。
 5. 连按插件节点，打开其窗口并进行调整。
 6. 从 Curve 菜单中选择 Save As Preset...，然后为预设命名。

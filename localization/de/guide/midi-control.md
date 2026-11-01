@@ -8,11 +8,11 @@ Um ein Instrument zu spielen oder MIDI an ein anderes Plug-in zu senden, muss ei
 
 1. Klicke mit der rechten Maustaste auf den Hintergrund des Editors und füge dein Instrument-Plug-in hinzu.
 2. Klicke mit der rechten Maustaste auf den Hintergrund des Editors und wähle MIDI I/O > MIDI Input.
-3. Ziehe vom roten Pin des Nodes MIDI Input zum roten Pin oben am Instrument. MIDI-Pins und -Verbindungen sind rot, Audio-Pins und -Verbindungen grün.
-4. Ziehe von den grünen Ausgangs-Pins des Instruments zum Node Audio Output.
+3. Ziehe vom bernsteinfarbenen Pin des Nodes MIDI Input zum bernsteinfarbenen Pin oben am Instrument. MIDI-Pins und -Verbindungen sind bernsteinfarben, Audio-Pins und -Verbindungen grau.
+4. Ziehe von den grauen Ausgangs-Pins des Instruments zum Node Audio Output.
 5. Wähle Save As Preset..., um das Setup zu behalten.
 
-Effekt-Plug-ins, die auf MIDI reagieren, werden genauso verbunden. Um MIDI von einem Plug-in an ein externes Gerät zu senden, aktiviere das Gerät in Audio Settings als MIDI-Ausgang und verbinde dann den roten Ausgangs-Pin des Plug-ins mit einem Node MIDI Output.
+Effekt-Plug-ins, die auf MIDI reagieren, werden genauso verbunden. Um MIDI von einem Plug-in an ein externes Gerät zu senden, aktiviere das Gerät in Audio Settings als MIDI-Ausgang und verbinde dann den bernsteinfarbenen Ausgangs-Pin des Plug-ins mit einem Node MIDI Output.
 
 ## Ein Bedienelement mit MIDI Learn zuweisen
 

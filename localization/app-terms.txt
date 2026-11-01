@@ -73,3 +73,5 @@ Gain
 Pan
 Quit
 Save
+Tidy Up Layout
+Undo Tidy Up

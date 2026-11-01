@@ -17,7 +17,15 @@ También puedes arrastrar un archivo de plug-in, o un [archivo de EQ](eq-and-aut
 
 ## Conectar nodos
 
-Arrastra desde un pin de un nodo hasta un pin de otro. Los pines de audio son verdes y los pines MIDI son rojos. Puedes conectar una salida a varias entradas y crear la cadena que quieras.
+Arrastra desde un pin de un nodo hasta un pin de otro. Los pines de audio son grises y los pines MIDI son de color ámbar. Puedes conectar una salida a varias entradas y crear la cadena que quieras.
+
+Los canales consecutivos que van entre los mismos dos nodos, como un par estéreo, se dibujan como una sola línea más gruesa que se bifurca hacia cada pin. Los canales siguen separados y no se mezcla nada. Arrastra la línea para reconectar un canal cada vez.
+
+## Organizar los nodos
+
+Arrastra un nodo para moverlo. Los nodos se ajustan a una cuadrícula, de modo que los nodos alineados tienen conexiones rectas. Mantén pulsada la tecla Option mientras arrastras para colocar un nodo libremente. Si vuelves a arrastrarlo sin Option, regresa a la cuadrícula.
+
+Para organizar todo el grafo según el flujo de la señal, haz clic derecho en el fondo y selecciona Tidy Up Layout. Si el grafo necesita más espacio, la ventana crece para que quepa, hasta el tamaño de tu pantalla. Undo Tidy Up restaura después tu disposición y el tamaño de la ventana, hasta que vuelvas a mover un nodo.
 
 ## Omitir un nodo
 

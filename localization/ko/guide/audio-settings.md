@@ -4,7 +4,7 @@ Settings > Audio Settings를 선택하여 오디오 및 MIDI 기기를 선택합
 
 ## 인터페이스 및 채널 선택
 
-출력 인터페이스를 선택하고, 프리셋에서 사용하는 경우 입력 인터페이스도 선택합니다. 그런 다음 원하는 채널을 활성화합니다. 채널은 Audio Input 및 Audio Output 노드에 녹색 핀으로 표시됩니다.
+출력 인터페이스를 선택하고, 프리셋에서 사용하는 경우 입력 인터페이스도 선택합니다. 그런 다음 원하는 채널을 활성화합니다. 채널은 Audio Input 및 Audio Output 노드에 회색 핀으로 표시됩니다.
 
 Curve의 [Interface Loopback (In) 노드](loopback.md)를 사용하는 경우에는 입력 인터페이스가 필요하지 않습니다.
 

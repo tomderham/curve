@@ -17,7 +17,7 @@ You can also drag a plug-in file, or an [EQ file](eq-and-autoeq.md), onto the ed
 
 ## Connect nodes
 
-Drag from a pin on one node to a pin on another. Audio pins are green and MIDI pins are red. You can connect one output to several inputs and build any chain you like.
+Drag from a pin on one node to a pin on another. Audio pins are grey and MIDI pins are amber. You can connect one output to several inputs and build any chain you like.
 
 Consecutive channels running between the same two nodes, such as a stereo pair, are drawn as one thicker line that forks out to each pin. The channels stay separate, nothing is mixed down. Drag the line to reconnect one channel at a time.
 

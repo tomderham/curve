@@ -32,9 +32,9 @@ Pule esta etapa se você quiser usar apenas os plug-ins integrados do macOS, com
 
 Um preset é uma cadeia de nós conectados no editor. Se o editor não estiver aberto, selecione Show Editor no menu do Curve.
 
-1. Você verá os nós Audio Input, Interface Loopback (In) e Audio Output, com pinos verdes para os canais ativados.
+1. Você verá os nós Audio Input, Interface Loopback (In) e Audio Output, com pinos cinza para os canais ativados.
 2. Clique com o botão direito no fundo do editor e selecione um plug-in. O nó dele aparece com as entradas em cima e as saídas embaixo.
-3. Arraste de um pino verde do nó de entrada até um pino de entrada do plug-in.
+3. Arraste de um pino cinza do nó de entrada até um pino de entrada do plug-in.
 4. Arraste dos pinos de saída do plug-in até o nó Audio Output.
 5. Clique duas vezes no nó do plug-in para abrir a janela dele e ajustá-lo.
 6. Selecione Save As Preset... no menu do Curve e dê um nome ao preset.

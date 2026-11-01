@@ -8,11 +8,11 @@ Para tocar un instrumento, o enviar MIDI a cualquier otro plug-in, se necesita u
 
 1. Haz clic con el botón derecho en el fondo del editor y añade tu plug-in de instrumento.
 2. Haz clic con el botón derecho en el fondo del editor y selecciona MIDI I/O > MIDI Input.
-3. Arrastra desde el pin rojo del nodo MIDI Input hasta el pin rojo de la parte superior del instrumento. Los pines y las conexiones MIDI son rojos, y los de audio son verdes.
-4. Arrastra desde los pines de salida verdes del instrumento hasta el nodo Audio Output.
+3. Arrastra desde el pin ámbar del nodo MIDI Input hasta el pin ámbar de la parte superior del instrumento. Los pines y las conexiones MIDI son de color ámbar, y los de audio son grises.
+4. Arrastra desde los pines de salida grises del instrumento hasta el nodo Audio Output.
 5. Selecciona Save As Preset... para conservar la configuración.
 
-Los plug-ins de efecto que responden a MIDI se conectan de la misma forma. Para enviar MIDI desde un plug-in a un dispositivo externo, activa el dispositivo como salida MIDI en Audio Settings y conecta el pin de salida rojo del plug-in a un nodo MIDI Output.
+Los plug-ins de efecto que responden a MIDI se conectan de la misma forma. Para enviar MIDI desde un plug-in a un dispositivo externo, activa el dispositivo como salida MIDI en Audio Settings y conecta el pin de salida ámbar del plug-in a un nodo MIDI Output.
 
 ## Asignar un control con MIDI Learn
 

@@ -4,7 +4,7 @@ Wähle Settings > Audio Settings, um deine Audio- und MIDI-Geräte auszuwählen.
 
 ## Interfaces und Kanäle wählen
 
-Wähle ein Ausgabe-Interface und, falls dein Preset eines verwendet, ein Eingabe-Interface. Aktiviere dann die gewünschten Kanäle. Sie erscheinen als grüne Pins auf den Nodes Audio Input und Audio Output.
+Wähle ein Ausgabe-Interface und, falls dein Preset eines verwendet, ein Eingabe-Interface. Aktiviere dann die gewünschten Kanäle. Sie erscheinen als graue Pins auf den Nodes Audio Input und Audio Output.
 
 Wenn du Curves [Node Interface Loopback (In)](loopback.md) verwendest, brauchst du kein Eingabe-Interface.
 

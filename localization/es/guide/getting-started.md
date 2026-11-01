@@ -32,9 +32,9 @@ Omite este paso si solo quieres usar los plug-ins integrados de macOS, como AUNB
 
 Un preset es una cadena de nodos conectados en el editor. Si el editor no está abierto, selecciona Show Editor en el menú de Curve.
 
-1. Verás los nodos Audio Input, Interface Loopback (In) y Audio Output, con pines verdes para los canales que activaste.
+1. Verás los nodos Audio Input, Interface Loopback (In) y Audio Output, con pines grises para los canales que activaste.
 2. Haz clic con el botón derecho en el fondo del editor y selecciona un plug-in. Su nodo aparece con las entradas arriba y las salidas abajo.
-3. Arrastra desde un pin verde del nodo de entrada hasta un pin de entrada del plug-in.
+3. Arrastra desde un pin gris del nodo de entrada hasta un pin de entrada del plug-in.
 4. Arrastra desde los pines de salida del plug-in hasta el nodo Audio Output.
 5. Haz doble clic en el nodo del plug-in para abrir su ventana y ajustarlo.
 6. Selecciona Save As Preset... en el menú de Curve y ponle un nombre al preset.

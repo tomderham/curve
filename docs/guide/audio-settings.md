@@ -4,7 +4,7 @@ Select Settings > Audio Settings to choose your audio and MIDI devices.
 
 ## Choose interfaces and channels
 
-Select an output interface, and an input interface if your preset uses one. Then enable the channels you want. They appear as green pins on the Audio Input and Audio Output nodes.
+Select an output interface, and an input interface if your preset uses one. Then enable the channels you want. They appear as grey pins on the Audio Input and Audio Output nodes.
 
 If you're using Curve's [Interface Loopback (In) node](loopback.md), you don't need an input interface.
 

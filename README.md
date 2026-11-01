@@ -42,7 +42,7 @@ Curve's icon is added to the macOS menu bar as shown below. The editor window op
 
 1. If you use third-party plugins, select Settings -> 'Plug-in Manager', click Options... and scan for AU and VST3 plugins.
 2. Select Settings -> 'Audio Settings' and choose your interfaces, channels, sample rate and buffer size.
-3. In the editor, right-click the background to add plugins, then drag between the green pins to connect them.
+3. In the editor, right-click the background to add plugins, then drag between the grey pins to connect them.
 4. Select 'Save As Preset...' from Curve's menu. Your presets then appear in the menu, ready to switch between.
 
 The [Getting started](docs/guide/getting-started.md) page has the full walkthrough.
@@ -50,9 +50,9 @@ The [Getting started](docs/guide/getting-started.md) page has the full walkthrou
 <img width="282" height="338" alt="MainMenu" src="https://github.com/user-attachments/assets/899a10a6-071f-45e0-ab74-0988ea2d8695" />
 <img width="282" height="338" alt="AudioSettings" src="https://github.com/user-attachments/assets/09f7eace-a963-40a3-9709-a286135bab95" />
 <br>
-<img width="740" height="578" alt="Preset 1" src="https://github.com/user-attachments/assets/d03977ae-2191-47b3-b9ff-99206a4a813d" />
-<img width="740" height="578" alt="Preset 2" src="https://github.com/user-attachments/assets/9a57d5fe-b416-4b4e-86cd-c9f4b30a5e1b" />
-<img width="740" height="578" alt="Preset 3" src="https://github.com/user-attachments/assets/42b1d05f-b8b8-4bba-8fb2-8e07245f3725" />
+<img width="740" height="610" alt="Preset 1" src="docs/images/preset-1.png" />
+<img width="740" height="610" alt="Preset 2" src="docs/images/preset-2.png" />
+<img width="740" height="610" alt="Preset 3" src="docs/images/preset-3.png" />
 
 
 # Building from source code on macOS

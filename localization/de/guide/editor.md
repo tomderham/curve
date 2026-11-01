@@ -17,7 +17,15 @@ Du kannst auch eine Plug-in-Datei oder eine [EQ-Datei](eq-and-autoeq.md) auf das
 
 ## Nodes verbinden
 
-Ziehe von einem Pin eines Nodes zu einem Pin eines anderen. Audio-Pins sind grün, MIDI-Pins rot. Du kannst einen Ausgang mit mehreren Eingängen verbinden und beliebige Ketten aufbauen.
+Ziehe von einem Pin eines Nodes zu einem Pin eines anderen. Audio-Pins sind grau, MIDI-Pins bernsteinfarben. Du kannst einen Ausgang mit mehreren Eingängen verbinden und beliebige Ketten aufbauen.
+
+Aufeinanderfolgende Kanäle zwischen denselben zwei Nodes, etwa ein Stereopaar, werden als eine dickere Linie dargestellt, die sich zu jedem Pin hin verzweigt. Die Kanäle bleiben getrennt, es wird nichts heruntergemischt. Ziehe die Linie, um jeweils einen Kanal neu zu verbinden.
+
+## Nodes anordnen
+
+Ziehe einen Node, um ihn zu verschieben. Nodes rasten in einem Raster ein, sodass ausgerichtete Nodes gerade Verbindungen erhalten. Halte beim Ziehen die Option-Taste gedrückt, um einen Node frei zu platzieren. Ziehst du ihn danach ohne Option erneut, rastet er wieder im Raster ein.
+
+Um den gesamten Graphen nach Signalfluss anzuordnen, klicke mit der rechten Maustaste auf den Hintergrund und wähle Tidy Up Layout. Braucht der Graph mehr Platz, wird das Fenster passend vergrößert, bis zur Größe deines Bildschirms. Undo Tidy Up stellt dann dein Layout und die Fenstergröße wieder her, bis du das nächste Mal einen Node verschiebst.
 
 ## Einen Node umgehen
 

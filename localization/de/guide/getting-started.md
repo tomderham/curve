@@ -32,9 +32,9 @@ Um Curves Menü zu öffnen, klicke auf das Symbol in der Menüleiste oder auf da
 
 Ein Preset ist eine Kette verbundener Nodes im Editor. Wenn der Editor nicht geöffnet ist, wähle Show Editor in Curves Menü.
 
-1. Du siehst die Nodes Audio Input, Interface Loopback (In) und Audio Output mit grünen Pins für die aktivierten Kanäle.
+1. Du siehst die Nodes Audio Input, Interface Loopback (In) und Audio Output mit grauen Pins für die aktivierten Kanäle.
 2. Klicke mit der rechten Maustaste auf den Hintergrund des Editors und wähle ein Plug-in aus. Sein Node erscheint mit Eingängen oben und Ausgängen unten.
-3. Ziehe von einem grünen Pin des Eingangs-Nodes zu einem Eingangs-Pin des Plug-ins.
+3. Ziehe von einem grauen Pin des Eingangs-Nodes zu einem Eingangs-Pin des Plug-ins.
 4. Ziehe von den Ausgangs-Pins des Plug-ins zum Node Audio Output.
 5. Doppelklicke auf den Plug-in-Node, um sein Fenster zu öffnen und es anzupassen.
 6. Wähle Save As Preset... in Curves Menü und gib dem Preset einen Namen.

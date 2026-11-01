@@ -8,11 +8,11 @@ Pour jouer d’un instrument ou envoyer du MIDI à tout autre plug-in, un nœud 
 
 1. Cliquez avec le bouton droit sur l’arrière-plan de l’éditeur et ajoutez votre plug-in d’instrument.
 2. Cliquez avec le bouton droit sur l’arrière-plan de l’éditeur et sélectionnez MIDI I/O > MIDI Input.
-3. Faites glisser la broche rouge du nœud MIDI Input vers la broche rouge en haut de l’instrument. Les broches et connexions MIDI sont rouges, et les broches et connexions audio sont vertes.
-4. Faites glisser les broches de sortie vertes de l’instrument vers le nœud Audio Output.
+3. Faites glisser la broche ambre du nœud MIDI Input vers la broche ambre en haut de l’instrument. Les broches et connexions MIDI sont de couleur ambre, et les broches et connexions audio sont grises.
+4. Faites glisser les broches de sortie grises de l’instrument vers le nœud Audio Output.
 5. Sélectionnez Save As Preset... pour conserver la configuration.
 
-Les plug-ins d’effet qui réagissent au MIDI se connectent de la même manière. Pour envoyer du MIDI d’un plug-in vers un appareil externe, activez l’appareil comme sortie MIDI dans Audio Settings, puis connectez la broche de sortie rouge du plug-in à un nœud MIDI Output.
+Les plug-ins d’effet qui réagissent au MIDI se connectent de la même manière. Pour envoyer du MIDI d’un plug-in vers un appareil externe, activez l’appareil comme sortie MIDI dans Audio Settings, puis connectez la broche de sortie ambre du plug-in à un nœud MIDI Output.
 
 ## Assigner une commande avec MIDI Learn
 

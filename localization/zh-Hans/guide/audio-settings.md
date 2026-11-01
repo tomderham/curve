@@ -4,7 +4,7 @@
 
 ## 选择接口和通道
 
-选择一个输出接口，如果预设需要，再选择一个输入接口。然后启用所需的通道。这些通道会以绿色引脚的形式显示在 Audio Input 和 Audio Output 节点上。
+选择一个输出接口，如果预设需要，再选择一个输入接口。然后启用所需的通道。这些通道会以灰色引脚的形式显示在 Audio Input 和 Audio Output 节点上。
 
 如果你使用 Curve 的 [Interface Loopback (In) 节点](loopback.md)，则不需要输入接口。
 

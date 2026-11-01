@@ -17,7 +17,15 @@ Você também pode arrastar um arquivo de plug-in, ou um [arquivo de EQ](eq-and-
 
 ## Conectar nós
 
-Arraste de um pino de um nó até um pino de outro. Os pinos de áudio são verdes e os pinos MIDI são vermelhos. Você pode conectar uma saída a várias entradas e montar a cadeia que quiser.
+Arraste de um pino de um nó até um pino de outro. Os pinos de áudio são cinza e os pinos MIDI são âmbar. Você pode conectar uma saída a várias entradas e montar a cadeia que quiser.
+
+Canais consecutivos entre os mesmos dois nós, como um par estéreo, são desenhados como uma única linha mais grossa que se divide até cada pino. Os canais continuam separados e nada é mixado. Arraste a linha para reconectar um canal de cada vez.
+
+## Organizar os nós
+
+Arraste um nó para movê-lo. Os nós se ajustam a uma grade, de modo que nós alinhados têm conexões retas. Segure a tecla Option enquanto arrasta para posicionar um nó livremente. Arrastá-lo de novo sem Option o devolve à grade.
+
+Para organizar o grafo inteiro pelo fluxo do sinal, clique com o botão direito no fundo e selecione Tidy Up Layout. Se o grafo precisar de mais espaço, a janela cresce para acomodá-lo, até o tamanho da sua tela. Depois, Undo Tidy Up restaura seu layout e o tamanho da janela, até você mover um nó novamente.
 
 ## Ignorar um nó
 

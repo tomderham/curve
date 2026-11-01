@@ -8,11 +8,11 @@ MIDI 控制器或键盘可以演奏乐器插件、更改插件参数、旁通节
 
 1. 右键点按编辑器背景并添加你的乐器插件。
 2. 右键点按编辑器背景并选择 MIDI I/O > MIDI Input。
-3. 从 MIDI Input 节点的红色引脚拖到乐器顶部的红色引脚。MIDI 引脚和连接为红色，音频引脚和连接为绿色。
-4. 从乐器的绿色输出引脚拖到 Audio Output 节点。
+3. 从 MIDI Input 节点的琥珀色引脚拖到乐器顶部的琥珀色引脚。MIDI 引脚和连接为琥珀色，音频引脚和连接为灰色。
+4. 从乐器的灰色输出引脚拖到 Audio Output 节点。
 5. 选择 Save As Preset... 以保留此设置。
 
-响应 MIDI 的效果器插件也以相同方式连接。要将 MIDI 从插件发送到外部设备，请在 Audio Settings 中将该设备启用为 MIDI 输出，然后将插件的红色输出引脚连接到 MIDI Output 节点。
+响应 MIDI 的效果器插件也以相同方式连接。要将 MIDI 从插件发送到外部设备，请在 Audio Settings 中将该设备启用为 MIDI 输出，然后将插件的琥珀色输出引脚连接到 MIDI Output 节点。
 
 ## 使用 MIDI Learn 映射控件
 

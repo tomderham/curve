@@ -32,9 +32,9 @@ Ignorez cette étape si vous souhaitez uniquement utiliser les plug-ins intégr�
 
 Un preset est une chaîne de nœuds connectés dans l’éditeur. Si l’éditeur n’est pas ouvert, sélectionnez Show Editor dans le menu de Curve.
 
-1. Vous voyez les nœuds Audio Input, Interface Loopback (In) et Audio Output, avec des broches vertes pour les canaux activés.
+1. Vous voyez les nœuds Audio Input, Interface Loopback (In) et Audio Output, avec des broches grises pour les canaux activés.
 2. Cliquez avec le bouton droit sur l’arrière-plan de l’éditeur et sélectionnez un plug-in. Son nœud apparaît avec les entrées en haut et les sorties en bas.
-3. Faites glisser une broche verte du nœud d’entrée vers une broche d’entrée du plug-in.
+3. Faites glisser une broche grise du nœud d’entrée vers une broche d’entrée du plug-in.
 4. Faites glisser les broches de sortie du plug-in vers le nœud Audio Output.
 5. Double-cliquez sur le nœud du plug-in pour ouvrir sa fenêtre et le régler.
 6. Sélectionnez Save As Preset... dans le menu de Curve et donnez un nom au preset.

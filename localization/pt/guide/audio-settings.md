@@ -4,7 +4,7 @@ Selecione Settings > Audio Settings para escolher seus dispositivos de áudio e 
 
 ## Escolher interfaces e canais
 
-Selecione uma interface de saída e, se o seu preset usar uma, uma interface de entrada. Depois ative os canais desejados. Eles aparecem como pinos verdes nos nós Audio Input e Audio Output.
+Selecione uma interface de saída e, se o seu preset usar uma, uma interface de entrada. Depois ative os canais desejados. Eles aparecem como pinos cinza nos nós Audio Input e Audio Output.
 
 Se você usa o [nó Interface Loopback (In)](loopback.md) do Curve, não precisa de uma interface de entrada.
 

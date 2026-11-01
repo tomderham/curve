@@ -17,7 +17,15 @@ Vous pouvez aussi faire glisser un fichier de plug-in, ou un [fichier d’EQ](eq
 
 ## Connecter des nœuds
 
-Faites glisser une broche d’un nœud vers une broche d’un autre nœud. Les broches audio sont vertes et les broches MIDI sont rouges. Vous pouvez connecter une sortie à plusieurs entrées et créer la chaîne de votre choix.
+Faites glisser une broche d’un nœud vers une broche d’un autre nœud. Les broches audio sont grises et les broches MIDI sont de couleur ambre. Vous pouvez connecter une sortie à plusieurs entrées et créer la chaîne de votre choix.
+
+Les canaux consécutifs reliant les deux mêmes nœuds, comme une paire stéréo, sont représentés par une seule ligne plus épaisse qui se divise vers chaque broche. Les canaux restent séparés et rien n’est mixé. Faites glisser la ligne pour reconnecter un canal à la fois.
+
+## Organiser les nœuds
+
+Faites glisser un nœud pour le déplacer. Les nœuds s’alignent sur une grille, de sorte que les nœuds alignés ont des connexions droites. Maintenez la touche Option enfoncée pendant le déplacement pour placer un nœud librement. Si vous le déplacez à nouveau sans Option, il revient sur la grille.
+
+Pour organiser tout le graphe selon le flux du signal, faites un clic droit sur l’arrière-plan et sélectionnez Tidy Up Layout. Si le graphe a besoin de plus de place, la fenêtre s’agrandit pour le contenir, jusqu’à la taille de votre écran. Undo Tidy Up restaure ensuite votre disposition et la taille de la fenêtre, jusqu’à ce que vous déplaciez de nouveau un nœud.
 
 ## Contourner un nœud
 

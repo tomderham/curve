@@ -8,11 +8,11 @@ Playing an instrument, or sending MIDI to any other plug-in, needs a MIDI Input 
 
 1. Right-click the editor background and add your instrument plug-in.
 2. Right-click the editor background and select MIDI I/O > MIDI Input.
-3. Drag from the red pin on the MIDI Input node to the red pin at the top of the instrument. MIDI pins and connections are red, and audio pins and connections are green.
-4. Drag from the instrument's green output pins to the Audio Output node.
+3. Drag from the amber pin on the MIDI Input node to the amber pin at the top of the instrument. MIDI pins and connections are amber, and audio pins and connections are grey.
+4. Drag from the instrument's grey output pins to the Audio Output node.
 5. Select Save As Preset... to keep the setup.
 
-Effect plug-ins that respond to MIDI connect the same way. To send MIDI from a plug-in to an external device, enable the device as the MIDI output in Audio Settings, then connect the plug-in's red output pin to a MIDI Output node.
+Effect plug-ins that respond to MIDI connect the same way. To send MIDI from a plug-in to an external device, enable the device as the MIDI output in Audio Settings, then connect the plug-in's amber output pin to a MIDI Output node.
 
 ## Map a control with MIDI Learn
 

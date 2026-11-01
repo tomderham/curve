@@ -32,9 +32,9 @@ AUNBandEQ 같은 macOS 내장 플러그인이나 [Curve 자체 플러그인](cur
 
 프리셋은 편집기에서 연결된 노드의 체인입니다. 편집기가 열려 있지 않으면 Curve 메뉴에서 Show Editor를 선택합니다.
 
-1. 활성화한 채널에 대한 녹색 핀과 함께 Audio Input, Interface Loopback (In), Audio Output 노드가 표시됩니다.
+1. 활성화한 채널에 대한 회색 핀과 함께 Audio Input, Interface Loopback (In), Audio Output 노드가 표시됩니다.
 2. 편집기 배경을 오른쪽 클릭하고 플러그인을 선택합니다. 상단에 입력, 하단에 출력이 있는 노드가 나타납니다.
-3. 입력 노드의 녹색 핀에서 플러그인의 입력 핀으로 드래그합니다.
+3. 입력 노드의 회색 핀에서 플러그인의 입력 핀으로 드래그합니다.
 4. 플러그인의 출력 핀에서 Audio Output 노드로 드래그합니다.
 5. 플러그인 노드를 이중 클릭하여 창을 열고 조정합니다.
 6. Curve 메뉴에서 Save As Preset...를 선택하고 프리셋 이름을 지정합니다.
