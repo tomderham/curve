@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curve: kostenloser systemweiter EQ und Plug-in-Host für den Mac</title>
+<meta name="description" content="Führe Audio-Unit- und VST3-Plug-ins auf allem aus, was dein Mac abspielt, mit Loopback bei niedriger Latenz und integrierter AutoEQ-Kopfhörerkorrektur. Kostenlos und Open Source, ohne Treiberinstallation.">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#20262b">
+<meta name="google-site-verification" content="U_kyzQIQbXGRUtsFIapcFXOg931TqrCYWAGfByrRuhM">
+<link rel="canonical" href="https://tomderham.github.io/curve/de/">
+<link rel="alternate" hreflang="en" href="https://tomderham.github.io/curve/">
+<link rel="alternate" hreflang="de" href="https://tomderham.github.io/curve/de/">
+<link rel="alternate" hreflang="es" href="https://tomderham.github.io/curve/es/">
+<link rel="alternate" hreflang="fr" href="https://tomderham.github.io/curve/fr/">
+<link rel="alternate" hreflang="hi" href="https://tomderham.github.io/curve/hi/">
+<link rel="alternate" hreflang="ja" href="https://tomderham.github.io/curve/ja/">
+<link rel="alternate" hreflang="ko" href="https://tomderham.github.io/curve/ko/">
+<link rel="alternate" hreflang="pt" href="https://tomderham.github.io/curve/pt/">
+<link rel="alternate" hreflang="zh-Hans" href="https://tomderham.github.io/curve/zh-Hans/">
+<link rel="alternate" hreflang="x-default" href="https://tomderham.github.io/curve/">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Curve: Plug-ins auf allem, was dein Mac abspielt">
+<meta property="og:description" content="Kostenlos, Open Source und ohne Treiber, mit integrierter AutoEQ-Kopfhörerkorrektur.">
+<meta property="og:url" content="https://tomderham.github.io/curve/de/">
+<meta property="og:image" content="https://tomderham.github.io/curve/assets/instruments.jpg">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+
+<header class="top">
+  <a class="brand" href="#top">
+    <img src="../favicon.svg" width="30" height="30" alt="">
+    Curve
+  </a>
+  <nav aria-label="Hauptmenü">
+    <a href="#features">Funktionen</a>
+    <a href="https://github.com/tomderham/curve/blob/main/localization/de/guide/README.md">Hilfe</a>
+    <a href="https://github.com/tomderham/curve">GitHub</a>
+    <details class="languages" aria-label="Sprache">
+      <summary>Deutsch</summary>
+      <ul>
+        <li><a href="../" lang="en" hreflang="en">English</a></li>
+        <li><a href="../de/" lang="de" hreflang="de">Deutsch</a></li>
+        <li><a href="../es/" lang="es" hreflang="es">Español</a></li>
+        <li><a href="../fr/" lang="fr" hreflang="fr">Français</a></li>
+        <li><a href="../hi/" lang="hi" hreflang="hi">हिन्दी</a></li>
+        <li><a href="../ja/" lang="ja" hreflang="ja">日本語</a></li>
+        <li><a href="../ko/" lang="ko" hreflang="ko">한국어</a></li>
+        <li><a href="../pt/" lang="pt" hreflang="pt">Português</a></li>
+        <li><a href="../zh-Hans/" lang="zh-Hans" hreflang="zh-Hans">简体中文</a></li>
+      </ul>
+    </details>
+  </nav>
+</header>
+
+<main id="top">
+
+  <section class="hero">
+    <div class="hero-copy">
+      <h1>Plug-ins auf allem, was dein Mac abspielt.</h1>
+      <p class="lede">Curve ist eine kostenlose Menüleisten-App, die Audio-Unit- und VST3-Plug-ins auf den gesamten Ton deines Macs anwendet, per Loopback mit niedriger Latenz und ohne Treiberinstallation. AutoEQ-Kopfhörerkorrektur ist integriert.</p>
+      <p class="actions">
+        <a class="button" href="https://github.com/tomderham/curve/releases/latest">Für den Mac laden</a>
+        <a class="quiet" href="#start">So funktioniert es</a>
+      </p>
+      <p class="fine">Vollständig kostenlos und Open Source. macOS 14.2 oder neuer, auf Apple Silicon oder Intel.</p>
+    </div>
+    <figure class="hero-shot">
+      <img src="../assets/headphone-eq.png" width="960" height="1090" alt="Der Editor von Curve mit einer Kette von Interface Loopback über Headphone Crossfeed und AUNBandEQ zu Audio Output.">
+      <figcaption>Systemton über Crossfeed und EQ auf deine Kopfhörer.</figcaption>
+    </figure>
+  </section>
+
+  <div class="signal">
+
+    <section class="use" id="headphones">
+      <div class="copy">
+        <h2 class="node"><span>Kopfhörerkorrektur</span></h2>
+        <p>Suche in der AutoEQ-Datenbank nach deinen Kopfhörern, wähle ein Ergebnis, und Curve erstellt den Parametric EQ für dich. Du kannst auch eine Kurve aus AutoEQ, Squig.link oder REW importieren.</p>
+        <p>Füge Crossfeed für natürlicheres Stereo hinzu oder emuliere Midfield-Studiolautsprecher auf Kopfhörern.</p>
+        <a href="https://github.com/tomderham/curve/blob/main/localization/de/guide/eq-and-autoeq.md">Kopfhörer-EQ und AutoEQ</a>
+      </div>
+      <figure>
+        <img src="../assets/autoeq.png" width="1200" height="861" loading="lazy" alt="Der AutoEQ-Dialog von Curve mit ausgewähltem Sennheiser HD 650, seiner Korrekturkurve und seinen Filtern.">
+      </figure>
+    </section>
+
+    <section class="use" id="plug-ins">
+      <div class="copy">
+        <h2 class="node"><span>Deine Plug-ins auf allem</span></h2>
+        <p>Die Plug-ins, die du schon besitzt, können Musik, Filme, Anrufe und alles andere bearbeiten, was dein Mac abspielt.</p>
+        <p><strong>Für niedrige Latenz gebaut.</strong> Curve greift den Ausgang deines Audiogeräts direkt ab, ohne virtuelles Gerät im Signalweg, und du bestimmst die Puffergröße.</p>
+        <p>Speichere jedes Setup als Preset und wechsle dann über die Menüleiste, einen globalen Kurzbefehl oder einen MIDI-Controller.</p>
+        <a href="https://github.com/tomderham/curve/blob/main/localization/de/guide/loopback.md">Loopback und Systemton</a>
+        <img class="menu-inline" src="../assets/presets-menu.png" width="626" height="418" loading="lazy" alt="Das Menü von Curve mit den Presets Monitors + Headphones correction, Piano, Rhodes sowie Synth and Guitar, jeweils mit einer Zifferntaste.">
+      </div>
+      <figure>
+        <img src="../assets/multi-output.png" width="1400" height="895" loading="lazy" alt="Ein Preset von Curve, das Systemton über mehrere EQs und Headphone Crossfeed an getrennte Ausgänge sendet.">
+        <figcaption>Ein Preset mit eigener Korrektur für jedes Ausgangspaar.</figcaption>
+      </figure>
+    </section>
+
+    <section class="use wide" id="instruments">
+      <div class="copy">
+        <h2 class="node"><span>Instrumente und Amp-Simulationen</span></h2>
+        <p>Halte ein Piano, einen Synth oder ein Gitarren-Rig bereit, ohne eine DAW zu öffnen. Curve führt Instrument-Plug-ins im Hintergrund aus und mischt sie mit deinem Systemton.</p>
+        <p>Weise Plug-in-Parameter, Bypass und Preset-Wechsel mit MIDI Learn deinem Controller zu.</p>
+        <a href="https://github.com/tomderham/curve/blob/main/localization/de/guide/midi-control.md">MIDI-Steuerung</a>
+      </div>
+      <figure>
+        <img src="../assets/instruments.jpg" width="2000" height="778" loading="lazy" alt="Fenster der Plug-ins Genome (Amp-Simulation) und ZENOLOGY (Synth), daneben der VU-Meter von Curve.">
+        <figcaption>Jedes Preset kann deine Plug-in-Fenster öffnen und dort platzieren, wo du sie verlassen hast.</figcaption>
+      </figure>
+    </section>
+
+  </div>
+
+  <section class="features" id="features">
+    <h2>Wichtigste Funktionen</h2>
+    <ul>
+      <li><h3>Vollständig kostenlos und Open Source</h3><p>Alle Funktionen sind enthalten, und der Quellcode liegt auf GitHub.</p></li>
+      <li><h3>Unbegrenzte Ketten</h3><p>Verbinde beliebig viele Plug-ins in beliebigem Routing.</p></li>
+      <li><h3>Audio Unit und VST3</h3><p>Betreibe Effekte und Instrumente in beiden Formaten.</p></li>
+      <li><h3>AutoEQ integriert</h3><p>Finde ein Kopfhörerprofil nach Name oder importiere eine EQ-Datei.</p></li>
+      <li><h3>Loopback mit niedriger Latenz</h3><p>Ein direkter Abgriff an deinem Audiogerät, mit selbst gewählter Puffergröße.</p></li>
+      <li><h3>Keine Treiber</h3><p>Bitgenaues Loopback funktioniert mit der Audio-Hardware, die du schon hast.</p></li>
+      <li><h3>Schneller Preset-Wechsel</h3><p>Wechsle Setups über die Menüleiste, einen Kurzbefehl oder einen MIDI-Controller.</p></li>
+      <li><h3>Automatische Wiederverbindung</h3><p>Der Ton kommt von selbst zurück, wenn du dein Interface wieder anschließt oder deinen Mac aufweckst.</p></li>
+      <li><h3>Hilfe in neun Sprachen</h3><p>Das vollständige Handbuch ist in die App integriert.</p></li>
+    </ul>
+  </section>
+
+  <section class="builtin">
+    <div class="copy">
+      <h2>Dienstprogramm-Plug-ins inklusive</h2>
+      <p>Curve bringt eigene Plug-ins mit, sodass du auch ohne weitere Plug-ins loslegen kannst.</p>
+      <dl>
+        <dt>Kopfhörer</dt><dd>Parametric EQ, Crossfeed, Speaker Emulation</dd>
+        <dt>Pegel</dt><dd>Gain, Clipper, Invert Phase</dd>
+        <dt>Messung</dt><dd>Levels, VU, Lautheit in LUFS, Spektrum</dd>
+        <dt>Routing</dt><dd>Pan, Stereo Utility, Mid/Side, Delay</dd>
+        <dt>Aufnahme</dt><dd>Audio Recorder, als WAV</dd>
+      </dl>
+      <a href="https://github.com/tomderham/curve/blob/main/localization/de/guide/curve-plugins.md">Alle Plug-ins von Curve</a>
+    </div>
+    <figure>
+      <img src="../assets/curve-plugins.png" width="632" height="768" loading="lazy" alt="Das Plug-in-Menü von Curve mit Parametric EQ, Headphone Crossfeed, Headphone Speaker Emulation, Gain, Clipper, Invert Phase, Meter, Pan, Stereo Utility, Mid/Side Encoder und Decoder, Delay und Audio Recorder.">
+    </figure>
+  </section>
+
+  <section class="meters">
+    <h2>Sieh, was du hörst</h2>
+    <p>Verbinde den Meter von Curve mit einem beliebigen Punkt der Kette. Er zeigt Pegel und True Peak, VU-Nadeln, Lautheit in LUFS und ein Spektrum.</p>
+    <div class="meter-row">
+      <figure><img src="../assets/meter-levels.png" width="1200" height="589" loading="lazy" alt="Ansicht Levels mit RMS, True Peak und Stereokorrelation."><figcaption>Pegel</figcaption></figure>
+      <figure><img src="../assets/meter-loudness.png" width="1200" height="589" loading="lazy" alt="Ansicht Loudness mit momentaner, kurzzeitiger und integrierter LUFS-Lautheit und dem Verlauf der letzten Minute."><figcaption>Lautheit</figcaption></figure>
+      <figure><img src="../assets/meter-spectrum.png" width="1200" height="589" loading="lazy" alt="Ansicht Spectrum mit überlagertem linken und rechten Kanal."><figcaption>Spektrum</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="start" id="start">
+    <h2>Erste Schritte</h2>
+    <ol>
+      <li><strong>Installieren.</strong> Lade Curve herunter und kopiere es in deinen Programme-Ordner. Es ist signiert und notarisiert und liegt in deiner Menüleiste als <img class="bar-icon" src="../assets/menu-bar-icon.png" width="20" height="20" alt="Menüleistensymbol von Curve">.</li>
+      <li><strong>Ausgabe wählen.</strong> Wähle deine Kopfhörer, Lautsprecher oder dein Interface in Audio Settings.</li>
+      <li><strong>Kette aufbauen.</strong> Füge dem Editor Plug-ins hinzu und verbinde sie von Interface Loopback bis Audio Output.</li>
+      <li><strong>Preset speichern.</strong> Es erscheint im Menü und steht zum Wechseln bereit.</li>
+    </ol>
+    <p class="actions">
+      <a class="button" href="https://github.com/tomderham/curve/releases/latest">Für den Mac laden</a>
+      <a class="quiet" href="https://github.com/tomderham/curve/blob/main/localization/de/guide/getting-started.md">Vollständiges Handbuch lesen</a>
+    </p>
+    <p class="fine">Erfordert macOS Sonoma 14.2 oder neuer. macOS fragt nach deiner Erlaubnis, wenn Curve zum ersten Mal Systemton aufnimmt.</p>
+  </section>
+
+</main>
+
+<footer>
+  <p>Diese Seite wurde maschinell übersetzt. Korrekturen sind <a href="https://github.com/tomderham/curve/issues">auf GitHub</a> willkommen.</p>
+  <p>Einen Fehler gefunden oder eine Idee? <a href="https://github.com/tomderham/curve/issues">Erstelle ein Issue auf GitHub</a>.</p>
+  <p>Curve ist Open Source unter der <a href="https://github.com/tomderham/curve/blob/main/LICENSE">AGPLv3</a> und basiert auf <a href="https://juce.com">JUCE</a>. Die Kopfhörerprofile stammen aus dem Projekt <a href="https://autoeq.app">AutoEQ</a>. Die gezeigten Plug-ins gehören ihren jeweiligen Eigentümern. Diese Website verwendet weder Analysedienste noch Cookies.</p>
+</footer>
+
+</body>
+</html>

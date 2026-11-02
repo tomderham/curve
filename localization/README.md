@@ -4,6 +4,7 @@ Each language has a folder named after its `.lproj` folder, holding:
 
 - `InfoPlist.strings`: the macOS permission prompts.
 - `guide/`: a translation of every page in `docs/guide/`.
+- `site.json`: the website's text, mapping each piece of English from `site/index.html` to its translation.
 
 `en/` holds only `InfoPlist.strings`, whose text must match `CMakeLists.txt`. The English guide stays in `docs/guide/`.
 
@@ -16,12 +17,17 @@ Each language has a folder named after its `.lproj` folder, holding:
 - Keep the note on the home page (`README.md`) saying the guide is machine translated and that corrections are welcome on GitHub. Remove it for a language once a person has reviewed that translation, and update `scripts/check_translations.py` to match.
 - Keep the book title, Curve Help, in English, because it's a Settings menu item.
 
+## Translating the website
+
+`python3 scripts/build_site.py` builds `site/<language>/index.html` from `site/index.html` and each `site.json`. Commit the generated pages, since the site is published as it is. After changing the English page, run it and add or update any text it reports. App labels and plug-in names stay in English, as in the guide.
+
 ## Adding a language
 
 1. Add a folder and translate the files above.
 2. Add its sidebar text to `WELCOME` in `scripts/build_help.py`.
 3. Add it to `CFBundleLocalizations` in `CMakeLists.txt`.
-4. Run `python3 scripts/check_translations.py`.
+4. Add it to `NATIVE_NAMES` in `scripts/build_site.py`, and to the language menu and `hreflang` links in `site/index.html`.
+5. Run `python3 scripts/check_translations.py` and `python3 scripts/build_site.py`.
 
 When a page in `docs/guide/` changes, update it in every language. The checker catches changed structure, links and labels, but not changed wording.
 

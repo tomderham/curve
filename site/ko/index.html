@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curve: Mac용 무료 시스템 전체 EQ 및 플러그인 호스트</title>
+<meta name="description" content="Mac에서 재생되는 모든 소리에 Audio Unit 및 VST3 플러그인을 적용하십시오. 저지연 루프백과 AutoEQ 헤드폰 보정이 내장되어 있습니다. 무료 오픈 소스이며 드라이버를 설치할 필요가 없습니다.">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#20262b">
+<meta name="google-site-verification" content="U_kyzQIQbXGRUtsFIapcFXOg931TqrCYWAGfByrRuhM">
+<link rel="canonical" href="https://tomderham.github.io/curve/ko/">
+<link rel="alternate" hreflang="en" href="https://tomderham.github.io/curve/">
+<link rel="alternate" hreflang="de" href="https://tomderham.github.io/curve/de/">
+<link rel="alternate" hreflang="es" href="https://tomderham.github.io/curve/es/">
+<link rel="alternate" hreflang="fr" href="https://tomderham.github.io/curve/fr/">
+<link rel="alternate" hreflang="hi" href="https://tomderham.github.io/curve/hi/">
+<link rel="alternate" hreflang="ja" href="https://tomderham.github.io/curve/ja/">
+<link rel="alternate" hreflang="ko" href="https://tomderham.github.io/curve/ko/">
+<link rel="alternate" hreflang="pt" href="https://tomderham.github.io/curve/pt/">
+<link rel="alternate" hreflang="zh-Hans" href="https://tomderham.github.io/curve/zh-Hans/">
+<link rel="alternate" hreflang="x-default" href="https://tomderham.github.io/curve/">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Curve: Mac에서 재생되는 모든 소리에 플러그인을">
+<meta property="og:description" content="무료, 오픈 소스, 드라이버 불필요. AutoEQ 헤드폰 보정 내장.">
+<meta property="og:url" content="https://tomderham.github.io/curve/ko/">
+<meta property="og:image" content="https://tomderham.github.io/curve/assets/instruments.jpg">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+
+<header class="top">
+  <a class="brand" href="#top">
+    <img src="../favicon.svg" width="30" height="30" alt="">
+    Curve
+  </a>
+  <nav aria-label="기본">
+    <a href="#features">기능</a>
+    <a href="https://github.com/tomderham/curve/blob/main/localization/ko/guide/README.md">도움말</a>
+    <a href="https://github.com/tomderham/curve">GitHub</a>
+    <details class="languages" aria-label="언어">
+      <summary>한국어</summary>
+      <ul>
+        <li><a href="../" lang="en" hreflang="en">English</a></li>
+        <li><a href="../de/" lang="de" hreflang="de">Deutsch</a></li>
+        <li><a href="../es/" lang="es" hreflang="es">Español</a></li>
+        <li><a href="../fr/" lang="fr" hreflang="fr">Français</a></li>
+        <li><a href="../hi/" lang="hi" hreflang="hi">हिन्दी</a></li>
+        <li><a href="../ja/" lang="ja" hreflang="ja">日本語</a></li>
+        <li><a href="../ko/" lang="ko" hreflang="ko">한국어</a></li>
+        <li><a href="../pt/" lang="pt" hreflang="pt">Português</a></li>
+        <li><a href="../zh-Hans/" lang="zh-Hans" hreflang="zh-Hans">简体中文</a></li>
+      </ul>
+    </details>
+  </nav>
+</header>
+
+<main id="top">
+
+  <section class="hero">
+    <div class="hero-copy">
+      <h1>Mac에서 재생되는 모든 소리에 플러그인을.</h1>
+      <p class="lede">Curve는 저지연 루프백을 통해 Mac의 모든 오디오에 Audio Unit 및 VST3 플러그인을 적용하는 무료 메뉴 막대 앱입니다. 드라이버를 설치할 필요가 없으며 AutoEQ 헤드폰 보정이 내장되어 있습니다.</p>
+      <p class="actions">
+        <a class="button" href="https://github.com/tomderham/curve/releases/latest">Mac용 다운로드</a>
+        <a class="quiet" href="#start">작동 방식</a>
+      </p>
+      <p class="fine">완전 무료 오픈 소스. macOS 14.2 이상, Apple silicon 또는 Intel 지원.</p>
+    </div>
+    <figure class="hero-shot">
+      <img src="../assets/headphone-eq.png" width="960" height="1090" alt="Interface Loopback에서 Headphone Crossfeed와 AUNBandEQ를 거쳐 Audio Output으로 이어지는 체인을 보여 주는 Curve 편집기.">
+      <figcaption>시스템 오디오를 크로스피드와 EQ를 거쳐 헤드폰으로.</figcaption>
+    </figure>
+  </section>
+
+  <div class="signal">
+
+    <section class="use" id="headphones">
+      <div class="copy">
+        <h2 class="node"><span>헤드폰 보정</span></h2>
+        <p>AutoEQ 데이터베이스에서 헤드폰을 검색하고 결과를 선택하면 Curve가 Parametric EQ를 만들어 줍니다. AutoEQ, Squig.link 또는 REW에서 곡선을 가져올 수도 있습니다.</p>
+        <p>크로스피드를 추가해 더 자연스러운 스테레오를 만들거나, 헤드폰에서 미드필드 스튜디오 스피커를 에뮬레이션할 수 있습니다.</p>
+        <a href="https://github.com/tomderham/curve/blob/main/localization/ko/guide/eq-and-autoeq.md">헤드폰 EQ 및 AutoEQ</a>
+      </div>
+      <figure>
+        <img src="../assets/autoeq.png" width="1200" height="861" loading="lazy" alt="Sennheiser HD 650을 선택해 보정 곡선과 필터를 표시한 Curve의 AutoEQ 대화상자.">
+      </figure>
+    </section>
+
+    <section class="use" id="plug-ins">
+      <div class="copy">
+        <h2 class="node"><span>내 플러그인을 모든 소리에</span></h2>
+        <p>이미 가지고 있는 플러그인으로 음악, 영화, 통화 등 Mac에서 재생되는 모든 소리를 처리할 수 있습니다.</p>
+        <p><strong>저지연을 위한 설계.</strong> Curve는 오디오 장치의 출력을 직접 탭합니다. 경로에 가상 장치가 없으며 버퍼 크기는 직접 선택합니다.</p>
+        <p>각 설정을 프리셋으로 저장한 다음 메뉴 막대, 전역 단축키 또는 MIDI 컨트롤러에서 전환하십시오.</p>
+        <a href="https://github.com/tomderham/curve/blob/main/localization/ko/guide/loopback.md">루프백 및 시스템 오디오</a>
+        <img class="menu-inline" src="../assets/presets-menu.png" width="626" height="418" loading="lazy" alt="프리셋 Monitors + Headphones correction, Piano, Rhodes, Synth and Guitar가 숫자 키와 함께 표시된 Curve 메뉴.">
+      </div>
+      <figure>
+        <img src="../assets/multi-output.png" width="1400" height="895" loading="lazy" alt="시스템 오디오를 여러 EQ와 Headphone Crossfeed를 거쳐 별도의 출력으로 보내는 Curve 프리셋.">
+        <figcaption>프리셋 하나로 출력별 보정을 따로 적용합니다.</figcaption>
+      </figure>
+    </section>
+
+    <section class="use wide" id="instruments">
+      <div class="copy">
+        <h2 class="node"><span>악기 및 앰프 시뮬레이터</span></h2>
+        <p>DAW를 열지 않고도 피아노, 신스, 기타 장비를 바로 쓸 수 있습니다. Curve는 악기 플러그인을 백그라운드에서 실행하고 시스템 오디오와 믹스합니다.</p>
+        <p>MIDI Learn으로 플러그인 파라미터, 바이패스, 프리셋 변경을 컨트롤러에 매핑하십시오.</p>
+        <a href="https://github.com/tomderham/curve/blob/main/localization/ko/guide/midi-control.md">MIDI 컨트롤</a>
+      </div>
+      <figure>
+        <img src="../assets/instruments.jpg" width="2000" height="778" loading="lazy" alt="앰프 시뮬레이터 Genome과 신스 ZENOLOGY의 플러그인 창, 그리고 Curve의 VU 미터.">
+        <figcaption>프리셋마다 플러그인 창을 열어 마지막 위치로 되돌릴 수 있습니다.</figcaption>
+      </figure>
+    </section>
+
+  </div>
+
+  <section class="features" id="features">
+    <h2>주요 기능</h2>
+    <ul>
+      <li><h3>완전 무료 오픈 소스</h3><p>모든 기능이 포함되어 있으며 소스 코드는 GitHub에 있습니다.</p></li>
+      <li><h3>무제한 체인</h3><p>원하는 만큼 많은 플러그인을 어떤 라우팅으로든 연결할 수 있습니다.</p></li>
+      <li><h3>Audio Unit 및 VST3</h3><p>두 포맷의 이펙트와 악기를 모두 호스팅합니다.</p></li>
+      <li><h3>AutoEQ 내장</h3><p>이름으로 헤드폰 프로필을 찾거나 EQ 파일을 가져올 수 있습니다.</p></li>
+      <li><h3>저지연 루프백</h3><p>오디오 장치를 직접 탭하며 버퍼 크기를 직접 조절할 수 있습니다.</p></li>
+      <li><h3>드라이버 불필요</h3><p>비트 퍼펙트 루프백이 이미 가지고 있는 오디오 하드웨어에서 작동합니다.</p></li>
+      <li><h3>빠른 프리셋 전환</h3><p>메뉴 막대, 키보드 단축키 또는 MIDI 컨트롤러에서 설정을 전환할 수 있습니다.</p></li>
+      <li><h3>자동 재연결</h3><p>인터페이스를 다시 연결하거나 Mac을 깨우면 오디오가 자동으로 돌아옵니다.</p></li>
+      <li><h3>9개 언어 도움말</h3><p>전체 가이드가 앱에 내장되어 있습니다.</p></li>
+    </ul>
+  </section>
+
+  <section class="builtin">
+    <div class="copy">
+      <h2>유틸리티 플러그인 포함</h2>
+      <p>Curve에는 자체 플러그인이 포함되어 있어 다른 플러그인 없이도 시작할 수 있습니다.</p>
+      <dl>
+        <dt>헤드폰</dt><dd>Parametric EQ, Crossfeed, Speaker Emulation</dd>
+        <dt>레벨</dt><dd>Gain, Clipper, Invert Phase</dd>
+        <dt>미터링</dt><dd>레벨, VU, LUFS 라우드니스, 스펙트럼</dd>
+        <dt>라우팅</dt><dd>Pan, Stereo Utility, Mid/Side, Delay</dd>
+        <dt>녹음</dt><dd>Audio Recorder, WAV로 저장</dd>
+      </dl>
+      <a href="https://github.com/tomderham/curve/blob/main/localization/ko/guide/curve-plugins.md">Curve의 모든 플러그인</a>
+    </div>
+    <figure>
+      <img src="../assets/curve-plugins.png" width="632" height="768" loading="lazy" alt="Parametric EQ, Headphone Crossfeed, Headphone Speaker Emulation, Gain, Clipper, Invert Phase, Meter, Pan, Stereo Utility, Mid/Side Encoder 및 Decoder, Delay, Audio Recorder가 표시된 Curve의 플러그인 메뉴.">
+    </figure>
+  </section>
+
+  <section class="meters">
+    <h2>듣는 소리를 눈으로 확인하십시오</h2>
+    <p>Curve의 Meter를 체인의 어느 지점에나 연결할 수 있습니다. 레벨과 트루 피크, 바늘 VU, LUFS 라우드니스, 스펙트럼을 표시합니다.</p>
+    <div class="meter-row">
+      <figure><img src="../assets/meter-levels.png" width="1200" height="589" loading="lazy" alt="RMS, 트루 피크, 스테레오 상관도를 표시하는 Levels 보기."><figcaption>레벨</figcaption></figure>
+      <figure><img src="../assets/meter-loudness.png" width="1200" height="589" loading="lazy" alt="순간, 단기, 통합 LUFS와 최근 1분 기록을 표시하는 Loudness 보기."><figcaption>라우드니스</figcaption></figure>
+      <figure><img src="../assets/meter-spectrum.png" width="1200" height="589" loading="lazy" alt="왼쪽과 오른쪽 채널을 겹쳐 표시하는 Spectrum 보기."><figcaption>스펙트럼</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="start" id="start">
+    <h2>시작하기</h2>
+    <ol>
+      <li><strong>설치합니다.</strong> Curve를 다운로드하여 응용 프로그램 폴더에 복사합니다. 서명 및 공증을 마쳤으며 메뉴 막대에 <img class="bar-icon" src="../assets/menu-bar-icon.png" width="20" height="20" alt="Curve 메뉴 막대 아이콘">로 표시됩니다.</li>
+      <li><strong>출력을 선택합니다.</strong> Audio Settings에서 헤드폰, 스피커 또는 인터페이스를 선택합니다.</li>
+      <li><strong>체인을 만듭니다.</strong> 편집기에 플러그인을 추가하고 Interface Loopback에서 Audio Output까지 연결합니다.</li>
+      <li><strong>프리셋을 저장합니다.</strong> 메뉴에 표시되어 바로 전환할 수 있습니다.</li>
+    </ol>
+    <p class="actions">
+      <a class="button" href="https://github.com/tomderham/curve/releases/latest">Mac용 다운로드</a>
+      <a class="quiet" href="https://github.com/tomderham/curve/blob/main/localization/ko/guide/getting-started.md">전체 가이드 읽기</a>
+    </p>
+    <p class="fine">macOS Sonoma 14.2 이상이 필요합니다. Curve가 시스템 오디오를 처음 캡처할 때 macOS에서 권한을 요청합니다.</p>
+  </section>
+
+</main>
+
+<footer>
+  <p>이 페이지는 기계 번역되었습니다. 수정 사항은 <a href="https://github.com/tomderham/curve/issues">GitHub</a>에서 알려 주십시오.</p>
+  <p>버그를 발견했거나 아이디어가 있으신가요? <a href="https://github.com/tomderham/curve/issues">GitHub에서 이슈를 등록</a>하십시오.</p>
+  <p>Curve는 <a href="https://github.com/tomderham/curve/blob/main/LICENSE">AGPLv3</a> 라이선스의 오픈 소스 소프트웨어이며 <a href="https://juce.com">JUCE</a>로 만들어졌습니다. 헤드폰 프로필은 <a href="https://autoeq.app">AutoEQ</a> 프로젝트에서 제공합니다. 표시된 플러그인은 각 소유자의 자산입니다. 이 사이트는 분석 도구나 쿠키를 사용하지 않습니다.</p>
+</footer>
+
+</body>
+</html>

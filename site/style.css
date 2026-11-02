@@ -58,9 +58,35 @@ a:hover { color: var(--text); }
   text-decoration: none;
 }
 
-.top nav { display: flex; gap: 20px; font-size: 15px; }
+.top nav { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 4px 20px; font-size: 15px; }
 .top nav a { color: var(--muted); text-decoration: none; }
 .top nav a:hover { color: var(--text); }
+
+.languages { position: relative; color: var(--muted); }
+.languages summary { cursor: pointer; list-style: none; }
+.languages summary::-webkit-details-marker { display: none; }
+.languages summary::after { content: " \25BE"; }
+.languages summary:hover { color: var(--text); }
+.languages ul {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 130px;
+  padding: 6px 0;
+  list-style: none;
+  background: var(--node);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.languages a { display: block; padding: 4px 14px; }
+
+/* Tight tracking only suits Latin type */
+:lang(hi) h1, :lang(ja) h1, :lang(ko) h1, :lang(zh-Hans) h1,
+:lang(hi) h2, :lang(ja) h2, :lang(ko) h2, :lang(zh-Hans) h2 { letter-spacing: 0; }
+
+/* Devanagari marks sit above and below the line */
+:lang(hi) h1, :lang(hi) h2 { line-height: 1.35; }
 
 .hero { display: grid; gap: 36px; padding-block: 36px 56px; }
 
