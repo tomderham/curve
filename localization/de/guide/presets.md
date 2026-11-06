@@ -17,9 +17,15 @@ Ein Preset speichert einen ganzen Graphen: seine Plug-ins und deren Einstellunge
 
 ## Presets wechseln
 
-Deine Presets sind in Curves Menü alphabetisch aufgeführt, und das aktuelle trägt ein Häkchen. Wähle eines aus, um sofort dazu zu wechseln.
+Deine Presets sind in Curves Menü alphabetisch aufgeführt, und das aktuelle trägt ein Häkchen. Wähle eines aus, um sofort dazu zu wechseln. Curve fragt vorher nicht nach, speichere also alle Änderungen, die du behalten möchtest, bevor du wechselst.
 
 Du kannst Presets auch [über die Tastatur](keyboard-shortcuts.md) oder [über einen MIDI-Controller](midi-control.md) wechseln. Um eine Preset-Datei direkt zu laden, ziehe sie auf das Editorfenster.
+
+## Ein neues Preset beginnen
+
+Um mit einem leeren Graph neu zu beginnen, klicke auf das Menüsymbol oben links im Editorfenster und wähle New Preset. Alle Nodes außer Audio Input, Interface Loopback (In) und Audio Output werden entfernt. Diese sind nicht verbunden, du hörst also nichts, bis du sie verbindest.
+
+Sofern der Graph nicht nur diese Nodes enthält, fragt Curve vorher nach, denn im Fenster eines Plug-ins geänderte Einstellungen werden nicht als Änderungen erfasst. Wähle Save As Preset..., um das aktuelle Setup zu behalten, oder Discard and Start New.
 
 ## Ein Preset umbenennen oder löschen
 

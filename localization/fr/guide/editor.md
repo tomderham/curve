@@ -52,11 +52,19 @@ Cliquez avec le bouton droit sur un nœud pour accéder aux options suivantes :
 | Always Open Plug-in GUI with Preset | Ouvre la fenêtre du plug-in à chaque chargement du preset. |
 | Import EQ from AutoEQ... | Affiché sur les nœuds Parametric EQ. Voir [EQ de casque et AutoEQ](eq-and-autoeq.md). |
 | Import EQ from file... | Affiché sur les nœuds Parametric EQ. Voir [EQ de casque et AutoEQ](eq-and-autoeq.md). |
-| Configure Audio I/O | Modifie le nombre de broches d’entrée et de sortie d’un plug-in. |
+| Configure Audio I/O | Modifie les dispositions de canaux d’un plug-in, et désactive ou masque ses broches. Voir ci-dessous. |
 | Audio Settings... | Affiché sur les nœuds d’entrée et de sortie audio. Ouvre Audio Settings. |
 | Save Plug-in State | Enregistre les réglages du plug-in dans un fichier. |
 | Load Plug-in State | Charge les réglages du plug-in depuis un fichier. |
 
-## Modifier le nombre de canaux d’un plug-in
+## Configurer les entrées et sorties d’un plug-in
 
-Si un plug-in n’a pas le nombre de broches souhaité, cliquez avec le bouton droit sur son nœud et sélectionnez Configure Audio I/O.
+Cliquez avec le bouton droit sur le nœud d’un plug-in et sélectionnez Configure Audio I/O. Les broches d’un plug-in sont regroupées en bus, comme une entrée stéréo principale et une entrée sidechain. Sélectionnez un bus par son numéro, puis utilisez :
+
+- **Channel Layout:** définit le nombre de canaux du bus. Les dispositions de plus de deux canaux sont regroupées par nombre de canaux. Un plug-in surround ou ambisonique peut traiter différemment deux dispositions ayant le même nombre de canaux : choisissez celle qui correspond à votre audio.
+- **Enabled:** désactive le bus, ce qui retire ses broches. L’option est grisée si le plug-in ne peut pas fonctionner sans ce bus.
+- **Shown:** masque les broches du bus dans le graphe, mais le bus continue de fonctionner. Servez-vous-en pour ranger un bus que vous n’utilisez pas et qui ne peut pas être désactivé. Masquer un bus supprime ses connexions, et une entrée masquée reçoit du silence. Shown est grisé tant que le bus est désactivé.
+
+Si le plug-in a une broche MIDI, MIDI Port a son propre réglage Shown. Un côté qui n’a que du MIDI, comme l’entrée d’un instrument, n’a que ce réglage.
+
+Changer une disposition, ou activer ou désactiver un bus, déconnecte toutes les broches du nœud. Les réglages sont enregistrés avec le preset. Quand vous pointez un nœud dont des broches sont masquées, la barre d’état l’indique.

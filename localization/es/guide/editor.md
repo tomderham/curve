@@ -52,11 +52,19 @@ Haz clic con el botón derecho en un nodo para ver estas opciones:
 | Always Open Plug-in GUI with Preset | Abre la ventana del plug-in cada vez que se carga el preset. |
 | Import EQ from AutoEQ... | Se muestra en los nodos Parametric EQ. Consulta [EQ para auriculares y AutoEQ](eq-and-autoeq.md). |
 | Import EQ from file... | Se muestra en los nodos Parametric EQ. Consulta [EQ para auriculares y AutoEQ](eq-and-autoeq.md). |
-| Configure Audio I/O | Cambia el número de pines de entrada y salida de un plug-in. |
+| Configure Audio I/O | Cambia las disposiciones de canales de un plug-in y desactiva u oculta sus pines. Consulta más abajo. |
 | Audio Settings... | Se muestra en los nodos de entrada y salida de audio. Abre Audio Settings. |
 | Save Plug-in State | Guarda los ajustes del plug-in en un archivo. |
 | Load Plug-in State | Carga los ajustes del plug-in desde un archivo. |
 
-## Cambiar el número de canales de un plug-in
+## Configurar las entradas y salidas de un plug-in
 
-Si un plug-in no tiene el número de pines que quieres, haz clic con el botón derecho en su nodo y selecciona Configure Audio I/O.
+Haz clic con el botón derecho en el nodo de un plug-in y selecciona Configure Audio I/O. Los pines de un plug-in se agrupan en buses, como una entrada estéreo principal y una entrada de sidechain. Selecciona un bus por su número y usa:
+
+- **Channel Layout:** define cuántos canales tiene el bus. Las disposiciones de más de dos canales se agrupan por número de canales. Un plug-in de sonido envolvente o ambisónico puede tratar de forma distinta dos disposiciones con el mismo número de canales, así que elige la que corresponda a tu audio.
+- **Enabled:** desactiva el bus, lo que elimina sus pines. Aparece atenuado si el plug-in no puede funcionar sin el bus.
+- **Shown:** oculta los pines del bus en el grafo, pero el bus sigue funcionando. Úsalo para quitar de en medio un bus que no usas y que no se puede desactivar. Al ocultar un bus se eliminan sus conexiones, y una entrada oculta recibe silencio. Shown aparece atenuado mientras el bus está desactivado.
+
+Si el plug-in tiene un pin MIDI, MIDI Port tiene su propio ajuste Shown. Un lado que solo tiene MIDI, como la entrada de un instrumento, solo tiene ese ajuste.
+
+Cambiar una disposición o activar o desactivar un bus desconecta todos los pines del nodo. Los ajustes se guardan con el preset. Al señalar un nodo con pines ocultos, la barra de estado lo indica.

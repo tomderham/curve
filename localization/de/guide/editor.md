@@ -52,11 +52,19 @@ Klicke mit der rechten Maustaste auf einen Node, um diese Optionen zu sehen:
 | Always Open Plug-in GUI with Preset | Öffnet das Fenster des Plug-ins bei jedem Laden des Presets. |
 | Import EQ from AutoEQ... | Wird bei Nodes vom Typ Parametric EQ angezeigt. Siehe [Kopfhörer-EQ und AutoEQ](eq-and-autoeq.md). |
 | Import EQ from file... | Wird bei Nodes vom Typ Parametric EQ angezeigt. Siehe [Kopfhörer-EQ und AutoEQ](eq-and-autoeq.md). |
-| Configure Audio I/O | Ändert die Anzahl der Eingangs- und Ausgangs-Pins eines Plug-ins. |
+| Configure Audio I/O | Ändert die Kanal-Layouts eines Plug-ins und schaltet seine Pins aus oder blendet sie aus. Siehe unten. |
 | Audio Settings... | Wird bei Audioeingangs- und -ausgangs-Nodes angezeigt. Öffnet Audio Settings. |
 | Save Plug-in State | Speichert die Einstellungen des Plug-ins in einer Datei. |
 | Load Plug-in State | Lädt die Einstellungen des Plug-ins aus einer Datei. |
 
-## Die Kanalanzahl eines Plug-ins ändern
+## Die Ein- und Ausgänge eines Plug-ins konfigurieren
 
-Wenn ein Plug-in nicht die gewünschte Anzahl an Pins hat, klicke mit der rechten Maustaste auf seinen Node und wähle Configure Audio I/O.
+Klicke mit der rechten Maustaste auf den Node eines Plug-ins und wähle Configure Audio I/O. Die Pins eines Plug-ins sind in Busse gruppiert, etwa einen Stereo-Haupteingang und einen Sidechain-Eingang. Wähle einen Bus über seine Nummer und verwende dann:
+
+- **Channel Layout:** legt fest, wie viele Kanäle der Bus hat. Layouts mit mehr als zwei Kanälen sind nach Kanalanzahl gruppiert. Ein Surround- oder Ambisonics-Plug-in kann zwei Layouts mit derselben Kanalanzahl unterschiedlich behandeln, wähle also das, das zu deinem Audio passt.
+- **Enabled:** schaltet den Bus aus, wodurch seine Pins verschwinden. Die Option ist ausgegraut, wenn das Plug-in ohne den Bus nicht laufen kann.
+- **Shown:** blendet die Pins des Busses im Graph aus, der Bus läuft aber weiter. Damit räumst du einen Bus weg, den du nicht verwendest und der sich nicht ausschalten lässt. Beim Ausblenden werden die Verbindungen des Busses entfernt, und ein ausgeblendeter Eingang erhält Stille. Shown ist ausgegraut, solange der Bus aus ist.
+
+Wenn das Plug-in einen MIDI-Pin hat, hat MIDI Port eine eigene Shown-Einstellung. Eine Seite, die nur MIDI hat, etwa der Eingang eines Instruments, hat nur diese Einstellung.
+
+Wenn du ein Layout änderst oder einen Bus ein- oder ausschaltest, werden alle Pins des Nodes getrennt. Die Einstellungen werden mit dem Preset gespeichert. Wenn du auf einen Node mit ausgeblendeten Pins zeigst, weist die Statusleiste darauf hin.

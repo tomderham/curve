@@ -78,3 +78,9 @@ Quit
 Save
 Tidy Up Layout
 Undo Tidy Up
+Discard and Start New
+Channel Layout
+New Preset
+MIDI Port
+Enabled
+Shown

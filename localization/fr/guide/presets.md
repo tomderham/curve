@@ -17,9 +17,15 @@ Les modifications ne sont pas enregistrées automatiquement. Utilisez Save As Pr
 
 ## Changer de preset
 
-Vos presets sont répertoriés dans le menu de Curve, par ordre alphabétique, et le preset actuel est coché. Sélectionnez-en un pour y passer immédiatement.
+Vos presets sont répertoriés dans le menu de Curve, par ordre alphabétique, et le preset actuel est coché. Sélectionnez-en un pour y passer immédiatement. Curve ne demande pas de confirmation : enregistrez les modifications que vous voulez garder avant de changer.
 
 Vous pouvez aussi changer de preset [au clavier](keyboard-shortcuts.md) ou [depuis un contrôleur MIDI](midi-control.md). Pour charger directement un fichier de preset, faites-le glisser sur la fenêtre de l’éditeur.
+
+## Commencer un nouveau preset
+
+Pour repartir d’un graphe vide, cliquez sur l’icône de menu en haut à gauche de la fenêtre de l’éditeur et sélectionnez New Preset. Tous les nœuds sont supprimés sauf Audio Input, Interface Loopback (In) et Audio Output, qui ne sont pas connectés : il n’y a donc aucun son tant que vous ne les connectez pas.
+
+Sauf si le graphe ne contient que ces nœuds, Curve demande d’abord confirmation, car les réglages modifiés dans la fenêtre d’un plug-in ne sont pas suivis comme des modifications. Sélectionnez Save As Preset... pour garder la configuration actuelle, ou Discard and Start New.
 
 ## Renommer ou supprimer un preset
 

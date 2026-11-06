@@ -17,9 +17,15 @@ As alterações não são salvas automaticamente. Use Save As Preset... sempre q
 
 ## Alternar presets
 
-Seus presets aparecem no menu do Curve em ordem alfabética, e o atual tem uma marca de seleção. Selecione um para passar a ele imediatamente.
+Seus presets aparecem no menu do Curve em ordem alfabética, e o atual tem uma marca de seleção. Selecione um para passar a ele imediatamente. O Curve não pergunta antes, então salve as alterações que quiser manter antes de alternar.
 
 Você também pode alternar presets [pelo teclado](keyboard-shortcuts.md) ou [a partir de um controlador MIDI](midi-control.md). Para carregar diretamente um arquivo de preset, arraste-o para a janela do editor.
+
+## Começar um preset novo
+
+Para recomeçar com um grafo vazio, clique no ícone de menu no canto superior esquerdo da janela do editor e selecione New Preset. Todos os nós são removidos, exceto Audio Input, Interface Loopback (In) e Audio Output, que ficam desconectados, então não há som até você conectá-los.
+
+A menos que o grafo tenha só esses nós, o Curve pergunta antes, porque as configurações alteradas na janela de um plug-in não são registradas como alterações. Selecione Save As Preset... para manter a configuração atual, ou Discard and Start New.
 
 ## Renomear ou apagar um preset
 

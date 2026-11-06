@@ -52,11 +52,19 @@ Right-click a node for these options:
 | Always Open Plug-in GUI with Preset | Opens the plug-in's window whenever the preset loads. |
 | Import EQ from AutoEQ... | Shown on Parametric EQ nodes. See [Headphone EQ and AutoEQ](eq-and-autoeq.md). |
 | Import EQ from file... | Shown on Parametric EQ nodes. See [Headphone EQ and AutoEQ](eq-and-autoeq.md). |
-| Configure Audio I/O | Changes the number of input and output pins on a plug-in. |
+| Configure Audio I/O | Changes a plug-in's channel layouts, and turns off or hides its pins. See below. |
 | Audio Settings... | Shown on audio input and output nodes. Opens Audio Settings. |
 | Save Plug-in State | Saves the plug-in's settings to a file. |
 | Load Plug-in State | Loads the plug-in's settings from a file. |
 
-## Change a plug-in's channel count
+## Configure a plug-in's inputs and outputs
 
-If a plug-in doesn't have the number of pins you want, right-click its node and select Configure Audio I/O.
+Right-click a plug-in's node and select Configure Audio I/O. A plug-in's pins come in buses, such as a main stereo input and a sidechain input. Select a bus by its number, then use:
+
+- **Channel Layout:** sets how many channels the bus has. Layouts with more than two channels are grouped by channel count. A surround or ambisonic plug-in can treat two layouts with the same number of channels differently, so choose the one that matches your audio.
+- **Enabled:** turns the bus off, which removes its pins. It's greyed out if the plug-in can't run without the bus.
+- **Shown:** hides the bus's pins from the graph, but the bus keeps running. Use it to tidy away a bus you don't use that can't be turned off. Hiding a bus removes its connections, and a hidden input receives silence. Shown is greyed out while the bus is off.
+
+If the plug-in has a MIDI pin, MIDI Port has its own Shown setting. A side with only MIDI, such as an instrument's input, has just that setting.
+
+Changing a layout or turning a bus on or off disconnects all of the node's pins. The settings are saved with the preset. When you point at a node with hidden pins, the status bar says so.

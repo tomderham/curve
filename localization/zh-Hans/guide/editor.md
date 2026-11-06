@@ -52,11 +52,19 @@
 | Always Open Plug-in GUI with Preset | 每次载入预设时打开插件的窗口。 |
 | Import EQ from AutoEQ... | 显示在 Parametric EQ 节点上。请参阅[耳机 EQ 和 AutoEQ](eq-and-autoeq.md)。 |
 | Import EQ from file... | 显示在 Parametric EQ 节点上。请参阅[耳机 EQ 和 AutoEQ](eq-and-autoeq.md)。 |
-| Configure Audio I/O | 更改插件的输入和输出引脚数量。 |
+| Configure Audio I/O | 更改插件的通道布局，并关闭或隐藏其引脚。见下文。 |
 | Audio Settings... | 显示在音频输入和输出节点上。打开 Audio Settings。 |
 | Save Plug-in State | 将插件的设置存储到文件。 |
 | Load Plug-in State | 从文件载入插件的设置。 |
 
-## 更改插件的通道数
+## 配置插件的输入和输出
 
-如果插件的引脚数量不符合需要，请右键点按其节点并选择 Configure Audio I/O。
+右键点按插件的节点并选择 Configure Audio I/O。插件的引脚分组为总线，例如主立体声输入和侧链输入。按编号选择一条总线，然后使用：
+
+- **Channel Layout:** 设置总线的通道数。超过两个通道的布局按通道数分组。环绕声或 Ambisonic 插件可能会以不同方式处理通道数相同的两种布局，因此请选择与你的音频相符的布局。
+- **Enabled:** 关闭总线，这会移除其引脚。如果插件离不开该总线，此项会显示为灰色。
+- **Shown:** 在图中隐藏总线的引脚，但总线仍在运行。可用它收起不使用且无法关闭的总线。隐藏总线会移除其连接，隐藏的输入接收的是静音。总线关闭时，Shown 显示为灰色。
+
+如果插件有 MIDI 引脚，MIDI Port 有自己的 Shown 设置。只有 MIDI 的一侧（例如乐器的输入）只有这一项设置。
+
+更改布局或打开、关闭总线会断开节点的所有引脚。这些设置随预设一起存储。指向带有隐藏引脚的节点时，状态栏会提示这一点。

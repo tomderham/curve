@@ -17,9 +17,15 @@ Changes aren't saved automatically. Use Save As Preset... whenever you want to k
 
 ## Switch presets
 
-Your presets are listed in Curve's menu, in alphabetical order, and the current one has a check mark. Select one to switch to it straight away.
+Your presets are listed in Curve's menu, in alphabetical order, and the current one has a check mark. Select one to switch to it straight away. Curve doesn't ask first, so save any changes you want to keep before you switch.
 
 You can also switch presets [from the keyboard](keyboard-shortcuts.md) or [from a MIDI controller](midi-control.md). To load a preset file directly, drag it onto the editor window.
+
+## Start a new preset
+
+To start again from an empty graph, click the menu icon at the top left of the editor window and select New Preset. Every node is removed except Audio Input, Interface Loopback (In) and Audio Output, which aren't connected, so there's no sound until you connect them.
+
+Unless the graph has only those nodes, Curve asks first, because settings changed in a plug-in's window aren't tracked as changes. Select Save As Preset... to keep the current setup, or Discard and Start New.
 
 ## Rename or delete a preset
 

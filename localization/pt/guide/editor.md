@@ -52,11 +52,19 @@ Clique com o botão direito em um nó para ver estas opções:
 | Always Open Plug-in GUI with Preset | Abre a janela do plug-in sempre que o preset é carregado. |
 | Import EQ from AutoEQ... | Aparece nos nós Parametric EQ. Consulte [EQ para fones de ouvido e AutoEQ](eq-and-autoeq.md). |
 | Import EQ from file... | Aparece nos nós Parametric EQ. Consulte [EQ para fones de ouvido e AutoEQ](eq-and-autoeq.md). |
-| Configure Audio I/O | Altera o número de pinos de entrada e saída de um plug-in. |
+| Configure Audio I/O | Altera os layouts de canais de um plug-in e desativa ou oculta os pinos dele. Veja abaixo. |
 | Audio Settings... | Aparece nos nós de entrada e saída de áudio. Abre Audio Settings. |
 | Save Plug-in State | Salva os ajustes do plug-in em um arquivo. |
 | Load Plug-in State | Carrega os ajustes do plug-in de um arquivo. |
 
-## Alterar o número de canais de um plug-in
+## Configurar as entradas e saídas de um plug-in
 
-Se um plug-in não tiver o número de pinos desejado, clique com o botão direito no nó dele e selecione Configure Audio I/O.
+Clique com o botão direito no nó de um plug-in e selecione Configure Audio I/O. Os pinos de um plug-in são agrupados em buses, como uma entrada estéreo principal e uma entrada de sidechain. Selecione um bus pelo número e use:
+
+- **Channel Layout:** define quantos canais o bus tem. Layouts com mais de dois canais são agrupados por número de canais. Um plug-in surround ou ambissônico pode tratar de forma diferente dois layouts com o mesmo número de canais, então escolha o que corresponde ao seu áudio.
+- **Enabled:** desativa o bus, o que remove os pinos dele. Fica esmaecido se o plug-in não puder funcionar sem o bus.
+- **Shown:** oculta os pinos do bus no grafo, mas o bus continua funcionando. Use para tirar do caminho um bus que você não usa e que não pode ser desativado. Ocultar um bus remove as conexões dele, e uma entrada oculta recebe silêncio. Shown fica esmaecido enquanto o bus está desativado.
+
+Se o plug-in tiver um pino MIDI, MIDI Port tem a própria configuração Shown. Um lado que só tem MIDI, como a entrada de um instrumento, tem apenas essa configuração.
+
+Alterar um layout ou ativar ou desativar um bus desconecta todos os pinos do nó. As configurações são salvas com o preset. Ao apontar para um nó com pinos ocultos, a barra de status indica isso.
