@@ -1120,6 +1120,93 @@ void MainHostWindow::filesDropped (const StringArray& files, int x, int y)
 
 void MainHostWindow::loadPreset(juce::File file)
 {
+    replaceGraph ([this, file]
+    {
+        graphHolder->graph->setRestorePluginWindowsOnLoad (false);
+        auto result = graphHolder->graph->loadFrom (file, true);
+        if (result.wasOk())
+        {
+            graphHolder->propagateDeviceSettingsToNodes();
+        }
+        else
+        {
+            juce::NativeMessageBox::showMessageBoxAsync (
+                juce::MessageBoxIconType::WarningIcon,
+                "Failed to Load Preset",
+                "Could not load the preset file:\n" + result.getErrorMessage());
+        }
+    });
+
+    if (graphHolder != nullptr && graphHolder->graph != nullptr)
+        graphHolder->graph->openPresetPluginWindows();
+}
+
+void MainHostWindow::newPreset()
+{
+    if (graphHolder == nullptr || graphHolder->graph == nullptr)
+        return;
+
+    auto startNewPreset = [safeThis = SafePointer<MainHostWindow> (this)]
+    {
+        if (auto* w = safeThis.getComponent())
+        {
+            w->replaceGraph ([w]
+            {
+                w->graphHolder->graph->newDocument();
+                w->graphHolder->propagateDeviceSettingsToNodes();
+            });
+        }
+    };
+
+    // Settings changed inside a plug-in don't mark the preset as changed, so always ask,
+    // unless there's nothing yet beyond the default audio nodes
+    auto& audioGraph = graphHolder->graph->graph;
+    const auto isDefaultGraph = audioGraph.getConnections().empty()
+                             && std::all_of (audioGraph.getNodes().begin(), audioGraph.getNodes().end(), [] (auto* node)
+                                {
+                                    return PluginGraph::isConfiguredByAudioSettings (*node->getProcessor());
+                                });
+
+    if (isDefaultGraph)
+    {
+        startNewPreset();
+        return;
+    }
+
+    juce::Process::makeForegroundProcess();
+
+    const auto current = graphHolder->graph->getFile();
+    const auto message = current.existsAsFile()
+                           ? "This removes every node from the graph. Anything changed since \"" + current.getFileNameWithoutExtension()
+                               + "\" was last saved, including settings inside plug-ins, will be lost."
+                           : String ("This removes every node from the graph. Your current setup hasn't been saved as a preset and will be lost.");
+
+    auto options = MessageBoxOptions()
+                       .withIconType (MessageBoxIconType::WarningIcon)
+                       .withTitle ("Start a New Preset?")
+                       .withMessage (message)
+                       .withButton ("Save As Preset...")
+                       .withButton ("Discard and Start New")
+                       .withButton ("Cancel")
+                       .withAssociatedComponent ((isOnDesktop() && isVisible()) ? this : nullptr);
+
+    messageBox = AlertWindow::showScopedAsync (options, [safeThis = SafePointer<MainHostWindow> (this), startNewPreset] (int result)
+    {
+        // Buttons are numbered 1, 2, then 0 for the last
+        if (result == 1)
+        {
+            if (auto* w = safeThis.getComponent())
+                w->saveAsPreset();
+        }
+        else if (result == 2)
+        {
+            startNewPreset();
+        }
+    });
+}
+
+void MainHostWindow::replaceGraph (const std::function<void()>& replace)
+{
     // Load into a running device, so the new graph is prepared and checked for idle release normally
     if (auto* idle = getIdleReleaseController())
         idle->resumeIfReleased();
@@ -1145,27 +1232,13 @@ void MainHostWindow::loadPreset(juce::File file)
         auto& audioGraph = graphHolder->graph->graph;
         audioGraph.suspendProcessing (true);
 
-        graphHolder->graph->setRestorePluginWindowsOnLoad (false);
-        auto result = graphHolder->graph->loadFrom (file, true);
-        if (result.wasOk())
-        {
-            graphHolder->propagateDeviceSettingsToNodes();
-        }
-        else
-        {
-            juce::NativeMessageBox::showMessageBoxAsync (
-                juce::MessageBoxIconType::WarningIcon,
-                "Failed to Load Preset",
-                "Could not load the preset file:\n" + result.getErrorMessage());
-        }
+        replace();
 
         audioGraph.suspendProcessing (false);
 
-        // Smoothly fade in new preset audio
+        // Smoothly fade in the new graph's audio
         if (hasActiveDevice)
             graphHolder->endPresetTransition();
-
-        graphHolder->graph->openPresetPluginWindows();
     }
 
     if (auto* rm = getResilienceManager())

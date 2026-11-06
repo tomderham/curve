@@ -113,6 +113,8 @@ public:
     void saveAsPreset();
     void showPluginListWindow();
     void loadPreset (juce::File);
+    // Clears the graph back to its default audio nodes, asking first if there are unsaved changes
+    void newPreset();
     void showOnlineCalibrationDialogForCreation (juce::Point<int> pos);
     void showOnlineCalibrationDialogForNode (juce::AudioProcessorGraph::Node* node);
     void applyCalibrationProfileAtLocation (const CalibrationProfile& profile, juce::Point<int> pos);
@@ -140,6 +142,10 @@ private:
 
     class PluginListWindow;
     std::unique_ptr<PluginListWindow> pluginListWindow;
+    ScopedMessageBox messageBox;
+
+    // Fades out and suspends the audio around a change that replaces the whole graph
+    void replaceGraph (const std::function<void()>& replace);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainHostWindow)
 };

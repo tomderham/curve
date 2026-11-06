@@ -567,6 +567,12 @@ public:
         });
     }
 
+    // Only in the editor's own menu, where the graph it clears is in view
+    if (!includeVisibilityToggle)
+      menu.addItem("New Preset", [safeWindow] {
+        if (auto* w = safeWindow.getComponent())
+          w->newPreset();
+      });
     menu.addItem("Save As Preset...", [safeWindow] {
       if (auto* w = safeWindow.getComponent())
         w->saveAsPreset();
