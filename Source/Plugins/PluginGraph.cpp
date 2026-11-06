@@ -190,6 +190,70 @@ bool PluginGraph::isNodePositionFree (NodeID nodeID) const
     return n != nullptr && n->properties[freePositionProp];
 }
 
+// Hidden ports are stored as tokens such as "in1 outMidi"
+static String getHiddenPortToken (bool isInput, int busIndex)
+{
+    return (isInput ? "in" : "out") + (busIndex == PluginGraph::midiBus ? String ("Midi") : String (busIndex));
+}
+
+void PluginGraph::setBusHidden (NodeID nodeID, bool isInput, int busIndex, bool shouldBeHidden)
+{
+    auto* n = graph.getNodeForId (nodeID);
+
+    if (n == nullptr || isBusHidden (nodeID, isInput, busIndex) == shouldBeHidden)
+        return;
+
+    auto tokens = StringArray::fromTokens (n->properties[hiddenPortsProp].toString(), false);
+    const auto token = getHiddenPortToken (isInput, busIndex);
+
+    if (shouldBeHidden)
+        tokens.add (token);
+    else
+        tokens.removeString (token);
+
+    if (tokens.isEmpty())
+        n->properties.remove (hiddenPortsProp);
+    else
+        n->properties.set (hiddenPortsProp, tokens.joinIntoString (" "));
+
+    if (shouldBeHidden)
+    {
+        auto& processor = *n->getProcessor();
+        int firstChannel = 0, numChannels = 1;
+
+        if (busIndex == midiBus)
+        {
+            firstChannel = AudioProcessorGraph::midiChannelIndex;
+        }
+        else
+        {
+            for (int i = 0; i < busIndex; ++i)
+                firstChannel += processor.getChannelCountOfBus (isInput, i);
+
+            numChannels = processor.getChannelCountOfBus (isInput, busIndex);
+        }
+
+        for (const auto& c : graph.getConnections())
+        {
+            const auto& end = isInput ? c.destination : c.source;
+
+            if (end.nodeID == nodeID && end.channelIndex >= firstChannel && end.channelIndex < firstChannel + numChannels)
+                graph.removeConnection (c);
+        }
+    }
+
+    changed();
+}
+
+bool PluginGraph::isBusHidden (NodeID nodeID, bool isInput, int busIndex) const
+{
+    auto* n = graph.getNodeForId (nodeID);
+
+    return n != nullptr
+        && StringArray::fromTokens (n->properties[hiddenPortsProp].toString(), false)
+               .contains (getHiddenPortToken (isInput, busIndex));
+}
+
 //==============================================================================
 // The graph deletes removed nodes up to 500ms later (with its old render sequence),
 // so deactivate loopback nodes now, or the tap health check rebuilds the tap for
@@ -718,6 +782,9 @@ static XmlElement* createNodeXml (AudioProcessorGraph::Node* const node) noexcep
         if (node->properties[PluginGraph::freePositionProp])
             e->setAttribute (PluginGraph::freePositionProp, true);
 
+        if (node->properties.contains (PluginGraph::hiddenPortsProp))
+            e->setAttribute (PluginGraph::hiddenPortsProp, node->properties[PluginGraph::hiddenPortsProp].toString());
+
         for (int i = 0; i < (int) PluginWindow::Type::numTypes; ++i)
         {
             auto type = (PluginWindow::Type) i;
@@ -983,6 +1050,9 @@ bool PluginGraph::finishNodeFromXml (std::unique_ptr<AudioPluginInstance> instan
 
         if (xml.getBoolAttribute (freePositionProp))
             node->properties.set (freePositionProp, true);
+
+        if (const auto hiddenPorts = xml.getStringAttribute (hiddenPortsProp); hiddenPorts.isNotEmpty())
+            node->properties.set (hiddenPortsProp, hiddenPorts);
 
         if (const auto customName = xml.getStringAttribute ("customNodeName"); customName.isNotEmpty())
             node->properties.set ("customNodeName", customName);

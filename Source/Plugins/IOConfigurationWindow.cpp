@@ -194,20 +194,55 @@ public:
         ioTitle.setFont (ioTitle.getFont().withStyle (Font::bold));
         nameLabel.setFont (nameLabel.getFont().withStyle (Font::bold));
         layoutLabel.setFont (layoutLabel.getFont().withStyle (Font::bold));
+        midiLabel.setFont (midiLabel.getFont().withStyle (Font::bold));
         enabledToggle.setClickingTogglesState (true);
+        shownToggle.setClickingTogglesState (true);
+        midiShownToggle.setClickingTogglesState (true);
 
         enabledToggle.addListener (this);
+        shownToggle.addListener (this);
+        midiShownToggle.addListener (this);
+
+        shownToggle.setTooltip ("Show this bus's pins in the graph. A hidden bus keeps running.");
+        midiShownToggle.setTooltip ("Show the MIDI pin in the graph.");
+
+        if (hasMidiPort())
+        {
+            addAndMakeVisible (midiLabel);
+            addAndMakeVisible (midiShownToggle);
+        }
+
+        addAndMakeVisible (ioTitle);
+
+        // An instrument's input side may have only its MIDI port
+        if (! hasAudioBuses())
+        {
+            ioTitle.setText (isInput ? "MIDI Input" : "MIDI Output", dontSendNotification);
+            midiLabel.setVisible (false);
+            midiShownToggle.setButtonText ("Shown in graph");
+            updateMidiPort();
+            return;
+        }
 
         addAndMakeVisible (layoutLabel);
         addAndMakeVisible (layouts);
         addAndMakeVisible (enabledToggle);
-        addAndMakeVisible (ioTitle);
+        addAndMakeVisible (shownToggle);
         addAndMakeVisible (nameLabel);
         addAndMakeVisible (name);
         addAndMakeVisible (ioBuses);
 
         updateBusButtons();
         updateBusLayout();
+        updateMidiPort();
+    }
+
+    int getDesiredHeight() const
+    {
+        if (! hasAudioBuses())
+            return 80;
+
+        return hasMidiPort() ? 184 : 160;
     }
 
     void paint (Graphics& g) override
@@ -223,11 +258,18 @@ public:
         r.reduce (10, 0);
         r.removeFromTop (16);
 
+        if (! hasAudioBuses())
+        {
+            midiShownToggle.setBounds (r.removeFromTop (24).removeFromLeft (200));
+            return;
+        }
+
         ioBuses.setBounds (r.removeFromTop (60));
 
         {
             auto label = r.removeFromTop (24);
             nameLabel.setBounds (label.removeFromLeft (100));
+            shownToggle.setBounds (label.removeFromRight (80));
             enabledToggle.setBounds (label.removeFromRight (80));
             name.setBounds (label);
         }
@@ -236,6 +278,13 @@ public:
             auto label = r.removeFromTop (24);
             layoutLabel.setBounds (label.removeFromLeft (100));
             layouts.setBounds (label);
+        }
+
+        if (hasMidiPort())
+        {
+            auto label = r.removeFromTop (24);
+            midiLabel.setBounds (label.removeFromLeft (100));
+            midiShownToggle.setBounds (label.removeFromRight (80));
         }
     }
 
@@ -275,27 +324,32 @@ private:
                 auto* menu = layouts.getRootMenu();
 
                 auto itemId = 1;
-                auto selectedId = -1;
+                auto selectedId = 0;
 
+                // A plug-in may treat layouts with the same number of channels differently, so
+                // offer every one it accepts. Beyond stereo they're grouped by channel count.
                 for (auto i = 1; i <= AudioChannelSet::maxChannelsOfNamedLayout; ++i)
                 {
-                    for (const auto& set : AudioChannelSet::channelSetsWithNumberOfChannels (i))
+                    PopupMenu countMenu;
+                    auto* target = i <= 2 ? menu : &countMenu;
+
+                    for (const auto& set : getSupportedLayouts (*bus, i))
                     {
-                        if (bus->isLayoutSupported (set))
-                        {
-                            menu->addItem (PopupMenu::Item { set.getDescription() }
-                                               .setAction ([this, set] { applyBusLayout (set); })
-                                               .setID (itemId));
-                        }
+                        target->addItem (PopupMenu::Item { set.getDescription() }
+                                             .setAction ([this, set] { applyBusLayout (set); })
+                                             .setID (itemId));
 
                         if (bus->getCurrentLayout() == set)
                             selectedId = itemId;
 
                         ++itemId;
                     }
+
+                    if (countMenu.getNumItems() > 0)
+                        menu->addSubMenu (String (i) + " channels", countMenu);
                 }
 
-                layouts.setSelectedId (selectedId);
+                layouts.setSelectedId (selectedId, dontSendNotification);
 
                 const bool canBeDisabled = bus->isNumberOfChannelsSupported (0);
 
@@ -304,6 +358,69 @@ private:
 
                 enabledToggle.setToggleState (bus->isEnabled(), NotificationType::dontSendNotification);
             }
+        }
+
+        updateShownToggle (shownToggle, currentBus);
+    }
+
+    // Named layouts first, discrete last
+    static Array<AudioChannelSet> getSupportedLayouts (const AudioProcessor::Bus& bus, int numChannels)
+    {
+        Array<AudioChannelSet> named, discrete;
+
+        for (const auto& set : AudioChannelSet::channelSetsWithNumberOfChannels (numChannels))
+            if (bus.isLayoutSupported (set))
+                (set.isDiscreteLayout() ? discrete : named).add (set);
+
+        named.addArray (discrete);
+        return named;
+    }
+
+    bool hasAudioBuses() const
+    {
+        if (auto* p = owner.getAudioProcessor())
+            return p->getBusCount (isInput) > 0 || p->canAddBus (isInput);
+
+        return false;
+    }
+
+    bool hasMidiPort() const
+    {
+        if (auto* p = owner.getAudioProcessor())
+            return isInput ? p->acceptsMidi() : p->producesMidi();
+
+        return false;
+    }
+
+    void updateMidiPort()
+    {
+        if (hasMidiPort())
+            updateShownToggle (midiShownToggle, PluginGraph::midiBus);
+    }
+
+    // A disabled bus has no pins, so it shows as not shown, but keeps whether it's hidden for
+    // when it's enabled again
+    void updateShownToggle (ToggleButton& toggle, int busIndex)
+    {
+        auto* p = owner.getAudioProcessor();
+        auto* graph = owner.getPluginGraph();
+        const auto nodeID = owner.getNodeID();
+        auto* bus = p != nullptr && busIndex != PluginGraph::midiBus ? p->getBus (isInput, busIndex) : nullptr;
+
+        const bool canBeShown = graph != nullptr && nodeID != AudioProcessorGraph::NodeID()
+                             && (busIndex == PluginGraph::midiBus || (bus != nullptr && bus->isEnabled()));
+
+        toggle.setEnabled (canBeShown);
+        toggle.setToggleState (canBeShown && ! graph->isBusHidden (nodeID, isInput, busIndex),
+                               NotificationType::dontSendNotification);
+    }
+
+    void setBusShown (ToggleButton& toggle, int busIndex)
+    {
+        if (auto* graph = owner.getPluginGraph())
+        {
+            graph->setBusHidden (owner.getNodeID(), isInput, busIndex, ! toggle.getToggleState());
+            owner.refreshGraphEditor();
         }
     }
 
@@ -329,6 +446,18 @@ private:
 
     void buttonStateChanged (Button* btn) override
     {
+        if (btn == &shownToggle || btn == &midiShownToggle)
+        {
+            auto& toggle = *static_cast<ToggleButton*> (btn);
+            const auto busIndex = (btn == &shownToggle ? currentBus : PluginGraph::midiBus);
+
+            if (auto* graph = owner.getPluginGraph(); graph != nullptr && toggle.isEnabled()
+                    && graph->isBusHidden (owner.getNodeID(), isInput, busIndex) == toggle.getToggleState())
+                setBusShown (toggle, busIndex);
+
+            return;
+        }
+
         if (btn == &enabledToggle && enabledToggle.isEnabled())
         {
             if (auto* p = owner.getAudioProcessor())
@@ -426,7 +555,9 @@ private:
     Label ioTitle, name;
     Label nameLabel { "nameLabel", "Bus Name:" };
     Label layoutLabel { "layoutLabel", "Channel Layout:" };
+    Label midiLabel { "midiLabel", "MIDI Port:" };
     ToggleButton enabledToggle { "Enabled" };
+    ToggleButton shownToggle { "Shown" }, midiShownToggle { "Shown" };
     ComboBox layouts;
     NumberedBoxes ioBuses;
     bool isInput;
@@ -464,20 +595,21 @@ IOConfigurationWindow::IOConfigurationWindow (AudioProcessor& p)
         p.releaseResources();
     }
 
-    if (p.getBusCount (true)  > 0 || p.canAddBus (true))
+    if (p.getBusCount (true)  > 0 || p.canAddBus (true) || p.acceptsMidi())
     {
         inConfig.reset (new InputOutputConfig (*this, true));
         addAndMakeVisible (inConfig.get());
     }
 
-    if (p.getBusCount (false) > 0 || p.canAddBus (false))
+    if (p.getBusCount (false) > 0 || p.canAddBus (false) || p.producesMidi())
     {
         outConfig.reset (new InputOutputConfig (*this, false));
         addAndMakeVisible (outConfig.get());
     }
 
     currentLayout = p.getBusesLayout();
-    setSize (400, (inConfig != nullptr && outConfig != nullptr ? 160 : 0) + 200);
+    setSize (480, 40 + (inConfig  != nullptr ? inConfig->getDesiredHeight()  : 0)
+                     + (outConfig != nullptr ? outConfig->getDesiredHeight() : 0));
 }
 
 IOConfigurationWindow::~IOConfigurationWindow()
@@ -528,10 +660,10 @@ void IOConfigurationWindow::resized()
     r.reduce (10, 0);
 
     if (inConfig != nullptr)
-        inConfig->setBounds (r.removeFromTop (160));
+        inConfig->setBounds (r.removeFromTop (inConfig->getDesiredHeight()));
 
     if (outConfig != nullptr)
-        outConfig->setBounds (r.removeFromTop (160));
+        outConfig->setBounds (r.removeFromTop (outConfig->getDesiredHeight()));
 }
 
 void IOConfigurationWindow::update()
@@ -545,6 +677,21 @@ void IOConfigurationWindow::update()
     if (auto* graphEditor = getGraphEditor())
         if (auto* panel = graphEditor->graphPanel.get())
             panel->updateComponents();
+}
+
+void IOConfigurationWindow::refreshGraphEditor()
+{
+    if (auto* graphEditor = getGraphEditor())
+        if (auto* panel = graphEditor->graphPanel.get())
+            panel->updateComponents();
+}
+
+PluginGraph* IOConfigurationWindow::getPluginGraph() const
+{
+    if (auto* graphEditor = getGraphEditor())
+        return graphEditor->graph.get();
+
+    return nullptr;
 }
 
 AudioProcessorGraph::NodeID IOConfigurationWindow::getNodeID() const

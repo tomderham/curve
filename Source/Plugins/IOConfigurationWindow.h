@@ -36,6 +36,7 @@
 
 class MainHostWindow;
 class GraphDocumentComponent;
+class PluginGraph;
 
 
 //==============================================================================
@@ -58,10 +59,12 @@ private:
 
     InputOutputConfig* getConfig (bool isInput) noexcept    { return isInput ? inConfig.get() : outConfig.get(); }
     void update();
+    void refreshGraphEditor();
 
     MainHostWindow* getMainWindow() const;
     GraphDocumentComponent* getGraphEditor() const;
     AudioProcessorGraph* getGraph() const;
+    PluginGraph* getPluginGraph() const;
     AudioProcessorGraph::NodeID getNodeID() const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (IOConfigurationWindow)

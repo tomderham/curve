@@ -500,34 +500,56 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         }
     }
 
-    // Disabled buses take no space, and an empty slot sets enabled buses apart
-    static int getNumBusGaps (const AudioProcessor& processor, bool isInput, int lastBus)
+    bool isBusShown (const AudioProcessor& processor, bool isInput, int busIdx) const
     {
-        int numEnabled = 0;
+        if (busIdx == PluginGraph::midiBus)
+            return (isInput ? processor.acceptsMidi() : processor.producesMidi())
+                && ! graph.isBusHidden (pluginID, isInput, busIdx);
 
-        for (int i = 0; i <= lastBus; ++i)
-            if (processor.getChannelCountOfBus (isInput, i) > 0)
-                ++numEnabled;
-
-        return jmax (0, numEnabled - 1);
+        return processor.getChannelCountOfBus (isInput, busIdx) > 0
+            && ! graph.isBusHidden (pluginID, isInput, busIdx);
     }
 
-    static int getPinSlot (const AudioProcessor& processor, bool isInput, int channelIndex)
+    bool isPinShown (const AudioProcessor& processor, bool isInput, int channelIndex) const
     {
-        int busIdx = 0;
+        int busIdx = PluginGraph::midiBus;
 
-        if (channelIndex == AudioProcessorGraph::midiChannelIndex)
-            return (isInput ? processor.getTotalNumInputChannels() : processor.getTotalNumOutputChannels())
-                 + getNumBusGaps (processor, isInput, processor.getBusCount (isInput) - 1);
+        if (channelIndex != AudioProcessorGraph::midiChannelIndex)
+            processor.getOffsetInBusBufferForAbsoluteChannelIndex (isInput, channelIndex, busIdx);
 
-        processor.getOffsetInBusBufferForAbsoluteChannelIndex (isInput, channelIndex, busIdx);
-        return channelIndex + getNumBusGaps (processor, isInput, busIdx);
+        return isBusShown (processor, isInput, busIdx);
     }
 
-    static int getNumPinSlots (const AudioProcessor& processor, bool isInput)
+    // Disabled and hidden buses take no space, and an empty slot sets shown buses apart
+    int getPinSlot (const AudioProcessor& processor, bool isInput, int channelIndex) const
     {
-        const bool hasMidi = isInput ? processor.acceptsMidi() : processor.producesMidi();
-        return getPinSlot (processor, isInput, AudioProcessorGraph::midiChannelIndex) + (hasMidi ? 1 : 0);
+        int slot = 0, firstChannel = 0, numShown = 0;
+
+        for (int busIdx = 0; busIdx < processor.getBusCount (isInput); ++busIdx)
+        {
+            const int numChannels = processor.getChannelCountOfBus (isInput, busIdx);
+
+            if (isBusShown (processor, isInput, busIdx))
+            {
+                if (numShown++ > 0)
+                    ++slot;
+
+                if (channelIndex >= firstChannel && channelIndex < firstChannel + numChannels)
+                    return slot + channelIndex - firstChannel;
+
+                slot += numChannels;
+            }
+
+            firstChannel += numChannels;
+        }
+
+        return slot;
+    }
+
+    int getNumPinSlots (const AudioProcessor& processor, bool isInput) const
+    {
+        return getPinSlot (processor, isInput, AudioProcessorGraph::midiChannelIndex)
+             + (isBusShown (processor, isInput, PluginGraph::midiBus) ? 1 : 0);
     }
 
     Rectangle<int> getBoundsForPosition (int w, int h) const
@@ -596,29 +618,35 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         if (const auto mappings = graph.describeMidiMappingsForNode (pluginID); mappings.isNotEmpty())
             tooltip << "  " << String::fromUTF8 ("\xe2\x80\xa2") << "  MIDI: " << mappings;
 
+        if (f->properties.contains (PluginGraph::hiddenPortsProp))
+            tooltip << "  " << String::fromUTF8 ("\xe2\x80\xa2") << "  Some ports hidden in Configure Audio I/O";
+
         setTooltip (tooltip);
 
         // Bypass and mappings can change without any change in size
         repaint();
 
-        if (numIns != numInputs || numOuts != numOutputs)
+        const auto newHiddenPorts = f->properties[PluginGraph::hiddenPortsProp].toString();
+
+        if (numIns != numInputs || numOuts != numOutputs || newHiddenPorts != hiddenPorts)
         {
             numInputs = numIns;
             numOutputs = numOuts;
+            hiddenPorts = newHiddenPorts;
 
             pins.clear();
 
-            for (int i = 0; i < processor.getTotalNumInputChannels(); ++i)
-                addAndMakeVisible (pins.add (new PinComponent (panel, { pluginID, i }, true)));
+            for (const bool isInput : { true, false })
+            {
+                const int numChannels = isInput ? processor.getTotalNumInputChannels() : processor.getTotalNumOutputChannels();
 
-            if (processor.acceptsMidi())
-                addAndMakeVisible (pins.add (new PinComponent (panel, { pluginID, AudioProcessorGraph::midiChannelIndex }, true)));
+                for (int i = 0; i < numChannels; ++i)
+                    if (isPinShown (processor, isInput, i))
+                        addAndMakeVisible (pins.add (new PinComponent (panel, { pluginID, i }, isInput)));
 
-            for (int i = 0; i < processor.getTotalNumOutputChannels(); ++i)
-                addAndMakeVisible (pins.add (new PinComponent (panel, { pluginID, i }, false)));
-
-            if (processor.producesMidi())
-                addAndMakeVisible (pins.add (new PinComponent (panel, { pluginID, AudioProcessorGraph::midiChannelIndex }, false)));
+                if (isPinShown (processor, isInput, AudioProcessorGraph::midiChannelIndex))
+                    addAndMakeVisible (pins.add (new PinComponent (panel, { pluginID, AudioProcessorGraph::midiChannelIndex }, isInput)));
+            }
 
             resized();
         }
@@ -912,6 +940,7 @@ struct GraphEditorPanel::PluginComponent final : public Component,
     Point<int> originalPos, originalTouchPos;
     Font font = FontOptions { 13.0f };
     int numIns = 0, numOuts = 0;
+    String hiddenPorts;
     std::unique_ptr<PopupMenu> menu;
     std::unique_ptr<FileChooser> fileChooser;
     AudioProcessorParameter* observedBypassParam = nullptr;

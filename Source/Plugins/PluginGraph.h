@@ -107,6 +107,13 @@ public:
     static inline const Identifier openWithPresetProp { "openWithPreset" };
     static inline const Identifier freePositionProp { "freePosition" };
 
+    // A hidden bus keeps running but shows no pins in the graph editor, for buses that can't be
+    // disabled. Hiding one removes its connections. Pass midiBus for the node's MIDI port.
+    static constexpr int midiBus = -1;
+    void setBusHidden (NodeID, bool isInput, int busIndex, bool shouldBeHidden);
+    bool isBusHidden (NodeID, bool isInput, int busIndex) const;
+    static inline const Identifier hiddenPortsProp { "hiddenPorts" };
+
     // While MIDI learning, plugin windows float above the editor, so clicking the
     // graph (e.g. a bypass button) doesn't hide the controls still to be touched.
     void setPluginWindowsFloating (bool shouldFloat);
