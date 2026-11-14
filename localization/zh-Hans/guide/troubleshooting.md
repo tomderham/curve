@@ -37,6 +37,12 @@ Curve 不会自动存储更改。请使用 Save As Preset... 并替换现有预�
 
 打开 Settings > Release audio interface when idle。请参阅[音频设置和设备](audio-settings.md)。
 
+## 音量键无法改变 Curve 的音量
+
+- 检查 Settings > Volume Keys 是否未设为 Off。
+- 如果菜单显示 Allow Accessibility Access...，请选择它，并在“辅助功能”中打开 Curve。如果 Curve 已经打开，请先关闭再重新打开。
+- 使用 When macOS Can't Control the Interface's Volume 时，如果 macOS 能设置 Curve 所用声道的音量，或者 macOS 的输出不是 Curve 的输出接口，按键会由 macOS 处理。请打开 Force macOS System Audio to loopback，或选择 Always。请参阅[键盘快捷键](keyboard-shortcuts.md)。
+
 ## Curve 对我的 MIDI 控制器没有响应
 
 检查是否已在 Audio Settings 的 MIDI 输入下启用控制器，以及映射是否已随预设一起存储。请参阅 [MIDI 控制](midi-control.md)。

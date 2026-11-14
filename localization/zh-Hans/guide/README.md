@@ -23,7 +23,7 @@ Curve 是一款免费、轻量的 macOS 音频插件宿主。它运行在菜单�
 ## 控制
 
 - [MIDI 控制](midi-control.md)：演奏乐器插件，并通过 MIDI 控制器控制参数、旁通和预设。
-- [键盘快捷键](keyboard-shortcuts.md)：从任何位置打开 Curve 菜单，并用键盘切换预设。
+- [键盘快捷键](keyboard-shortcuts.md)：从任何位置打开 Curve 菜单，用键盘切换预设，并用音量键调节 Curve 的音量。
 
 ## 参考
 

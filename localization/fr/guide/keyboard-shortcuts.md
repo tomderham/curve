@@ -10,6 +10,24 @@ Le raccourci global ouvre le menu de Curve même lorsqu’une autre app est au p
 
 Cliquez sur Reset to Default pour utiliser ⌥⇧C, ou sur Disable pour désactiver le raccourci.
 
+## Régler le volume de Curve avec les touches de volume
+
+Certaines interfaces audio n’ont pas de réglage de volume que macOS peut utiliser : les touches de volume du clavier ne font donc rien. Curve peut utiliser ces touches pour régler son propre volume de sortie.
+
+1. Sélectionnez Settings > Volume Keys > When macOS Can't Control the Interface's Volume.
+2. Quand macOS le demande, donnez l’accès à Curve dans Réglages Système > Confidentialité et sécurité > Accessibilité. Curve en a besoin pour intercepter les touches.
+
+Curve affiche alors son propre indicateur de volume sous l’icône Son de la barre des menus, comme macOS.
+
+- Les touches de volume parcourent 16 niveaux, comme dans macOS. Maintenez Shift et Option avec une touche de volume pour des pas plus fins.
+- La touche de silence coupe et rétablit la sortie de Curve.
+
+Curve ne prend les touches que tant que la sortie de macOS est l’interface de sortie de Curve et que macOS ne peut pas régler le volume des canaux par lesquels Curve joue. Cela comprend les interfaces sans aucun réglage de volume, et celles dont le réglage de volume dans macOS ne couvre que certains de leurs canaux, pas ceux par lesquels Curve joue. Sinon, les touches fonctionnent normalement dans macOS. Pour que les touches règlent toujours le volume de Curve, sélectionnez plutôt Always.
+
+Le volume de Curve s’applique à tout ce que Curve envoie en sortie, après vos plug-ins, et seulement tant que les touches le règlent. Curve le mémorise quand vous le quittez. À plein volume, l’audio n’est pas modifié.
+
+Pour masquer l’indicateur, désactivez Show Volume Overlay dans le même menu.
+
 ## Changer de preset au clavier
 
 Lorsque le menu de Curve est ouvert, appuyez sur une touche pour sélectionner un preset. La touche est indiquée à côté de chaque preset.

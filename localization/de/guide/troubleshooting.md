@@ -37,6 +37,12 @@ Möglicherweise ändert eine andere App die Samplerate der Hardware. Damit Curve
 
 Aktiviere Settings > Release audio interface when idle. Siehe [Audioeinstellungen und Geräte](audio-settings.md).
 
+## Die Lautstärketasten ändern Curves Lautstärke nicht
+
+- Prüfe, dass Settings > Volume Keys nicht auf Off steht.
+- Wenn das Menü Allow Accessibility Access... anzeigt, wähle es aus und schalte Curve unter Bedienungshilfen ein. Ist Curve dort schon eingeschaltet, schalte es aus und wieder ein.
+- Mit When macOS Can't Control the Interface's Volume behält macOS die Tasten, wenn macOS die Lautstärke der Kanäle, über die Curve spielt, einstellen kann oder wenn der Ausgang von macOS nicht Curves Ausgangs-Interface ist. Schalte Force macOS System Audio to loopback ein oder wähle Always. Siehe [Tastaturkurzbefehle](keyboard-shortcuts.md).
+
 ## Curve reagiert nicht auf meinen MIDI-Controller
 
 Prüfe, ob der Controller unter den MIDI-Eingängen in Audio Settings aktiviert ist und ob die Zuweisung mit dem Preset gespeichert wurde. Siehe [MIDI-Steuerung](midi-control.md).

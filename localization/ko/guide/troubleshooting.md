@@ -37,6 +37,12 @@ Plug-in Manager 목록 맨 아래에 빨간색으로 표시되고 카테고리�
 
 Settings > Release audio interface when idle을 켭니다. [오디오 설정 및 기기](audio-settings.md)를 참조하십시오.
 
+## 음량 키로 Curve의 음량이 바뀌지 않음
+
+- Settings > Volume Keys가 Off로 설정되어 있지 않은지 확인하십시오.
+- 메뉴에 Allow Accessibility Access...가 보이면 선택한 다음 손쉬운 사용에서 Curve를 켭니다. 이미 켜져 있으면 껐다가 다시 켭니다.
+- When macOS Can't Control the Interface's Volume에서는 Curve가 소리를 내는 채널의 음량을 macOS가 조절할 수 있거나 macOS의 출력이 Curve의 출력 인터페이스가 아니면 macOS가 키를 처리합니다. Force macOS System Audio to loopback을 켜거나 Always를 선택하십시오. [키보드 단축키](keyboard-shortcuts.md)를 참조하십시오.
+
 ## Curve가 MIDI 컨트롤러에 반응하지 않음
 
 Audio Settings의 MIDI 입력에서 컨트롤러가 활성화되어 있고 매핑이 프리셋과 함께 저장되었는지 확인합니다. [MIDI 컨트롤](midi-control.md)을 참조하십시오.

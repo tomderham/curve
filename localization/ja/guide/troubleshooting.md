@@ -37,6 +37,12 @@ Plug-in Managerのリストの一番下に赤色で表示され、カテゴリ�
 
 Settings > Release audio interface when idleをオンにします。[オーディオ設定とデバイス](audio-settings.md)を参照してください。
 
+## 音量キーでCurveの音量が変わらない
+
+- Settings > Volume Keys がOffになっていないことを確認してください。
+- メニューにAllow Accessibility Access...が表示される場合は、それを選択し、アクセシビリティでCurveをオンにします。すでにオンの場合は、一度オフにしてからオンに戻します。
+- When macOS Can't Control the Interface's Volumeでは、Curveが音を出しているチャンネルの音量をmacOSが調整できる場合や、macOSの出力がCurveの出力インターフェイスでない場合、キーはmacOSが処理します。Force macOS System Audio to loopbackをオンにするか、Alwaysを選択してください。[キーボードショートカット](keyboard-shortcuts.md)を参照してください。
+
 ## CurveがMIDIコントローラに反応しない
 
 Audio SettingsのMIDI入力でコントローラが有効になっていること、およびマッピングがプリセットとともに保存されていることを確認します。[MIDIコントロール](midi-control.md)を参照してください。

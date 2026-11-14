@@ -47,6 +47,7 @@
 #include <JuceHeader.h>
 #include "GraphEditorPanel.h"
 #include "IdleReleaseController.h"
+#include "VolumeKeyManager.h"
 #include "CurveColours.h"
 #include "FilteredAudioDeviceSelectorComponent.h"
 #include "GitHubUpdater.h"
@@ -2021,6 +2022,10 @@ void GraphDocumentComponent::init()
         lastBufferSize = device->getCurrentBufferSizeSamples();
         lastInputChannels = device->getActiveInputChannels();
         lastOutputChannels = device->getActiveOutputChannels();
+
+        // Before the audio callback starts, so the saved volume applies from the first block.
+        // A later notification for this same device is ignored, so this may be the only call.
+        VolumeKeyManager::setCurveOutput (lastDeviceName, lastOutputChannels);
     }
 
     keyState.addListener (&graphPlayer.getMidiMessageCollector());
@@ -2259,6 +2264,9 @@ void GraphDocumentComponent::propagateDeviceSettingsToNodes()
 
         if (autoSync)
             OutputInterfaceLoopbackNode::syncSystemOutputDevice (currentDeviceName);
+
+        // After the sync, so automatic mode compares against macOS's new output, not the old one
+        VolumeKeyManager::setCurveOutput (currentDeviceName, lastOutputChannels);
     }
     else
     {

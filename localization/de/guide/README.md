@@ -23,7 +23,7 @@ Curve ist ein kostenloser, schlanker Audio-Plug-in-Host für macOS. Er läuft in
 ## Steuerung
 
 - [MIDI-Steuerung](midi-control.md): Instrument-Plug-ins spielen sowie Parameter, Bypass und Presets über einen MIDI-Controller steuern.
-- [Tastaturkurzbefehle](keyboard-shortcuts.md): Curves Menü von überall öffnen und Presets über die Tastatur wechseln.
+- [Tastaturkurzbefehle](keyboard-shortcuts.md): Curves Menü von überall öffnen, Presets über die Tastatur wechseln und Curves Lautstärke mit den Lautstärketasten einstellen.
 
 ## Referenz
 

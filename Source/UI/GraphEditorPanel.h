@@ -52,6 +52,7 @@
 #include "../AudioDiagnostics.h"
 #include "../AudioConstants.h"
 #include "IdleReleaseController.h"
+#include "OutputVolume.h"
 
 class MainHostWindow;
 
@@ -208,6 +209,9 @@ public:
         const float startGain = holdSilentOnStart.load (std::memory_order_acquire) ? 0.0f : 1.0f;
         fadeGain.setCurrentAndTargetValue (startGain);
         targetGain.store (startGain, std::memory_order_relaxed);
+
+        volumeGain.reset (sr, 0.05);
+        volumeGain.setCurrentAndTargetValue (OutputVolume::targetGain.load (std::memory_order_relaxed));
         isFadedOut.store (false, std::memory_order_release);
     }
 
@@ -269,7 +273,10 @@ public:
         if (std::abs (fadeGain.getTargetValue() - target) > 0.0001f)
             fadeGain.setTargetValue (target);
 
-        if (fadeGain.isSmoothing())
+        // Curve's output volume from the volume keys, on top of the preset fade
+        volumeGain.setTargetValue (OutputVolume::targetGain.load (std::memory_order_relaxed));
+
+        if (fadeGain.isSmoothing() || volumeGain.isSmoothing())
         {
             if (numOutputChannels == 2 && outputChannelData[0] != nullptr && outputChannelData[1] != nullptr)
             {
@@ -277,7 +284,7 @@ public:
                 auto* out1 = outputChannelData[1];
                 for (int s = 0; s < numSamples; ++s)
                 {
-                    float g = fadeGain.getNextValue();
+                    float g = fadeGain.getNextValue() * volumeGain.getNextValue();
                     out0[s] *= g;
                     out1[s] *= g;
                 }
@@ -286,7 +293,7 @@ public:
             {
                 for (int s = 0; s < numSamples; ++s)
                 {
-                    float g = fadeGain.getNextValue();
+                    float g = fadeGain.getNextValue() * volumeGain.getNextValue();
                     for (int ch = 0; ch < numOutputChannels; ++ch)
                     {
                         if (auto* out = outputChannelData[ch])
@@ -298,20 +305,36 @@ public:
             if (! fadeGain.isSmoothing() && fadeGain.getCurrentValue() <= 0.0001f)
                 isFadedOut.store (true, std::memory_order_release);
         }
-        else if (fadeGain.getCurrentValue() <= 0.0001f)
+        else
         {
-            for (int ch = 0; ch < numOutputChannels; ++ch)
+            if (fadeGain.getCurrentValue() <= 0.0001f)
+                isFadedOut.store (true, std::memory_order_release);
+
+            const float g = fadeGain.getCurrentValue() * volumeGain.getCurrentValue();
+
+            if (g <= 0.0001f)
             {
-                if (outputChannelData[ch] != nullptr)
-                    juce::FloatVectorOperations::clear (outputChannelData[ch], numSamples);
+                for (int ch = 0; ch < numOutputChannels; ++ch)
+                {
+                    if (outputChannelData[ch] != nullptr)
+                        juce::FloatVectorOperations::clear (outputChannelData[ch], numSamples);
+                }
             }
-            isFadedOut.store (true, std::memory_order_release);
+            else if (g != 1.0f) // untouched at full volume, so the output stays bit-perfect
+            {
+                for (int ch = 0; ch < numOutputChannels; ++ch)
+                {
+                    if (outputChannelData[ch] != nullptr)
+                        juce::FloatVectorOperations::multiply (outputChannelData[ch], g, numSamples);
+                }
+            }
         }
     }
 
 private:
     AudioProcessorPlayer player;
     juce::LinearSmoothedValue<float> fadeGain { 1.0f };
+    juce::LinearSmoothedValue<float> volumeGain { 1.0f };
     std::atomic<float> targetGain { 1.0f };
     std::atomic<bool> isFadedOut { false };
     std::atomic<bool> holdSilentOnStart { false };

@@ -64,6 +64,8 @@ target_sources(Curve PRIVATE
     Source/UI/PresetSaveDialog.cpp
     Source/UI/SystemSleepManager.h
     Source/UI/SystemSleepManager.mm
+    Source/UI/VolumeKeyManager.h
+    Source/UI/VolumeKeyManager.mm
     Source/Calibration/AUNBandEQConverter.mm
     Source/Calibration/AutoEQDataManager.cpp
     Source/UI/GlobalShortcutManager.mm
@@ -96,7 +98,8 @@ target_link_libraries(Curve PRIVATE
     "-framework CoreAudio"
     "-framework ServiceManagement"
     "-framework AVFoundation"
-    "-framework Carbon")
+    "-framework Carbon"
+    "-framework ApplicationServices")
 
 juce_add_bundle_resources_directory(Curve  ${CMAKE_CURRENT_SOURCE_DIR}/Source/Assets/)
 
@@ -113,8 +116,15 @@ if(APPLE)
         COMMENT "Building the Curve Help book"
     )
 
+    # Ad-hoc by default. macOS ties Accessibility access (used by the volume keys) to the
+    # signature, and an ad-hoc signature changes with every build, so set this to a real
+    # identity, e.g. -DCURVE_CODESIGN_IDENTITY="Developer ID Application: ...", to keep access
+    # across rebuilds.
+    set(CURVE_CODESIGN_IDENTITY "-" CACHE STRING "Identity for signing local builds of Curve.app")
+
     add_custom_command(TARGET Curve POST_BUILD
-        COMMAND codesign --deep --force --options runtime --entitlements "${CMAKE_CURRENT_BINARY_DIR}/Curve_artefacts/JuceLibraryCode/Curve.entitlements" -s - "$<TARGET_BUNDLE_DIR:Curve>"
+        COMMAND codesign --deep --force --options runtime --entitlements "${CMAKE_CURRENT_BINARY_DIR}/Curve_artefacts/JuceLibraryCode/Curve.entitlements" -s "${CURVE_CODESIGN_IDENTITY}" "$<TARGET_BUNDLE_DIR:Curve>"
         COMMENT "Signing Curve.app with Hardened Runtime and plugin hosting entitlements"
+        VERBATIM
     )
 endif()

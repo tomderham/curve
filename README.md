@@ -26,6 +26,7 @@ A primary use case for this app is to host equalizer (EQ) plugins for real-time 
 - Native (internal) utility plugins for gain, safety clipping, phase inversion, panning, stereo/mid-side processing, sample-accurate delay and tapped audio recording to wav file.
 - MIDI Learn: control plugin parameters, node bypass and preset switching from a MIDI controller.
 - Optional release of the audio interface when idle, which allows AirPods automatic switching.
+- Optional control of Curve's output volume from the keyboard's volume keys, for interfaces without a volume control of their own, with an on-screen volume overlay.
 - Optional Dock icon, open at login and automatic update checks.
 
 

@@ -37,6 +37,12 @@ Puede que otra app esté cambiando la frecuencia de muestreo del hardware. Para 
 
 Activa Settings > Release audio interface when idle. Consulta [Ajustes de audio y dispositivos](audio-settings.md).
 
+## Las teclas de volumen no cambian el volumen de Curve
+
+- Comprueba que Settings > Volume Keys no esté en Off.
+- Si el menú muestra Allow Accessibility Access..., selecciónalo y activa Curve en Accesibilidad. Si Curve ya está activado allí, desactívalo y vuelve a activarlo.
+- Con When macOS Can't Control the Interface's Volume, macOS conserva las teclas si puede ajustar el volumen de los canales por los que suena Curve, o si la salida de macOS no es la interfaz de salida de Curve. Activa Force macOS System Audio to loopback o selecciona Always. Consulta [Atajos de teclado](keyboard-shortcuts.md).
+
 ## Curve no responde a mi controlador MIDI
 
 Comprueba que el controlador esté activado en las entradas MIDI de Audio Settings y que la asignación se haya guardado con el preset. Consulta [Control MIDI](midi-control.md).

@@ -13,6 +13,7 @@
 | Auto-Check for App Updates | Sucht automatisch nach neuen Versionen. | Ein |
 | Open at Login | Startet Curve bei der Anmeldung. | |
 | Show in Dock | Zeigt Curve im Dock und im Befehl-Tab-Umschalter an. | Aus |
+| Volume Keys | Lässt die Lautstärketasten der Tastatur Curves Ausgangslautstärke einstellen, für Interfaces ohne eigene Lautstärkeregelung. Siehe [Tastaturkurzbefehle](keyboard-shortcuts.md). | Aus |
 | Global Menu Shortcut | Legt eine Tastenkombination fest, die Curves Menü von überall öffnet. Siehe [Tastaturkurzbefehle](keyboard-shortcuts.md). | Aus |
 | MIDI Control | Richtet den Preset-Wechsel über einen Controller ein. Siehe [MIDI-Steuerung](midi-control.md). | |
 | Curve Help | Öffnet diese Anleitung. | |

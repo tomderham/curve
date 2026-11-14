@@ -13,6 +13,7 @@ CurveのメニューからSettingsを開きます。
 | Auto-Check for App Updates | 新しいバージョンを自動で確認します。 | オン |
 | Open at Login | ログイン時にCurveを起動します。 | |
 | Show in Dock | DockとCommand-TabスイッチャーにCurveを表示します。 | オフ |
+| Volume Keys | 独自の音量調整を持たないインターフェイス向けに、キーボードの音量キーでCurveの出力音量を調整できるようにします。[キーボードショートカット](keyboard-shortcuts.md)を参照してください。 | オフ |
 | Global Menu Shortcut | どこからでもCurveのメニューを開くキーの組み合わせを設定します。[キーボードショートカット](keyboard-shortcuts.md)を参照してください。 | オフ |
 | MIDI Control | コントローラからのプリセット切り替えを設定します。[MIDIコントロール](midi-control.md)を参照してください。 | |
 | Curve Help | このガイドを開きます。 | |

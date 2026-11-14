@@ -13,6 +13,7 @@ Curve 메뉴에서 Settings를 엽니다.
 | Auto-Check for App Updates | 새 버전을 자동으로 확인합니다. | 켬 |
 | Open at Login | 로그인할 때 Curve를 시작합니다. | |
 | Show in Dock | Dock과 Command-Tab 전환기에 Curve를 표시합니다. | 끔 |
+| Volume Keys | 자체 음량 조절이 없는 인터페이스를 위해 키보드의 음량 키로 Curve의 출력 음량을 조절할 수 있게 합니다. [키보드 단축키](keyboard-shortcuts.md)를 참조하십시오. | 끔 |
 | Global Menu Shortcut | 어디서나 Curve 메뉴를 여는 키 조합을 설정합니다. [키보드 단축키](keyboard-shortcuts.md)를 참조하십시오. | 끔 |
 | MIDI Control | 컨트롤러를 사용한 프리셋 전환을 설정합니다. [MIDI 컨트롤](midi-control.md)을 참조하십시오. | |
 | Curve Help | 이 가이드를 엽니다. | |

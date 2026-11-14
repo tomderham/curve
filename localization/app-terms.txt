@@ -4,9 +4,11 @@
 # label isn't counted twice.
 'Scan for new or updated AudioUnit plug-ins'
 'Scan for new or updated VST3 plug-ins'
+When macOS Can't Control the Interface's Volume
 Force macOS System Audio to loopback
 Prevent macOS from automatically sleeping
 Always Open Plug-in GUI with Preset
+Allow Accessibility Access...
 Release audio interface when idle
 Parametric EQ (import from AutoEQ...)
 Parametric EQ (import from file...)
@@ -18,6 +20,7 @@ Previous Preset Control
 Import EQ from AutoEQ...
 Import EQ from file...
 Clear Preset Controls
+Show Volume Overlay
 Interface Loopback (In)
 Next Preset Control
 Global Menu Shortcut
@@ -44,6 +47,7 @@ Toggle Bypass
 Curve Plugins
 Parametric EQ
 Open at Login
+Volume Keys
 Show in Dock
 Invert Phase
 Audio Output

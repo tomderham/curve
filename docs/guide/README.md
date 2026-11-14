@@ -21,7 +21,7 @@ Curve is a free, lightweight audio plug-in host for macOS. It runs in the menu b
 ## Control
 
 - [MIDI control](midi-control.md): play instrument plug-ins, and control parameters, bypass and presets from a MIDI controller.
-- [Keyboard shortcuts](keyboard-shortcuts.md): open Curve's menu from anywhere and switch presets from the keyboard.
+- [Keyboard shortcuts](keyboard-shortcuts.md): open Curve's menu from anywhere, switch presets from the keyboard and set Curve's volume with the volume keys.
 
 ## Reference
 

@@ -23,7 +23,7 @@ Curve는 macOS용 무료 경량 오디오 플러그인 호스트입니다. 메�
 ## 컨트롤
 
 - [MIDI 컨트롤](midi-control.md): 악기 플러그인을 연주하고 MIDI 컨트롤러로 파라미터, 바이패스, 프리셋을 제어합니다.
-- [키보드 단축키](keyboard-shortcuts.md): 어디서나 Curve 메뉴를 열고 키보드로 프리셋을 전환합니다.
+- [키보드 단축키](keyboard-shortcuts.md): 어디서나 Curve 메뉴를 열고, 키보드로 프리셋을 전환하고, 음량 키로 Curve의 음량을 조절합니다.
 
 ## 참고 자료
 

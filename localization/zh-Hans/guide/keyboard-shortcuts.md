@@ -10,6 +10,24 @@
 
 点按 Reset to Default 可使用 ⌥⇧C，点按 Disable 可关闭快捷键。
 
+## 用音量键调节 Curve 的音量
+
+有些音频接口没有 macOS 可以使用的音量控制，因此键盘的音量键不起作用。Curve 可以改用这些键来调节自己的输出音量。
+
+1. 选择 Settings > Volume Keys > When macOS Can't Control the Interface's Volume。
+2. 当 macOS 询问时，在“系统设置”>“隐私与安全性”>“辅助功能”中允许 Curve 访问。Curve 需要此权限才能接收按键。
+
+之后 Curve 会像 macOS 一样，在菜单栏的“声音”图标下方显示自己的音量指示。
+
+- 音量键与 macOS 一样分 16 级调节。按住 Shift 和 Option 再按音量键可以更精细地调节。
+- 静音键可关闭和打开 Curve 的输出。
+
+只有当 macOS 的输出是 Curve 的输出接口，并且 macOS 无法设置 Curve 所用声道的音量时，Curve 才会接管按键。这包括完全没有音量控制的接口，以及在 macOS 中的音量控制只作用于部分声道、而不作用于 Curve 所用声道的接口。否则，按键在 macOS 中照常工作。要让按键始终调节 Curve 的音量，请改为选择 Always。
+
+Curve 的音量作用于 Curve 输出的所有声音，位于你的插件之后，并且仅在按键调节它时生效。退出 Curve 后它仍会记住音量。音量最大时，音频保持原样。
+
+要隐藏音量指示，请在同一菜单中关闭 Show Volume Overlay。
+
 ## 用键盘切换预设
 
 当 Curve 菜单打开时，按下某个键即可选择预设。按键显示在每个预设旁边。

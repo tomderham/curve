@@ -59,6 +59,7 @@
 #include "UI/GitHubUpdater.h"
 #include "UI/LoginItemManager.h"
 #include "UI/SystemSleepManager.h"
+#include "UI/VolumeKeyManager.h"
 #include "UI/DockIconManager.h"
 #include "UI/TrayIconController.h"
 #include "AudioDiagnostics.h"
@@ -394,6 +395,7 @@ public:
     appProperties->getUserSettings()->saveIfNeeded();
 
     SystemSleepManager::applyCurrentSetting();
+    VolumeKeyManager::start();
 
     // create presets folder if it doesn't exist
     auto appDataDir =
@@ -621,6 +623,7 @@ public:
     }
 
     trayIcon = nullptr;
+    VolumeKeyManager::stop();
     idleReleaseController = nullptr;
     resilienceManager = nullptr;
     githubUpdater = nullptr;

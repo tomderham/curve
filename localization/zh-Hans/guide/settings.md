@@ -13,6 +13,7 @@
 | Auto-Check for App Updates | 自动检查新版本。 | 打开 |
 | Open at Login | 在你登录时启动 Curve。 | |
 | Show in Dock | 在程序坞和 Command-Tab 切换器中显示 Curve。 | 关闭 |
+| Volume Keys | 让键盘的音量键调节 Curve 的输出音量，适用于自身没有音量控制的接口。请参阅[键盘快捷键](keyboard-shortcuts.md)。 | 关闭 |
 | Global Menu Shortcut | 设置可从任何位置打开 Curve 菜单的组合键。请参阅[键盘快捷键](keyboard-shortcuts.md)。 | 关闭 |
 | MIDI Control | 设置通过控制器切换预设。请参阅 [MIDI 控制](midi-control.md)。 | |
 | Curve Help | 打开本指南。 | |

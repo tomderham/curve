@@ -37,6 +37,12 @@ Another app may be changing the hardware's sample rate. To make Curve force it b
 
 Turn on Settings > Release audio interface when idle. See [Audio settings and devices](audio-settings.md).
 
+## The volume keys don't change Curve's volume
+
+- Check that Settings > Volume Keys isn't set to Off.
+- If the menu shows Allow Accessibility Access..., select it and turn on Curve in Accessibility. If Curve is already on there, turn it off and on again.
+- With When macOS Can't Control the Interface's Volume, macOS keeps the keys if it can set the volume of the channels Curve plays through, or if macOS's output isn't Curve's output interface. Turn on Force macOS System Audio to loopback, or select Always. See [Keyboard shortcuts](keyboard-shortcuts.md).
+
 ## Curve doesn't respond to my MIDI controller
 
 Check that the controller is enabled under MIDI inputs in Audio Settings, and that the mapping was saved with the preset. See [MIDI control](midi-control.md).

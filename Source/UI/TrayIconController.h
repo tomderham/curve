@@ -21,6 +21,7 @@
 #include "MainHostWindow.h"
 #include "SystemSleepManager.h"
 #include "IdleReleaseController.h"
+#include "VolumeKeyManager.h"
 
 inline std::unique_ptr<InputStream>
 createAssetInputStream(const char *resourcePath) {
@@ -531,6 +532,7 @@ public:
       }
       DockIconManager::setShowInDock(newState);
     });
+    settingsmenu.addSubMenu("Volume Keys", buildVolumeKeysMenu());
     juce::String shortcutLabel = "Global Menu Shortcut: " + getGlobalShortcutDisplayString() + "...";
     settingsmenu.addItem(shortcutLabel, [onOpenShortcutSettings] {
       if (onOpenShortcutSettings)
@@ -588,6 +590,80 @@ public:
 
     return menu;
   }
+
+  static juce::PopupMenu buildVolumeKeysMenu() {
+    using Mode = VolumeKeyManager::Mode;
+    const auto mode = VolumeKeyManager::getMode();
+
+    juce::PopupMenu m;
+    m.addItem("Off", true, mode == Mode::off,
+              [] { VolumeKeyManager::setMode(Mode::off); });
+    m.addItem("When macOS Can't Control the Interface's Volume", true, mode == Mode::automatic,
+              [] { VolumeKeyManager::setMode(Mode::automatic); });
+    m.addItem("Always", true, mode == Mode::always,
+              [] { VolumeKeyManager::setMode(Mode::always); });
+    m.addSeparator();
+
+    const bool overlayEnabled = VolumeKeyManager::isOverlayEnabled();
+    m.addItem("Show Volume Overlay", true, overlayEnabled,
+              [overlayEnabled] { VolumeKeyManager::setOverlayEnabled(!overlayEnabled); });
+
+    if (mode == Mode::off)
+      return m;
+
+    m.addSeparator();
+
+    if (VolumeKeyManager::needsAccessibilityAccess())
+      m.addItem("Allow Accessibility Access...",
+                [] { VolumeKeyManager::openAccessibilitySettings(); });
+    else
+      m.addCustomItem(volumeStatusItemId, std::make_unique<VolumeStatusItem>());
+
+    return m;
+  }
+
+  // A greyed-out line showing Curve's volume, which follows the volume keys while the menu is open
+  class VolumeStatusItem final : public juce::PopupMenu::CustomComponent,
+                                 private juce::Timer {
+  public:
+    VolumeStatusItem() : juce::PopupMenu::CustomComponent(false), text(currentText()) {
+      startTimerHz(10);
+    }
+
+    void getIdealSize(int &idealWidth, int &idealHeight) override {
+      // Wide enough for any level, so the menu doesn't change size
+      for (auto sample : {"Output Volume: -63.5 dB", "Interface Uses macOS Volume"}) {
+        int width = 0, height = 0;
+        getLookAndFeel().getIdealPopupMenuItemSize(sample, false, 0, width, height);
+        idealWidth = juce::jmax(idealWidth, width);
+        idealHeight = juce::jmax(idealHeight, height);
+      }
+    }
+
+    void paint(juce::Graphics &g) override {
+      getLookAndFeel().drawPopupMenuItem(g, getLocalBounds(), false, false, false, false,
+                                         false, text, {}, nullptr, nullptr);
+    }
+
+  private:
+    juce::String text;
+
+    static juce::String currentText() {
+      return VolumeKeyManager::isControllingVolume()
+                 ? "Output Volume: " + VolumeKeyManager::describeVolume()
+                 : juce::String("Interface Uses macOS Volume");
+    }
+
+    void timerCallback() override {
+      auto newText = currentText();
+      if (newText != text) {
+        text = newText;
+        repaint();
+      }
+    }
+  };
+
+  static constexpr int volumeStatusItemId = 900;
 
   static juce::PopupMenu buildMidiControlMenu(MainHostWindow &mainWindow) {
     juce::PopupMenu m;
