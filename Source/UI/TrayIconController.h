@@ -604,6 +604,14 @@ public:
               [] { VolumeKeyManager::setMode(Mode::always); });
     m.addSeparator();
 
+    using Target = VolumeKeyManager::Target;
+    const auto target = VolumeKeyManager::getTarget();
+    m.addItem("Control Curve's Output Volume", true, target == Target::output,
+              [] { VolumeKeyManager::setTarget(Target::output); });
+    m.addItem("Control Interface Loopback Volume", true, target == Target::loopback,
+              [] { VolumeKeyManager::setTarget(Target::loopback); });
+    m.addSeparator();
+
     const bool overlayEnabled = VolumeKeyManager::isOverlayEnabled();
     m.addItem("Show Volume Overlay", true, overlayEnabled,
               [overlayEnabled] { VolumeKeyManager::setOverlayEnabled(!overlayEnabled); });
@@ -632,7 +640,8 @@ public:
 
     void getIdealSize(int &idealWidth, int &idealHeight) override {
       // Wide enough for any level, so the menu doesn't change size
-      for (auto sample : {"Output Volume: -63.5 dB", "Interface Uses macOS Volume"}) {
+      for (auto sample : {"Interface Loopback Volume: -63.5 dB", "Interface Uses macOS Volume",
+                          "No Interface Loopback in Preset"}) {
         int width = 0, height = 0;
         getLookAndFeel().getIdealPopupMenuItemSize(sample, false, 0, width, height);
         idealWidth = juce::jmax(idealWidth, width);
@@ -649,9 +658,16 @@ public:
     juce::String text;
 
     static juce::String currentText() {
-      return VolumeKeyManager::isControllingVolume()
-                 ? "Output Volume: " + VolumeKeyManager::describeVolume()
-                 : juce::String("Interface Uses macOS Volume");
+      const bool loopback = VolumeKeyManager::getTarget() == VolumeKeyManager::Target::loopback;
+
+      if (VolumeKeyManager::isControllingVolume())
+        return (loopback ? "Interface Loopback Volume: " : "Output Volume: ")
+               + VolumeKeyManager::describeVolume();
+
+      if (loopback && !VolumeKeyManager::hasConnectedLoopback())
+        return "No Interface Loopback in Preset";
+
+      return "Interface Uses macOS Volume";
     }
 
     void timerCallback() override {

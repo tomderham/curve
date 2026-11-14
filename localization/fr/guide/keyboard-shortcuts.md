@@ -24,7 +24,9 @@ Curve affiche alors son propre indicateur de volume sous l’icône Son de la ba
 
 Curve ne prend les touches que tant que la sortie de macOS est l’interface de sortie de Curve et que macOS ne peut pas régler le volume des canaux par lesquels Curve joue. Cela comprend les interfaces sans aucun réglage de volume, et celles dont le réglage de volume dans macOS ne couvre que certains de leurs canaux, pas ceux par lesquels Curve joue. Sinon, les touches fonctionnent normalement dans macOS. Pour que les touches règlent toujours le volume de Curve, sélectionnez plutôt Always.
 
-Le volume de Curve s’applique à tout ce que Curve envoie en sortie, après vos plug-ins, et seulement tant que les touches le règlent. Curve le mémorise quand vous le quittez. À plein volume, l’audio n’est pas modifié.
+Par défaut, le volume de Curve s’applique à tout ce que Curve envoie en sortie, après vos plug-ins. Pour ne régler que le volume de l’audio de macOS et des autres apps, sélectionnez Control Interface Loopback Volume dans le même menu. Les touches ne baissent alors que le nœud [Interface Loopback (In)](loopback.md), si bien que l’audio d’Audio Input et des plug-ins d’instrument dans Curve garde son niveau. Si le preset n’a aucun nœud Interface Loopback (In) connecté, les touches fonctionnent comme d’habitude dans macOS. Sélectionnez Control Curve's Output Volume pour revenir en arrière.
+
+Le volume de Curve ne s’applique que tant que les touches le règlent. Curve le mémorise quand vous le quittez. À plein volume, l’audio n’est pas modifié.
 
 Pour masquer l’indicateur, désactivez Show Volume Overlay dans le même menu.
 

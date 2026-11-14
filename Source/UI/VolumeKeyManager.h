@@ -27,7 +27,12 @@
     plays through, so an interface whose volume macOS controls keeps the normal macOS
     behaviour and overlay.
 
-    Curve's volume applies only while Curve is taking the keys; otherwise the output is
+    The volume applies either to Curve's whole output or only to the Interface Loopback (In)
+    nodes, i.e. the audio macOS plays, leaving other inputs such as virtual instruments at a
+    fixed level. In the second case Curve takes the keys only while the preset has a connected
+    loopback node.
+
+    Curve's volume applies only while Curve is taking the keys; otherwise the audio is
     left at full level. All functions are for the message thread.
 */
 namespace VolumeKeyManager
@@ -48,6 +53,18 @@ namespace VolumeKeyManager
     /** Saves the mode. Turning the keys on asks for Accessibility access if Curve doesn't have it. */
     void setMode (Mode);
 
+    enum class Target
+    {
+        output = 0,  // Curve's whole output
+        loopback = 1 // only the Interface Loopback (In) nodes
+    };
+
+    Target getTarget();
+    void setTarget (Target);
+
+    /** Called when an Interface Loopback (In) node starts or stops being used by the graph. */
+    void loopbackUsageChanged();
+
     bool isOverlayEnabled();
     void setOverlayEnabled (bool);
 
@@ -55,8 +72,11 @@ namespace VolumeKeyManager
     bool needsAccessibilityAccess();
     void openAccessibilitySettings();
 
-    /** True while the volume keys change Curve's output volume. */
+    /** True while the volume keys change Curve's volume. */
     bool isControllingVolume();
+
+    /** True while the graph has an Interface Loopback (In) node that's connected and not bypassed. */
+    bool hasConnectedLoopback();
 
     /** e.g. "-11.9 dB", "Muted" */
     juce::String describeVolume();

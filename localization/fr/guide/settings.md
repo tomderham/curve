@@ -13,7 +13,7 @@ Ouvrez Settings depuis le menu de Curve.
 | Auto-Check for App Updates | Recherche automatiquement de nouvelles versions. | Activé |
 | Open at Login | Lance Curve à l’ouverture de session. | |
 | Show in Dock | Affiche Curve dans le Dock et le sélecteur Commande-Tab. | Désactivé |
-| Volume Keys | Permet aux touches de volume du clavier de régler le volume de sortie de Curve, pour les interfaces sans réglage de volume propre. Voir [Raccourcis clavier](keyboard-shortcuts.md). | Désactivé |
+| Volume Keys | Permet aux touches de volume du clavier de régler le volume de sortie de Curve, ou seulement le volume d’Interface Loopback (In), pour les interfaces sans réglage de volume propre. Voir [Raccourcis clavier](keyboard-shortcuts.md). | Désactivé |
 | Global Menu Shortcut | Définit une combinaison de touches qui ouvre le menu de Curve depuis n’importe où. Voir [Raccourcis clavier](keyboard-shortcuts.md). | Désactivé |
 | MIDI Control | Configure le changement de preset depuis un contrôleur. Voir [Contrôle MIDI](midi-control.md). | |
 | Curve Help | Ouvre ce guide. | |

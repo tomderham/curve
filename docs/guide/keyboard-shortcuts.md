@@ -24,7 +24,9 @@ Curve then shows its own volume overlay under the Sound icon in the menu bar, as
 
 Curve only takes the keys while macOS's output is Curve's output interface and macOS can't set the volume of the channels Curve plays through. This includes interfaces with no volume control at all, and interfaces whose macOS volume control covers only some of their channels, not the ones Curve plays through. Otherwise the keys work as usual in macOS. To make the keys always set Curve's volume, select Always instead.
 
-Curve's volume applies to everything Curve outputs, after your plug-ins, and only while the keys set it. Curve remembers it when you quit. At full volume the audio is left untouched.
+By default, Curve's volume applies to everything Curve outputs, after your plug-ins. To set only the volume of the audio from macOS and other apps, select Control Interface Loopback Volume in the same menu. The keys then turn down only the [Interface Loopback (In)](loopback.md) node, so audio from Audio Input and from instrument plug-ins in Curve keeps its level. If the preset has no connected Interface Loopback (In) node, the keys work as usual in macOS. Select Control Curve's Output Volume to go back.
+
+Curve's volume applies only while the keys set it. Curve remembers it when you quit. At full volume the audio is left untouched.
 
 To hide the overlay, turn off Show Volume Overlay in the same menu.
 

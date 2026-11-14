@@ -82,6 +82,11 @@ private:
     std::atomic<bool> hadUnderrunLastBlock { false };
     std::atomic<bool> isActiveInGraph { true };
 
+    // The volume keys' gain, when they control the loopback volume (OutputVolume::blockLoopbackGain)
+    juce::LinearSmoothedValue<float> volumeGain { 1.0f };
+    std::uint32_t seenTargetSwitches = 0; // audio thread only
+    void readCapturedAudio (juce::AudioBuffer<float>&);
+
     juce::String targetOutputDeviceName;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OutputInterfaceLoopbackNode)

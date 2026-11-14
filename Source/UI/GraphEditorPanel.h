@@ -211,7 +211,9 @@ public:
         targetGain.store (startGain, std::memory_order_relaxed);
 
         volumeGain.reset (sr, 0.05);
-        volumeGain.setCurrentAndTargetValue (OutputVolume::targetGain.load (std::memory_order_relaxed));
+        const auto volume = OutputVolume::setting.load (std::memory_order_relaxed);
+        volumeTarget = volume.target;
+        volumeGain.setCurrentAndTargetValue (volume.outputGain());
         isFadedOut.store (false, std::memory_order_release);
     }
 
@@ -253,6 +255,28 @@ public:
     {
         auto startTicks = juce::Time::getHighResolutionTicks();
 
+        // Curve's volume from the volume keys, read once for the whole callback. When it moves
+        // straight between the output and the loopback nodes, both jump to their new gain
+        // together, so the loopback audio's level doesn't change; opposite ramps would make it
+        // swell. Taking or releasing the keys ramps, as does any change of level.
+        const auto volume = OutputVolume::setting.load (std::memory_order_relaxed);
+        OutputVolume::blockLoopbackGain.store (volume.loopbackGain(), std::memory_order_relaxed);
+
+        const bool switchedTarget = volume.target != volumeTarget
+                                 && volume.target != OutputVolume::none
+                                 && volumeTarget != OutputVolume::none;
+        volumeTarget = volume.target;
+
+        if (switchedTarget)
+        {
+            volumeGain.setCurrentAndTargetValue (volume.outputGain());
+            OutputVolume::blockTargetSwitches.fetch_add (1, std::memory_order_relaxed);
+        }
+        else
+        {
+            volumeGain.setTargetValue (volume.outputGain());
+        }
+
         player.audioDeviceIOCallbackWithContext (inputChannelData, numInputChannels,
                                                  outputChannelData, numOutputChannels,
                                                  numSamples, context);
@@ -273,9 +297,7 @@ public:
         if (std::abs (fadeGain.getTargetValue() - target) > 0.0001f)
             fadeGain.setTargetValue (target);
 
-        // Curve's output volume from the volume keys, on top of the preset fade
-        volumeGain.setTargetValue (OutputVolume::targetGain.load (std::memory_order_relaxed));
-
+        // Curve's output volume (set above) is applied on top of the preset fade
         if (fadeGain.isSmoothing() || volumeGain.isSmoothing())
         {
             if (numOutputChannels == 2 && outputChannelData[0] != nullptr && outputChannelData[1] != nullptr)
@@ -335,6 +357,7 @@ private:
     AudioProcessorPlayer player;
     juce::LinearSmoothedValue<float> fadeGain { 1.0f };
     juce::LinearSmoothedValue<float> volumeGain { 1.0f };
+    std::uint32_t volumeTarget = OutputVolume::none; // audio thread only
     std::atomic<float> targetGain { 1.0f };
     std::atomic<bool> isFadedOut { false };
     std::atomic<bool> holdSilentOnStart { false };

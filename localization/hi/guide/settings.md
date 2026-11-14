@@ -13,7 +13,7 @@ Curve के मेनू से Settings खोलें।
 | Auto-Check for App Updates | नए वर्शन की अपने आप जाँच करता है। | चालू |
 | Open at Login | आपके लॉग इन करने पर Curve शुरू करता है। | |
 | Show in Dock | Curve को Dock और Command-Tab स्विचर में दिखाता है। | बंद |
-| Volume Keys | कीबोर्ड की वॉल्यूम कीज़ को Curve का आउटपुट वॉल्यूम सेट करने देता है, उन इंटरफ़ेस के लिए जिनका अपना वॉल्यूम कंट्रोल नहीं है। [कीबोर्ड शॉर्टकट](keyboard-shortcuts.md) देखें। | बंद |
+| Volume Keys | कीबोर्ड की वॉल्यूम कीज़ को Curve का आउटपुट वॉल्यूम, या केवल Interface Loopback (In) का वॉल्यूम, सेट करने देता है, उन इंटरफ़ेस के लिए जिनका अपना वॉल्यूम कंट्रोल नहीं है। [कीबोर्ड शॉर्टकट](keyboard-shortcuts.md) देखें। | बंद |
 | Global Menu Shortcut | ऐसा की कॉम्बिनेशन सेट करता है जो कहीं से भी Curve का मेनू खोलता है। [कीबोर्ड शॉर्टकट](keyboard-shortcuts.md) देखें। | बंद |
 | MIDI Control | कंट्रोलर से प्रीसेट स्विच करना सेट करता है। [MIDI कंट्रोल](midi-control.md) देखें। | |
 | Curve Help | यह गाइड खोलता है। | |

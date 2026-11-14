@@ -42,6 +42,7 @@ Settings > Release audio interface when idle चालू करें। [ऑ�
 - जाँचें कि Settings > Volume Keys, Off पर सेट न हो।
 - अगर मेनू में Allow Accessibility Access... दिखे, तो उसे चुनें और ऐक्सेसिबिलिटी में Curve चालू करें। अगर Curve वहाँ पहले से चालू है, तो उसे बंद करके फिर से चालू करें।
 - When macOS Can't Control the Interface's Volume के साथ, अगर macOS उन चैनलों का वॉल्यूम सेट कर सकता है जिनसे Curve आवाज़ भेजता है, या macOS का आउटपुट Curve का आउटपुट इंटरफ़ेस नहीं है, तो कीज़ macOS के पास रहती हैं। Force macOS System Audio to loopback चालू करें, या Always चुनें। [कीबोर्ड शॉर्टकट](keyboard-shortcuts.md) देखें।
+- Control Interface Loopback Volume के साथ, Curve कीज़ केवल तभी लेता है जब प्रीसेट में कोई कनेक्टेड Interface Loopback (In) नोड हो। [लूपबैक](loopback.md) देखें।
 
 ## Curve मेरे MIDI कंट्रोलर पर प्रतिक्रिया नहीं दे रहा
 

@@ -24,7 +24,9 @@ Reset to Default를 클릭하면 ⌥⇧C를 사용하고, Disable을 클릭하�
 
 Curve는 macOS의 출력이 Curve의 출력 인터페이스이고 Curve가 소리를 내는 채널의 음량을 macOS가 조절할 수 없는 동안에만 키를 가져옵니다. 음량 조절이 전혀 없는 인터페이스와, macOS의 음량 조절이 일부 채널에만 적용되고 Curve가 소리를 내는 채널에는 적용되지 않는 인터페이스가 여기에 포함됩니다. 그 밖의 경우에는 키가 macOS에서 평소처럼 동작합니다. 키로 항상 Curve의 음량을 조절하려면 대신 Always를 선택합니다.
 
-Curve의 음량은 플러그인 다음에 Curve가 출력하는 모든 소리에 적용되며, 키로 조절하는 동안에만 적용됩니다. Curve는 종료해도 음량을 기억합니다. 최대 음량에서는 오디오가 전혀 바뀌지 않습니다.
+기본적으로 Curve의 음량은 플러그인 다음에 Curve가 출력하는 모든 소리에 적용됩니다. macOS와 다른 앱의 오디오 음량만 조절하려면 같은 메뉴에서 Control Interface Loopback Volume을 선택합니다. 그러면 키는 [Interface Loopback (In)](loopback.md) 노드의 음량만 낮추므로 Audio Input과 Curve 안의 악기 플러그인 소리는 레벨이 그대로 유지됩니다. 프리셋에 연결된 Interface Loopback (In) 노드가 없으면 키는 macOS에서 평소처럼 작동합니다. 되돌리려면 Control Curve's Output Volume을 선택합니다.
+
+Curve의 음량은 키로 조절하는 동안에만 적용됩니다. Curve는 종료해도 음량을 기억합니다. 최대 음량에서는 오디오가 전혀 바뀌지 않습니다.
 
 음량 표시를 숨기려면 같은 메뉴에서 Show Volume Overlay를 끕니다.
 

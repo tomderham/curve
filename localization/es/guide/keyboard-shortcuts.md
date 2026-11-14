@@ -24,7 +24,9 @@ Curve muestra entonces su propio indicador de volumen bajo el icono de Sonido de
 
 Curve solo toma las teclas mientras la salida de macOS sea la interfaz de salida de Curve y macOS no pueda ajustar el volumen de los canales por los que suena Curve. Esto incluye las interfaces sin ningún control de volumen y las interfaces cuyo control de volumen en macOS solo abarca algunos de sus canales, no los que usa Curve. En otro caso, las teclas funcionan como siempre en macOS. Para que las teclas ajusten siempre el volumen de Curve, selecciona Always.
 
-El volumen de Curve se aplica a todo lo que Curve emite, después de tus plug-ins, y solo mientras las teclas lo ajustan. Curve lo recuerda al salir. Con el volumen al máximo, el audio no se modifica.
+De forma predeterminada, el volumen de Curve se aplica a todo lo que Curve emite, después de tus plug-ins. Para ajustar solo el volumen del audio de macOS y de otras apps, selecciona Control Interface Loopback Volume en el mismo menú. Las teclas bajan entonces solo el nodo [Interface Loopback (In)](loopback.md), así que el audio de Audio Input y de los plug-ins de instrumento en Curve mantiene su nivel. Si el preset no tiene ningún nodo Interface Loopback (In) conectado, las teclas funcionan como siempre en macOS. Selecciona Control Curve's Output Volume para volver.
+
+El volumen de Curve solo se aplica mientras las teclas lo ajustan. Curve lo recuerda al salir. Con el volumen al máximo, el audio no se modifica.
 
 Para ocultar el indicador, desactiva Show Volume Overlay en el mismo menú.
 

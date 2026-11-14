@@ -19,6 +19,7 @@
 #include "VolumeKeyManager.h"
 #include "OutputVolume.h"
 #include "IdleReleaseController.h"
+#include "../Plugins/OutputInterfaceLoopbackNode.h"
 
 #include <algorithm>
 #include <atomic>
@@ -361,6 +362,7 @@ namespace
 {
     constexpr const char* modeKey    = "volumeKeysMode";
     constexpr const char* overlayKey = "volumeKeysOverlay";
+    constexpr const char* targetKey  = "volumeKeysTarget";
     constexpr const char* stepsKey   = "outputVolumeSteps";
     constexpr const char* mutedKey   = "outputVolumeMuted";
 
@@ -378,10 +380,20 @@ namespace
     std::atomic<int> volumeSteps { OutputVolume::maxSteps };
     std::atomic<bool> volumeMuted { false };
 
+    // Written on the message thread only while the tap isn't running
+    std::atomic<VolumeKeyManager::Target> volumeTarget { VolumeKeyManager::Target::output };
+
     void applyGain()
     {
-        OutputVolume::targetGain.store (takingKeys.load() ? OutputVolume::stepsToGain (volumeSteps.load(), volumeMuted.load())
-                                                          : 1.0f);
+        if (! takingKeys.load())
+        {
+            OutputVolume::setting.store ({ 1.0f, OutputVolume::none });
+            return;
+        }
+
+        const bool loopback = volumeTarget.load() == VolumeKeyManager::Target::loopback;
+        OutputVolume::setting.store ({ OutputVolume::stepsToGain (volumeSteps.load(), volumeMuted.load()),
+                                       loopback ? OutputVolume::loopback : OutputVolume::output });
     }
 
     void keyHandledOnTapThread();
@@ -603,6 +615,7 @@ namespace
             {
                 mode = (VolumeKeyManager::Mode) juce::jlimit (0, 2, settings->getIntValue (modeKey, 0));
                 overlayEnabled = settings->getBoolValue (overlayKey, true);
+                volumeTarget.store ((VolumeKeyManager::Target) juce::jlimit (0, 1, settings->getIntValue (targetKey, 0)));
                 volumeSteps.store (OutputVolume::clampSteps (settings->getIntValue (stepsKey, OutputVolume::maxSteps)));
                 volumeMuted.store (settings->getBoolValue (mutedKey, false));
             }
@@ -657,6 +670,30 @@ namespace
             }
 
             requestAccessIfNeeded();
+            update();
+        }
+
+        void setTarget (VolumeKeyManager::Target newTarget)
+        {
+            if (newTarget == volumeTarget.load())
+                return;
+
+            if (auto* settings = getUserSettings())
+            {
+                settings->setValue (targetKey, (int) newTarget);
+                settings->saveIfNeeded();
+            }
+
+            // The tap is stopped first, so its thread never applies the gain to the old target
+            // after it has moved to the new one. The keys stay taken meanwhile, and update()
+            // then either moves the gain straight to the new target and starts the tap again,
+            // or, if the new target has nothing to control, gives the keys back to macOS and
+            // ramps to full level. It publishes the gain itself in both cases, since the tap
+            // isn't running.
+            if (tap.isRunning())
+                tap.stop();
+
+            volumeTarget.store (newTarget);
             update();
         }
 
@@ -722,12 +759,9 @@ namespace
                     applyGain();
                 }
             }
-            else if (! take && tap.isRunning())
+            else if (! take && (tap.isRunning() || takingKeys.load()))
             {
-                tap.stop(); // joins the tap thread
-                takingKeys.store (false);
-                applyGain();
-                [overlay close];
+                stopTaking();
             }
 
             tapFailed = take && ! tap.isRunning();
@@ -775,6 +809,16 @@ namespace
         };
         SaveTimer saveTimer;
 
+        void stopTaking()
+        {
+            if (tap.isRunning())
+                tap.stop(); // joins the tap thread
+
+            takingKeys.store (false);
+            applyGain();
+            [overlay close];
+        }
+
         // Shows macOS's prompt, which leads to the Accessibility pane in System Settings
         void requestAccessIfNeeded()
         {
@@ -784,6 +828,12 @@ namespace
 
         bool shouldTakeKeys() const
         {
+            // Without a connected loopback node there's nothing for the keys to control, so
+            // they're left to macOS
+            if (volumeTarget.load() == VolumeKeyManager::Target::loopback
+                && ! OutputInterfaceLoopbackNode::isAnyTapActiveInGraph())
+                return false;
+
             if (mode == VolumeKeyManager::Mode::always)
                 return true;
 
@@ -859,6 +909,23 @@ namespace VolumeKeyManager
             controller->setMode (mode);
     }
 
+    Target getTarget()
+    {
+        return volumeTarget.load();
+    }
+
+    void setTarget (Target target)
+    {
+        if (controller != nullptr)
+            controller->setTarget (target);
+    }
+
+    void loopbackUsageChanged()
+    {
+        if (controller != nullptr)
+            controller->update();
+    }
+
     bool isOverlayEnabled()
     {
         return controller == nullptr || controller->isOverlayEnabled();
@@ -884,6 +951,11 @@ namespace VolumeKeyManager
     bool isControllingVolume()
     {
         return takingKeys.load();
+    }
+
+    bool hasConnectedLoopback()
+    {
+        return OutputInterfaceLoopbackNode::isAnyTapActiveInGraph();
     }
 
     juce::String describeVolume()

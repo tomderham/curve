@@ -15,6 +15,8 @@
 #include "OutputInterfaceLoopbackNode.h"
 #include "../UI/AudioResilienceManager.h"
 #include "../AudioDiagnostics.h"
+#include "../UI/OutputVolume.h"
+#include "../UI/VolumeKeyManager.h"
 
 #import <Foundation/Foundation.h>
 #import <AppKit/AppKit.h>
@@ -774,6 +776,8 @@ OutputInterfaceLoopbackNode::~OutputInterfaceLoopbackNode()
         {
             if (activeTapCount.load (std::memory_order_relaxed) <= 0)
                 getSharedTapSession().updateMuteBehavior (false);
+
+            VolumeKeyManager::loopbackUsageChanged();
         });
     }
 }
@@ -826,6 +830,8 @@ void OutputInterfaceLoopbackNode::setActiveState (bool shouldBeActive)
                 getSharedTapSession().updateMuteBehavior (false);
         });
     }
+
+    VolumeKeyManager::loopbackUsageChanged();
 
     if (shouldBeActive)
     {
@@ -964,6 +970,10 @@ void OutputInterfaceLoopbackNode::prepareToPlay (double sampleRate, int samplesP
         ringBuffer.clear();
         isPrimed.store (false, std::memory_order_release);
         hadUnderrunLastBlock.store (false, std::memory_order_release);
+        volumeGain.reset (sampleRate > 0.0 ? sampleRate : Curve::AudioConstants::defaultSampleRate, 0.05);
+        const auto volume = OutputVolume::setting.load (std::memory_order_relaxed);
+        volumeGain.setCurrentAndTargetValue (volume.loopbackGain());
+        seenTargetSwitches = OutputVolume::blockTargetSwitches.load (std::memory_order_relaxed);
     }
     resetBuffers();
 
@@ -1150,6 +1160,41 @@ void OutputInterfaceLoopbackNode::pushAudioInterleaved (const float* interleaved
 void OutputInterfaceLoopbackNode::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
 {
     juce::ScopedNoDenormals noDenormals;
+    readCapturedAudio (buffer);
+
+    // The volume keys, when they control the loopback volume. Left untouched at full volume,
+    // so the audio stays bit-perfect.
+    // When the volume moves to or from Curve's output, jump with the output player in the same
+    // callback, rather than ramping against it
+    const auto gain = OutputVolume::blockLoopbackGain.load (std::memory_order_relaxed);
+    const auto switches = OutputVolume::blockTargetSwitches.load (std::memory_order_relaxed);
+
+    if (switches != seenTargetSwitches)
+    {
+        seenTargetSwitches = switches;
+        volumeGain.setCurrentAndTargetValue (gain);
+    }
+    else
+    {
+        volumeGain.setTargetValue (gain);
+    }
+
+    if (volumeGain.isSmoothing())
+    {
+        volumeGain.applyGain (buffer, buffer.getNumSamples());
+    }
+    else if (volumeGain.getCurrentValue() <= 0.0f)
+    {
+        buffer.clear();
+    }
+    else if (volumeGain.getCurrentValue() != 1.0f)
+    {
+        buffer.applyGain (volumeGain.getCurrentValue());
+    }
+}
+
+void OutputInterfaceLoopbackNode::readCapturedAudio (juce::AudioBuffer<float>& buffer)
+{
     buffer.clear();
     if (! isCapturing.load (std::memory_order_acquire))
         return;

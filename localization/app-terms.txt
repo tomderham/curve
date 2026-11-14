@@ -10,6 +10,8 @@ Prevent macOS from automatically sleeping
 Always Open Plug-in GUI with Preset
 Allow Accessibility Access...
 Release audio interface when idle
+Control Interface Loopback Volume
+Control Curve's Output Volume
 Parametric EQ (import from AutoEQ...)
 Parametric EQ (import from file...)
 Headphone Speaker Emulation
