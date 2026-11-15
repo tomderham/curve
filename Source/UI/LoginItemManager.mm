@@ -91,13 +91,10 @@ public:
         NSNotificationCenter* defaultCenter = [NSNotificationCenter defaultCenter];
         addObserver (defaultCenter, NSApplicationDidChangeScreenParametersNotification);
 
-        // Sleep / wake / spaces / session change notifications
-        NSNotificationCenter* wsCenter = [[NSWorkspace sharedWorkspace] notificationCenter];
-        addObserver (wsCenter, NSWorkspaceScreensDidSleepNotification);
-        addObserver (wsCenter, NSWorkspaceScreensDidWakeNotification);
-        addObserver (wsCenter, NSWorkspaceDidWakeNotification);
-        addObserver (wsCenter, NSWorkspaceSessionDidBecomeActiveNotification);
-        addObserver (wsCenter, NSWorkspaceActiveSpaceDidChangeNotification);
+        // Only display changes, not Spaces, wake or session changes: the callback recreates the
+        // status item, and on macOS 26 and earlier a new item lands at the far left of the menu
+        // bar, where menu bar managers such as Hidden Bar hide it. Displays connected or removed
+        // during sleep still trigger the reconfiguration callback on wake.
     }
 
     ~MacOSDisplayChangeNotifier() override
@@ -148,25 +145,34 @@ std::unique_ptr<MacOSDisplayChangeNotifierBase> createMacOSDisplayChangeNotifier
     return std::make_unique<MacOSDisplayChangeNotifier> (std::move (callback));
 }
 
-void forceRefreshMacOSStatusItem (void* nativeHandle)
+std::vector<juce::uint32> getMacOSActiveDisplayIDs()
+{
+    uint32_t count = 0;
+    if (CGGetActiveDisplayList (0, nullptr, &count) != kCGErrorSuccess || count == 0)
+        return {};
+
+    std::vector<CGDirectDisplayID> displays (count);
+    if (CGGetActiveDisplayList (count, displays.data(), &count) != kCGErrorSuccess)
+        return {};
+
+    std::vector<juce::uint32> ids (displays.begin(), displays.begin() + count);
+    std::sort (ids.begin(), ids.end());
+    return ids;
+}
+
+// macOS keeps a status item's position under its autosave name. Without a fixed name AppKit
+// assigns "Item-0", "Item-1"... and a recreated item can get a new one, with no saved position,
+// so it appears at the far left of the menu bar (where menu bar managers such as Hidden Bar hide it).
+static NSString* const curveStatusItemAutosaveName = @"CurveStatusItem";
+
+void setMacOSStatusItemAutosaveName (void* nativeHandle)
 {
     if (nativeHandle == nullptr)
         return;
 
     NSStatusItem* statusItem = (__bridge NSStatusItem*) nativeHandle;
-    if (statusItem != nil)
-    {
-        if (NSStatusBarButton* button = [statusItem button])
-        {
-            [button setNeedsDisplay: YES];
-            [[button window] displayIfNeeded];
-        }
-
-        // Toggling visibility forces macOS WindowServer / AppKit to re-anchor and clone
-        // the status item across all active display menu bars if the space configuration changed.
-        [statusItem setVisible: NO];
-        [statusItem setVisible: YES];
-    }
+    if (statusItem != nil && ! [[statusItem autosaveName] isEqualToString: curveStatusItemAutosaveName])
+        [statusItem setAutosaveName: curveStatusItemAutosaveName];
 }
 
 void removeMacOSStatusItem (void* nativeHandle)
@@ -175,8 +181,23 @@ void removeMacOSStatusItem (void* nativeHandle)
         return;
 
     NSStatusItem* statusItem = (__bridge NSStatusItem*) nativeHandle;
-    if (statusItem != nil)
-    {
-        [[NSStatusBar systemStatusBar] removeStatusItem: statusItem];
-    }
+    if (statusItem == nil)
+        return;
+
+    // On macOS 26 and earlier, removing an item also deletes its saved position and visibility from
+    // the app's defaults (as does setting isVisible to NO), so the replacement would lose its place.
+    // Keep the values and write them back for the next item with the same autosave name.
+    NSString* name = [statusItem autosaveName];
+    NSUserDefaults* defaults = [NSUserDefaults standardUserDefaults];
+    NSString* positionKey = name != nil ? [@"NSStatusItem Preferred Position " stringByAppendingString: name] : nil;
+    NSString* visibleKey  = name != nil ? [@"NSStatusItem Visible " stringByAppendingString: name] : nil;
+    id savedPosition = positionKey != nil ? [defaults objectForKey: positionKey] : nil;
+    id savedVisible  = visibleKey  != nil ? [defaults objectForKey: visibleKey]  : nil;
+
+    [[NSStatusBar systemStatusBar] removeStatusItem: statusItem];
+
+    if (savedPosition != nil)
+        [defaults setObject: savedPosition forKey: positionKey];
+    if (savedVisible != nil)
+        [defaults setObject: savedVisible forKey: visibleKey];
 }

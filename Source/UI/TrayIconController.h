@@ -85,9 +85,18 @@ public:
                      GitHubUpdater &gitHubUpdaterToControl)
       : mainWindow(windowToControl), gitHubUpdater(gitHubUpdaterToControl) {
     refreshIcon();
+    knownDisplayIDs = getMacOSActiveDisplayIDs();
+
+    // For testing only: CURVE_DEBUG_RECREATE_TRAY_ICON=<seconds> recreates the status item at that
+    // interval, to check it keeps its menu bar position (macOS 26 and earlier lose it by default).
+    if (auto seconds = juce::SystemStats::getEnvironmentVariable("CURVE_DEBUG_RECREATE_TRAY_ICON", {}).getIntValue();
+        seconds > 0) {
+      debugRecreateTimer.callback = [this] { recreateStatusItem(); };
+      debugRecreateTimer.startTimer(seconds * 1000);
+    }
 
     displayChangeNotifier = createMacOSDisplayChangeNotifier([this] {
-      handleDisplayOrWakeChange();
+      handleDisplayChange();
     });
 
     initGlobalShortcut();
@@ -96,6 +105,7 @@ public:
   void refreshIcon() {
     setIconImage(getImageFromAssets("juce_icon.png"),
                  getImageFromAssets("juce_icon_template.png"));
+    setMacOSStatusItemAutosaveName(getNativeHandle());
     setIconTooltip("Curve");
   }
 
@@ -114,7 +124,7 @@ public:
     refreshIcon();
   }
 
-  void handleDisplayOrWakeChange() {
+  void handleDisplayChange() {
     juce::MessageManager::callAsync([safeSelf = juce::Component::SafePointer<TrayIconController>(this)] {
       if (auto *self = safeSelf.getComponent()) {
         // Debounce: wait 3.5s for display geometry and Thunderbolt link training to stabilize,
@@ -134,6 +144,14 @@ public:
       return;
     }
 
+    // Recreate only when a display was added or removed. macOS reports a reconfiguration on
+    // every wake too, and a recreated item moves to the far left of the menu bar on macOS 26
+    // and earlier. An empty list means the displays are still asleep, so wait for the next event.
+    auto displayIDs = getMacOSActiveDisplayIDs();
+    if (displayIDs.empty() || displayIDs == knownDisplayIDs)
+      return;
+
+    knownDisplayIDs = std::move(displayIDs);
     recreateStatusItem();
   }
 
@@ -754,5 +772,15 @@ private:
   juce::uint32 lastMenuDismissTime = 0;
   void *activeMenuKeyMonitor = nullptr;
   std::unique_ptr<MacOSDisplayChangeNotifierBase> displayChangeNotifier;
+  std::vector<juce::uint32> knownDisplayIDs;
+
+  struct CallbackTimer : juce::Timer {
+    std::function<void()> callback;
+    void timerCallback() override {
+      if (callback)
+        callback();
+    }
+  };
+  CallbackTimer debugRecreateTimer;
 };
 

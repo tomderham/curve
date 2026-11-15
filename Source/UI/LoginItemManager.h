@@ -49,6 +49,15 @@ struct MacOSDisplayChangeNotifierBase
     virtual ~MacOSDisplayChangeNotifierBase() = default;
 };
 std::unique_ptr<MacOSDisplayChangeNotifierBase> createMacOSDisplayChangeNotifier (std::function<void()> callback);
-void forceRefreshMacOSStatusItem (void* nativeHandle);
+/** Gives Curve's status item a fixed autosave name, so macOS keeps its menu bar position
+    when the item is recreated. Call straight after the item is created. */
+void setMacOSStatusItemAutosaveName (void* nativeHandle);
+
+/** Removes the status item, keeping its saved menu bar position for the next item created
+    with the same autosave name. */
 void removeMacOSStatusItem (void* nativeHandle);
+
+/** IDs of the active displays, sorted, so two calls can be compared to see whether
+    a display was added or removed. Empty while every display is asleep. */
+std::vector<juce::uint32> getMacOSActiveDisplayIDs();
 
