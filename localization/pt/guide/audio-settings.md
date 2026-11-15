@@ -16,6 +16,8 @@ Ative **Use output interface selected in macOS** para deixar o macOS escolher a 
 
 As conexões do seu preset com saídas que a nova interface não tem são mantidas, mas ficam em silêncio até você voltar para uma interface que as tenha. Uma correção feita para uma interface, como o EQ de um fone específico, é aplicada a qualquer saída para a qual o macOS mudar.
 
+Selecione **Default Presets...** para escolher um preset para cada interface. Quando o macOS muda para uma interface, o Curve carrega o preset padrão dela. Interfaces definidas como None mantêm o preset carregado. Ative **Also load at launch** para que o Curve carregue, ao iniciar, o preset padrão da interface que o macOS estiver usando, em vez do último preset usado. Se um preset padrão não for encontrado, o Curve mantém o preset atual e avisa na barra de status do editor.
+
 ## Manter o macOS na interface do Curve
 
 **Force macOS system output to this interface** vem ativado por padrão. Ele mantém a saída do sistema do macOS na interface de saída do Curve, para que o [nó Interface Loopback (In)](loopback.md) receba todo o áudio do sistema. Desative-o se quiser escolher a saída do sistema por conta própria. Ele fica esmaecido enquanto Use output interface selected in macOS está ativado, porque a saída do macOS passa a ser sempre a do Curve.

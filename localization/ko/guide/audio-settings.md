@@ -16,6 +16,8 @@ Curve는 출력 인터페이스마다 샘플레이트, 버퍼 크기, 활성화�
 
 새 인터페이스에 없는 출력에 대한 프리셋의 연결은 유지되지만, 해당 출력이 있는 인터페이스로 다시 전환할 때까지 무음입니다. 특정 헤드폰용 EQ처럼 하나의 인터페이스를 위한 보정은 macOS가 전환하는 모든 출력에 적용됩니다.
 
+**Default Presets...**를 선택하여 인터페이스마다 프리셋을 선택합니다. macOS가 인터페이스를 전환하면 Curve가 해당 인터페이스의 기본 프리셋을 불러옵니다. None으로 설정한 인터페이스는 불러온 프리셋을 그대로 사용합니다. **Also load at launch**을 켜면 Curve가 시작할 때 마지막으로 사용한 프리셋 대신 macOS가 사용하는 인터페이스의 기본 프리셋을 불러옵니다. 기본 프리셋을 찾을 수 없으면 Curve는 현재 프리셋을 유지하고 편집기의 상태 표시줄에 알립니다.
+
 ## macOS를 Curve의 인터페이스에 유지
 
 **Force macOS system output to this interface**는 기본적으로 켜져 있습니다. 이 옵션은 macOS의 시스템 출력을 Curve의 출력 인터페이스로 유지하므로 [Interface Loopback (In) 노드](loopback.md)가 모든 시스템 오디오를 받습니다. 시스템 출력을 직접 선택하려면 끄십시오. Use output interface selected in macOS가 켜져 있는 동안에는 macOS의 출력이 항상 Curve의 출력이므로 회색으로 표시됩니다.

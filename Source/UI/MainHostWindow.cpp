@@ -588,6 +588,10 @@ MainHostWindow::MainHostWindow()
                 savedState->setAttribute ("audioDeviceBufferSize", remembered.bufferSize);
             else
                 savedState->removeAttribute ("audioDeviceBufferSize");
+
+            // Saved, so the resilience manager doesn't see a change of interface when it starts
+            // (which would load that interface's default preset, even with Also load at launch off)
+            getAppProperties().getUserSettings()->setValue ("audioDeviceState", savedState.get());
         }
     }
 
@@ -1238,8 +1242,13 @@ void MainHostWindow::replaceGraph (const std::function<void()>& replace)
     if (auto* idle = getIdleReleaseController())
         idle->resumeIfReleased();
 
+    // Restored afterwards rather than cleared: Audio Settings suspends it while open, and a
+    // preset can load meanwhile (a default preset, or MIDI program change)
+    bool wasResilienceSuspended = false;
+
     if (auto* rm = getResilienceManager())
     {
+        wasResilienceSuspended = rm->isSuspendedNow();
         rm->setSuspended (true);
     }
 
@@ -1270,7 +1279,7 @@ void MainHostWindow::replaceGraph (const std::function<void()>& replace)
 
     if (auto* rm = getResilienceManager())
     {
-        rm->setSuspended (false);
+        rm->setSuspended (wasResilienceSuspended);
     }
 }
 

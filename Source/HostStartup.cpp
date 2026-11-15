@@ -62,6 +62,7 @@
 #include "UI/VolumeKeyManager.h"
 #include "UI/DockIconManager.h"
 #include "UI/TrayIconController.h"
+#include "UI/DefaultPresets.h"
 #include "AudioDiagnostics.h"
 
 
@@ -538,6 +539,8 @@ public:
         break;
     }
 
+    const bool isOpeningRequestedFile = fileToOpen.existsAsFile();
+
     if (!fileToOpen.existsAsFile()) {
       RecentlyOpenedFilesList recentFiles;
       recentFiles.restoreFromString(
@@ -546,6 +549,22 @@ public:
 
       if (recentFiles.getNumFiles() > 0)
         fileToOpen = recentFiles.getFile(0);
+    }
+
+    // Following macOS with "Also load at launch": the default preset of the interface macOS is
+    // using replaces the preset used last (but not a preset Curve was asked to open)
+    if (!isOpeningRequestedFile && AudioResilienceManager::isFollowingSystemOutput() &&
+        DefaultPresets::shouldLoadAtLaunch()) {
+      juce::String deviceName;
+      if (auto *device = mainWindow->getDeviceManager().getCurrentAudioDevice())
+        deviceName = device->getName();
+      else
+        deviceName = AudioResilienceManager::getFollowedOutputDeviceName();
+
+      auto defaultPreset = DefaultPresets::getPresetFile(
+          DefaultPresets::getPresetFileName(getMacOSOutputDeviceUID(deviceName)));
+      if (defaultPreset.existsAsFile())
+        fileToOpen = defaultPreset;
     }
 
     if (fileToOpen.existsAsFile()) {
@@ -661,6 +680,39 @@ public:
   ApplicationCommandManager commandManager;
   std::unique_ptr<ApplicationProperties> appProperties;
 
+  // See loadDefaultPresetForOutputDevice() in DefaultPresets.h
+  void loadDefaultPresetFor(const juce::String &deviceName) {
+    if (mainWindow == nullptr || !AudioResilienceManager::isFollowingSystemOutput())
+      return;
+
+    auto presetFileName =
+        DefaultPresets::getPresetFileName(getMacOSOutputDeviceUID(deviceName));
+    if (presetFileName.isEmpty())
+      return; // no default: keep the loaded preset
+
+    auto showStatus = [this](const juce::String &message) {
+      if (mainWindow->graphHolder != nullptr)
+        mainWindow->graphHolder->showStatusMessage(message, 5000);
+    };
+
+    auto file = DefaultPresets::getPresetFile(presetFileName);
+    if (!file.existsAsFile()) {
+      showStatus("The default preset for " + deviceName + ", " +
+                 juce::File(presetFileName).getFileNameWithoutExtension() +
+                 ", wasn't found, so the current preset is still loaded.");
+      return;
+    }
+
+    if (mainWindow->graphHolder != nullptr &&
+        mainWindow->graphHolder->graph != nullptr &&
+        mainWindow->graphHolder->graph->getFile() == file)
+      return;
+
+    mainWindow->loadPreset(file);
+    showStatus("Loaded " + file.getFileNameWithoutExtension() +
+               ", the default preset for " + deviceName + ".");
+  }
+
   AudioResilienceManager *getResilienceManager() const {
     return resilienceManager.get();
   }
@@ -699,6 +751,11 @@ AudioResilienceManager *getResilienceManager() {
   if (auto *app = dynamic_cast<PluginHostApp *>(JUCEApplication::getInstance()))
     return app->getResilienceManager();
   return nullptr;
+}
+
+void loadDefaultPresetForOutputDevice(const juce::String &juceDeviceName) {
+  if (auto *app = dynamic_cast<PluginHostApp *>(JUCEApplication::getInstance()))
+    app->loadDefaultPresetFor(juceDeviceName);
 }
 
 IdleReleaseController *getIdleReleaseController() {

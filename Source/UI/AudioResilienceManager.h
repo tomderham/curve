@@ -15,6 +15,7 @@
 #include <JuceHeader.h>
 #include <functional>
 #include <map>
+#include <vector>
 
 juce::PropertiesFile* getUserSettings();
 
@@ -26,8 +27,23 @@ struct MacOSSleepWakeNotifierBase
 };
 std::unique_ptr<MacOSSleepWakeNotifierBase> createMacOSSleepWakeNotifier (std::function<void(bool)> callback);
 
+/** An output device as JUCE's CoreAudio device list names it (with "Name (2)" for duplicates),
+    and its CoreAudio UID, which stays the same when devices are renamed or reconnected. */
+struct MacOSOutputDevice
+{
+    juce::String name, uid;
+    bool isDefault = false; // macOS's current output
+};
+std::vector<MacOSOutputDevice> getMacOSOutputDevices();
+
 /** macOS's current output device, named as JUCE's CoreAudio device list names it. Empty if unknown. */
 juce::String getMacOSDefaultOutputDeviceName();
+
+/** The CoreAudio UID of the output device JUCE calls juceDeviceName. Empty if it isn't connected. */
+juce::String getMacOSOutputDeviceUID (const juce::String& juceDeviceName);
+
+/** See DefaultPresets.h. */
+void loadDefaultPresetForOutputDevice (const juce::String& juceDeviceName);
 
 struct MacOSDefaultOutputChangeNotifierBase
 {
@@ -234,6 +250,11 @@ public:
         }
     }
 
+    bool isSuspendedNow() const
+    {
+        return isSuspended;
+    }
+
     bool isSuspendedOrRestarting() const
     {
         return isSuspended || isRestarting;
@@ -432,6 +453,9 @@ public:
         {
             cachedAudioState->setAttribute ("audioOutputDeviceName", name);
             targetOutputDeviceName = name;
+
+            // A real change of interface (restoring the same one never gets here)
+            juce::MessageManager::callAsync ([name] { loadDefaultPresetForOutputDevice (name); });
 
             // The old device's settings would otherwise carry over to this one. With nothing
             // remembered, leave them out: JUCE then keeps the hardware's current rate and opens

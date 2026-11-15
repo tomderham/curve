@@ -99,52 +99,74 @@ static int getDeviceChannelCount (AudioObjectID devID, bool isInput)
     return total;
 }
 
-juce::String getMacOSDefaultOutputDeviceName()
+std::vector<MacOSOutputDevice> getMacOSOutputDevices()
 {
+    std::vector<MacOSOutputDevice> result;
+
     AudioObjectPropertyAddress defaultProp = { kAudioHardwarePropertyDefaultOutputDevice, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
     AudioObjectID defaultID = kAudioObjectUnknown;
     UInt32 defaultSize = sizeof (defaultID);
-    if (AudioObjectGetPropertyData (kAudioObjectSystemObject, &defaultProp, 0, NULL, &defaultSize, &defaultID) != noErr
-        || defaultID == kAudioObjectUnknown)
-        return {};
+    AudioObjectGetPropertyData (kAudioObjectSystemObject, &defaultProp, 0, NULL, &defaultSize, &defaultID);
 
     AudioObjectPropertyAddress devicesProp = { kAudioHardwarePropertyDevices, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
     UInt32 dataSize = 0;
     if (AudioObjectGetPropertyDataSize (kAudioObjectSystemObject, &devicesProp, 0, NULL, &dataSize) != noErr || dataSize == 0)
-        return {};
+        return result;
 
     std::vector<AudioObjectID> devIDs (dataSize / sizeof (AudioObjectID));
     if (AudioObjectGetPropertyData (kAudioObjectSystemObject, &devicesProp, 0, NULL, &dataSize, devIDs.data()) != noErr)
-        return {};
+        return result;
+
+    auto getString = [] (AudioObjectID devID, AudioObjectPropertySelector selector, AudioObjectPropertyScope scope) -> juce::String
+    {
+        AudioObjectPropertyAddress prop = { selector, scope, kAudioObjectPropertyElementMain };
+        CFStringRef value = NULL;
+        UInt32 size = sizeof (value);
+        if (AudioObjectGetPropertyData (devID, &prop, 0, NULL, &size, &value) != noErr || value == NULL)
+            return {};
+        auto str = juce::String::fromCFString (value);
+        CFRelease (value);
+        return str;
+    };
 
     // Same list, order and duplicate numbering as JUCE's CoreAudioIODeviceType::scanForDevices(),
     // so two devices with the same name map to the same "Name (2)" JUCE shows
     juce::StringArray names;
-    int defaultIndex = -1;
 
     for (auto devID : devIDs)
     {
         if (getDeviceChannelCount (devID, false) <= 0)
             continue;
 
-        AudioObjectPropertyAddress nameProp = { kAudioDevicePropertyDeviceNameCFString, kAudioObjectPropertyScopeWildcard, kAudioObjectPropertyElementMain };
-        CFStringRef cfName = NULL;
-        UInt32 nameSize = sizeof (cfName);
-        if (AudioObjectGetPropertyData (devID, &nameProp, 0, NULL, &nameSize, &cfName) != noErr || cfName == NULL)
+        auto name = getString (devID, kAudioDevicePropertyDeviceNameCFString, kAudioObjectPropertyScopeWildcard);
+        if (name.isEmpty())
             continue;
 
-        if (devID == defaultID)
-            defaultIndex = names.size();
-
-        names.add (juce::String::fromCFString (cfName));
-        CFRelease (cfName);
+        names.add (name);
+        result.push_back ({ name, getString (devID, kAudioDevicePropertyDeviceUID, kAudioObjectPropertyScopeGlobal), devID == defaultID });
     }
 
-    if (defaultIndex < 0)
-        return {};
-
     names.appendNumbersToDuplicates (false, true);
-    return names[defaultIndex];
+    for (size_t i = 0; i < result.size(); ++i)
+        result[i].name = names[(int) i];
+
+    return result;
+}
+
+juce::String getMacOSDefaultOutputDeviceName()
+{
+    for (const auto& device : getMacOSOutputDevices())
+        if (device.isDefault)
+            return device.name;
+    return {};
+}
+
+juce::String getMacOSOutputDeviceUID (const juce::String& juceDeviceName)
+{
+    for (const auto& device : getMacOSOutputDevices())
+        if (device.name == juceDeviceName)
+            return device.uid;
+    return {};
 }
 
 class MacOSDefaultOutputChangeNotifier final : public MacOSDefaultOutputChangeNotifierBase

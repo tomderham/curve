@@ -1,4 +1,5 @@
 #include "PresetSaveDialog.h"
+#include "DefaultPresets.h"
 
 // Appends the preset suffix rather than using File::withFileExtension, which
 // would treat everything after the last dot in the name ("EQ v1.2") as an extension.
@@ -323,6 +324,8 @@ void PresetSaveDialog::promptRename (const juce::File& file)
                     }
                     else if (file.moveFileTo (newFile))
                     {
+                        DefaultPresets::presetRenamed (file, newFile);
+
                         if (safeThis->graph.getFile() == file)
                             safeThis->graph.setFile (newFile);
 

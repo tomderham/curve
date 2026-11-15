@@ -1969,10 +1969,18 @@ struct GraphDocumentComponent::TooltipBar final : public Component,
             tip = newTip;
             repaint();
         }
+
+        if (messageExpiryMs != 0 && Time::getMillisecondCounter() >= messageExpiryMs)
+            setMessage ({});
     }
 
-    void setMessage (const String& newMessage)
+    // clearAfterMs 0: stays until replaced
+    void setMessage (const String& newMessage, int clearAfterMs = 0)
     {
+        messageExpiryMs = (clearAfterMs > 0 && newMessage.isNotEmpty())
+                            ? juce::jmax ((uint32) 1, Time::getMillisecondCounter() + (uint32) clearAfterMs)
+                            : 0;
+
         if (newMessage != message)
         {
             message = newMessage;
@@ -1981,6 +1989,7 @@ struct GraphDocumentComponent::TooltipBar final : public Component,
     }
 
     String tip, message;
+    uint32 messageExpiryMs = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TooltipBar)
 };
@@ -2163,10 +2172,10 @@ void GraphDocumentComponent::resized()
         graphPanel->setBounds (r);
 }
 
-void GraphDocumentComponent::showStatusMessage (const String& message)
+void GraphDocumentComponent::showStatusMessage (const String& message, int clearAfterMs)
 {
     if (statusBar != nullptr)
-        statusBar->setMessage (message);
+        statusBar->setMessage (message, clearAfterMs);
 }
 
 void GraphDocumentComponent::createNewPlugin (const PluginDescriptionAndPreference& desc, Point<int> pos)

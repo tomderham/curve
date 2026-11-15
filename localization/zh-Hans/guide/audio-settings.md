@@ -16,6 +16,8 @@ Curve 会记住每个输出接口的采样率、缓冲区大小和已启用的�
 
 预设中连接到新接口所没有的输出的连接会被保留，但在你切换回具有这些输出的接口之前，它们不会发声。为某个接口设计的校正（例如特定耳机的 EQ）会应用到 macOS 切换到的任何输出上。
 
+选择 **Default Presets...** 可为每个接口选择一个预设。当 macOS 切换到某个接口时，Curve 会载入该接口的默认预设。设为 None 的接口会保留当前载入的预设。打开 **Also load at launch** 后，Curve 启动时会载入 macOS 正在使用的接口的默认预设，而不是上次使用的预设。如果找不到默认预设，Curve 会保留当前预设，并在编辑器的状态栏中说明。
+
 ## 让 macOS 保持在 Curve 的接口上
 
 **Force macOS system output to this interface** 默认打开。它会让 macOS 的系统输出保持在 Curve 的输出接口上，使 [Interface Loopback (In) 节点](loopback.md)接收所有系统音频。如果你想自行选择系统输出，请将其关闭。Use output interface selected in macOS 打开时，它会显示为灰色，因为此时 macOS 的输出始终就是 Curve 的输出。

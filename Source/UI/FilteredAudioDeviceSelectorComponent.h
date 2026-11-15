@@ -18,6 +18,7 @@
 
 #include <JuceHeader.h>
 #include "AudioResilienceManager.h"
+#include "DefaultPresetsComponent.h"
 
 //==============================================================================
 /**
@@ -88,7 +89,7 @@ public:
         };
 
         followWarning.setText ("Curve's output follows macOS. If macOS switches to a device with fewer channels, "
-                               "outputs that device doesn't have are silent until you switch back.",
+                               "outputs that device doesn't have are silent.",
                                juce::dontSendNotification);
         followWarning.setFont (juce::FontOptions (13.0f));
         followWarning.setJustificationType (juce::Justification::topLeft);
@@ -96,6 +97,10 @@ public:
         followWarning.setBorderSize ({ 0, 2, 0, 0 });
         followWarning.setColour (juce::Label::textColourId,
                                  getLookAndFeel().findColour (juce::Label::textColourId).withAlpha (0.7f));
+
+        defaultPresetsButton.setButtonText ("Default Presets...");
+        defaultPresetsButton.setTooltip ("Choose a preset for Curve to load when macOS switches to each interface.");
+        defaultPresetsButton.onClick = [this] { showDefaultPresets(); };
 
         forceToggle.setButtonText ("Force macOS system output to this interface");
         forceToggle.setTooltip ("Keeps macOS's output set to Curve's output interface, so Interface Loopback captures all system audio. "
@@ -120,6 +125,7 @@ public:
 
         addAndMakeVisible (followToggle);
         addChildComponent (followWarning);
+        addAndMakeVisible (defaultPresetsButton);
         addAndMakeVisible (forceToggle);
         updateFollowControls();
 
@@ -131,6 +137,9 @@ public:
     {
         deviceManager.removeChangeListener (&deviceWatcher);
         stopTimer();
+
+        // JUCE's panel owns these, so hand them back before it deletes them
+        returnAdoptedControls();
     }
 
     void timerCallback() override
@@ -177,6 +186,20 @@ public:
 private:
     juce::ToggleButton enforceRateToggle;
     juce::ToggleButton followToggle, forceToggle;
+    juce::TextButton defaultPresetsButton;
+
+    void showDefaultPresets()
+    {
+        juce::DialogWindow::LaunchOptions o;
+        o.content.setOwned (new DefaultPresetsComponent());
+        o.dialogTitle = "Default Presets";
+        o.componentToCentreAround = getTopLevelComponent();
+        o.dialogBackgroundColour = getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId);
+        o.escapeKeyTriggersCloseButton = true;
+        o.useNativeTitleBar = false;
+        o.resizable = false;
+        o.launchAsync();
+    }
     juce::Label followWarning;
     int followCheckTicks = 0;
 
@@ -267,6 +290,7 @@ private:
     {
         const bool isFollowing = followToggle.getToggleState();
         forceToggle.setEnabled (! isFollowing);
+        defaultPresetsButton.setEnabled (isFollowing);
         followWarning.setVisible (isFollowing);
 
         // JUCE can recreate the menu when the device changes, so this runs from the timer too
@@ -304,7 +328,8 @@ private:
             setup.useDefaultInputChannels = true;
         }
 
-        deviceManager.setAudioDeviceSetup (setup, true);
+        if (deviceManager.setAudioDeviceSetup (setup, true).isEmpty())
+            loadDefaultPresetForOutputDevice (name);
     }
 
     //==============================================================================
@@ -386,12 +411,14 @@ private:
         {
             followToggle.setVisible (false);
             followWarning.setVisible (false);
+            defaultPresetsButton.setVisible (false);
             forceToggle.setVisible (false);
             enforceRateToggle.setVisible (false);
             return;
         }
 
         followToggle.setVisible (true);
+        defaultPresetsButton.setVisible (true);
         forceToggle.setVisible (true);
         followWarning.setVisible (followToggle.getToggleState());
 
@@ -412,6 +439,10 @@ private:
             followWarning.setBounds (x + 22, y, w - 22, (int) std::ceil (layout.getHeight()) + 4);
             y = followWarning.getBottom() + 2;
         }
+
+        defaultPresetsButton.changeWidthToFitText (24);
+        defaultPresetsButton.setTopLeftPosition (x + 22, y + 4);
+        y = defaultPresetsButton.getBottom() + 2;
 
         forceToggle.setBounds (x, y + 2, w, toggleHeight);
         const int belowOutputShift = forceToggle.getBottom() + space - outputRowBottom;
@@ -475,6 +506,7 @@ private:
         panel->toBack();
         followToggle.toFront (false);
         followWarning.toFront (false);
+        defaultPresetsButton.toFront (false);
         forceToggle.toFront (false);
 
         // The rest of JUCE's controls (MIDI inputs, Bluetooth, MIDI output) follow underneath
@@ -486,7 +518,7 @@ private:
 
         for (auto* child : below)
         {
-            const bool isOurs = child == panel || child == &followToggle || child == &followWarning
+            const bool isOurs = child == panel || child == &followToggle || child == &followWarning || child == &defaultPresetsButton
                              || child == &forceToggle || child == &enforceRateToggle || isAttachedLabel (child)
                              || std::any_of (adopted.begin(), adopted.end(), [child] (const auto& a) { return a.component == child; });
 

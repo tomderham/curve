@@ -408,7 +408,8 @@ public:
     void showUpdateBanner (const String& version, const String& downloadUrl);
 
     /** Shows a message in the status bar in place of tooltips; an empty string clears it. */
-    void showStatusMessage (const String&);
+    /** clearAfterMs 0: the message stays until replaced. */
+    void showStatusMessage (const String&, int clearAfterMs = 0);
 
 private:
     //==============================================================================
