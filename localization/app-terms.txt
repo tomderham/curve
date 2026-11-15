@@ -41,6 +41,7 @@ Delete This Node
 Rename This Node
 Save As Preset...
 Remove from List
+MIDI Mappings...
 Mid/Side Decoder
 Mid/Side Encoder
 Plug-in Manager

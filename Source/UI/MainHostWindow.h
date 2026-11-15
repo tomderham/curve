@@ -112,6 +112,7 @@ public:
     void showAudioSettings();
     void saveAsPreset();
     void showPluginListWindow();
+    void showMidiMappingsWindow();
     void loadPreset (juce::File);
     // Clears the graph back to its default audio nodes, asking first if there are unsaved changes
     void newPreset();
@@ -142,6 +143,7 @@ private:
 
     class PluginListWindow;
     std::unique_ptr<PluginListWindow> pluginListWindow;
+    std::unique_ptr<juce::DocumentWindow> midiMappingsWindow;   // refers to graphHolder's graph
     ScopedMessageBox messageBox;
 
     // Fades out and suspends the audio around a change that replaces the whole graph

@@ -696,6 +696,10 @@ public:
                   if (w->graphHolder != nullptr)
                     w->graphHolder->midiEngine->setProgramChangePresetSelectEnabled(!pcEnabled);
               });
+    m.addItem("MIDI Mappings...", [safeWindow] {
+      if (auto *w = safeWindow.getComponent())
+        w->showMidiMappingsWindow();
+    });
     m.addSeparator();
 
     for (const bool next : {true, false}) {

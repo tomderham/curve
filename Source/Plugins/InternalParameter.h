@@ -156,7 +156,7 @@ public:
         : parameter (p), slider (s)
     {
         const auto& range = parameter.getRange();
-        slider.setNormalisableRange ({ (double) range.start, (double) range.end, (double) range.interval });
+        slider.setNormalisableRange ({ (double) range.start, (double) range.end, (double) range.interval, (double) range.skew });
         slider.textFromValueFunction = [this] (double v) { return parameter.getText (parameter.getRange().convertTo0to1 ((float) v), 32); };
         slider.valueFromTextFunction = [this] (const juce::String& t) { return (double) parameter.getRange().convertFrom0to1 (parameter.getValueForText (t)); };
         slider.setValue (parameter.get(), juce::dontSendNotification);

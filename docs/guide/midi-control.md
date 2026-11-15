@@ -43,13 +43,23 @@ Mappings are saved with the preset, so use Save As Preset... to keep them.
 
 ## How mapped controls behave
 
-- Knobs and faders (CC) cover a parameter's full range.
+- Knobs and faders (CC) cover a parameter's full range. You can narrow it in MIDI Mappings..., below.
 - Notes and program changes toggle the target.
 - For bypass, Curve works out whether a CC button is momentary, where each press toggles bypass, or latching, where bypass follows the button's state.
 
 Nodes with mappings show a small MIDI socket icon. Hover over the node to see its mappings in the status bar.
 
 Mapped MIDI messages aren't passed on to plug-ins through the MIDI Input node. All other MIDI is.
+
+## Adjust a mapping
+
+Select Settings > MIDI Control > MIDI Mappings... to see the loaded preset's mappings. The window can stay open while you use MIDI Learn or switch presets. For each mapping you can set:
+
+- **Mode:** Range, where a knob or fader sets the value; Toggle, where each press switches between two values; or Follow, where the target follows a button, on while it's held or latched.
+- **From and To:** the values a knob or fader moves between. A narrower range gives finer steps, for example -20 dB to +6 dB on a Gain node. For Toggle and Follow, they're the off and on values. Type a value in the parameter's units, or a percentage such as 25%.
+- **Invert:** reverses the control.
+
+Bypass mappings have no From and To. Click × to remove a mapping. Mappings are saved with the preset, so use Save As Preset... to keep your changes.
 
 ## Switch presets from a controller
 
