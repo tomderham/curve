@@ -43,13 +43,23 @@ Las asignaciones se guardan con el preset, así que usa Save As Preset... para c
 
 ## Cómo se comportan los controles asignados
 
-- Los mandos y faders (CC) cubren todo el rango de un parámetro.
+- Los mandos y faders (CC) cubren todo el rango de un parámetro. Puedes acotarlo en MIDI Mappings... (ver abajo).
 - Las notas y los cambios de programa alternan el destino.
 - Para la omisión, Curve determina si un botón CC es momentáneo, donde cada pulsación alterna la omisión, o de enclavamiento, donde la omisión sigue el estado del botón.
 
 Los nodos con asignaciones muestran un pequeño icono de conector MIDI. Pasa el puntero sobre el nodo para ver sus asignaciones en la barra de estado.
 
 Los mensajes MIDI asignados no se transmiten a los plug-ins a través del nodo MIDI Input. El resto del MIDI sí.
+
+## Ajustar una asignación
+
+Selecciona Settings > MIDI Control > MIDI Mappings... para ver las asignaciones del preset cargado. La ventana puede quedarse abierta mientras usas MIDI Learn o cambias de preset. Para cada asignación puedes configurar:
+
+- **Mode:** Range, donde un mando o fader fija el valor; Toggle, donde cada pulsación alterna entre dos valores; o Follow, donde el objetivo sigue a un botón y está activado mientras se mantiene pulsado o enclavado.
+- **From y To:** los valores entre los que se mueve un mando o fader. Un rango más estrecho da pasos más finos, por ejemplo de -20 dB a +6 dB en un nodo Gain. Para Toggle y Follow, son los valores de apagado y encendido. Escribe un valor en las unidades del parámetro, o un porcentaje como 25%.
+- **Invert:** invierte el control.
+
+Las asignaciones de bypass no tienen From ni To. Haz clic en × para eliminar una asignación. Las asignaciones se guardan con el preset, así que usa Save As Preset... para conservar tus cambios.
 
 ## Cambiar de preset desde un controlador
 

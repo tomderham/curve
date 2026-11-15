@@ -49,6 +49,7 @@
 #include "AudioResilienceManager.h"
 #include "IdleReleaseController.h"
 #include "FilteredAudioDeviceSelectorComponent.h"
+#include "MidiMappingsComponent.h"
 #include "PresetSaveDialog.h"
 #include "OnlineCalibrationDialog.h"
 #include "../Calibration/AUNBandEQConverter.h"
@@ -687,6 +688,7 @@ MainHostWindow::MainHostWindow()
 MainHostWindow::~MainHostWindow()
 {
     pluginListWindow = nullptr;
+    midiMappingsWindow = nullptr;
     knownPluginList.removeChangeListener (this);
 
     if (auto* g = graphHolder->graph.get())
@@ -1695,6 +1697,19 @@ void MainHostWindow::importCalibrationFileForNode (juce::AudioProcessorGraph::No
             }
         }
     });
+}
+
+void MainHostWindow::showMidiMappingsWindow()
+{
+    if (graphHolder == nullptr || graphHolder->graph == nullptr)
+        return;
+
+    if (midiMappingsWindow == nullptr)
+        midiMappingsWindow = std::make_unique<MidiMappingsWindow> (*graphHolder->graph);
+
+    juce::Process::makeForegroundProcess();
+    midiMappingsWindow->setVisible (true);
+    midiMappingsWindow->toFront (true);
 }
 
 void MainHostWindow::showPluginListWindow()

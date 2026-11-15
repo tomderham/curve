@@ -43,13 +43,23 @@ Os mapeamentos são salvos com o preset, portanto use Save As Preset... para man
 
 ## Como os controles mapeados se comportam
 
-- Knobs e faders (CC) cobrem toda a faixa de um parâmetro.
+- Knobs e faders (CC) cobrem toda a faixa de um parâmetro. Você pode restringi-la em MIDI Mappings... (veja abaixo).
 - Notas e mudanças de programa alternam o destino.
 - Para o bypass, o Curve identifica se um botão CC é momentâneo, em que cada toque alterna o bypass, ou com trava, em que o bypass acompanha o estado do botão.
 
 Os nós com mapeamentos mostram um pequeno ícone de conector MIDI. Passe o ponteiro sobre o nó para ver os mapeamentos dele na barra de status.
 
 Mensagens MIDI mapeadas não são repassadas aos plug-ins pelo nó MIDI Input. Todas as demais mensagens MIDI são.
+
+## Ajustar um mapeamento
+
+Selecione Settings > MIDI Control > MIDI Mappings... para ver os mapeamentos do preset carregado. A janela pode ficar aberta enquanto você usa o MIDI Learn ou troca de preset. Para cada mapeamento, você pode definir:
+
+- **Mode:** Range, em que um botão ou fader define o valor; Toggle, em que cada toque alterna entre dois valores; ou Follow, em que o alvo segue um botão e fica ativado enquanto ele está pressionado ou travado.
+- **From e To:** os valores entre os quais um botão ou fader se move. Uma faixa mais estreita dá passos mais finos, por exemplo -20 dB a +6 dB em um nó Gain. Para Toggle e Follow, são os valores de desligado e ligado. Digite um valor na unidade do parâmetro ou uma porcentagem como 25%.
+- **Invert:** inverte o controle.
+
+Mapeamentos de bypass não têm From nem To. Clique em × para remover um mapeamento. Os mapeamentos são salvos com o preset, então use Save As Preset... para manter suas alterações.
 
 ## Alternar presets a partir de um controlador
 

@@ -79,7 +79,13 @@ GainNode::GainNode()
     gainOptions.label = "dB";
     gainOptions.valueToText = [] (float v) { return juce::String (v, 1) + " dB"; };
 
-    auto gain = std::make_unique<InternalParameter> ("gain", "Gain", juce::NormalisableRange<float> (-60.0f, 60.0f, 0.1f), 0.0f, gainOptions);
+    // -96 dB to +24 dB, as in Logic's Gain plug-in, so a knob or MIDI control can't add 60 dB in
+    // one sweep; chain Gain nodes for more. Skewed so 0 dB is at the middle of the knob and of a
+    // MIDI control's travel, which gives the finest steps around unity gain.
+    juce::NormalisableRange<float> gainRange (-96.0f, 24.0f, 0.1f);
+    gainRange.setSkewForCentre (0.0f);
+
+    auto gain = std::make_unique<InternalParameter> ("gain", "Gain", gainRange, 0.0f, gainOptions);
     gainParam = gain.get();
     addHostedParameter (std::move (gain));
 

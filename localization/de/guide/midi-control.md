@@ -43,13 +43,23 @@ Zuweisungen werden mit dem Preset gespeichert. Verwende also Save As Preset..., 
 
 ## So verhalten sich zugewiesene Bedienelemente
 
-- Regler und Fader (CC) decken den gesamten Bereich eines Parameters ab.
+- Regler und Fader (CC) decken den gesamten Bereich eines Parameters ab. In MIDI Mappings... kannst du ihn eingrenzen (siehe unten).
 - Noten und Program Changes schalten das Ziel um.
 - Beim Bypass erkennt Curve, ob ein CC-Taster als Taster arbeitet, bei dem jeder Druck den Bypass umschaltet, oder als Schalter, bei dem der Bypass dem Zustand des Tasters folgt.
 
 Nodes mit Zuweisungen zeigen ein kleines MIDI-Buchsensymbol. Bewege den Mauszeiger über den Node, um seine Zuweisungen in der Statusleiste zu sehen.
 
 Zugewiesene MIDI-Nachrichten werden nicht über den Node MIDI Input an Plug-ins weitergegeben. Alle anderen MIDI-Daten schon.
+
+## Eine Zuordnung anpassen
+
+Wähle Settings > MIDI Control > MIDI Mappings..., um die Zuordnungen des geladenen Presets zu sehen. Das Fenster kann geöffnet bleiben, während du MIDI Learn verwendest oder Presets wechselst. Für jede Zuordnung kannst du Folgendes einstellen:
+
+- **Mode:** Range, bei dem ein Regler oder Fader den Wert setzt; Toggle, bei dem jeder Druck zwischen zwei Werten wechselt; oder Follow, bei dem das Ziel einer Taste folgt und eingeschaltet ist, solange sie gedrückt oder eingerastet ist.
+- **From und To:** die Werte, zwischen denen sich ein Regler oder Fader bewegt. Ein engerer Bereich ergibt feinere Schritte, zum Beispiel -20 dB bis +6 dB bei einem Gain-Node. Bei Toggle und Follow sind es der Aus- und der Ein-Wert. Gib einen Wert in der Einheit des Parameters ein oder einen Prozentwert wie 25%.
+- **Invert:** kehrt die Steuerung um.
+
+Zuordnungen für Bypass haben kein From und To. Klicke auf ×, um eine Zuordnung zu entfernen. Zuordnungen werden mit dem Preset gespeichert, verwende also Save As Preset..., um deine Änderungen zu behalten.
 
 ## Presets über einen Controller wechseln
 
