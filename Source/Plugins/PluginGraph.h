@@ -36,6 +36,7 @@
 
 #include "../UI/PluginWindow.h"
 #include "../Midi/MidiMapping.h"
+#include "SceneSync.h"
 
 //==============================================================================
 /** A type that encapsulates a PluginDescription and some preferences regarding
@@ -106,6 +107,7 @@ public:
     void openPresetPluginWindows();
     static inline const Identifier openWithPresetProp { "openWithPreset" };
     static inline const Identifier freePositionProp { "freePosition" };
+    static inline const Identifier varyBySceneProp { Curve::Scenes::varyAttribute };
 
     // A hidden bus keeps running but shows no pins in the graph editor, for buses that can't be
     // disabled. Hiding one removes its connections. Pass midiBus for the node's MIDI port.
@@ -120,6 +122,11 @@ public:
 
     // Sets the node's bypass and notifies the graph, so the UI and the loopback tap follow.
     void setNodeBypassed (NodeID, bool shouldBeBypassed);
+
+    // A node that varies by scene keeps its own settings in each scene of the preset, rather
+    // than sharing them. Bypass always varies by scene.
+    void setNodeVariesByScene (NodeID, bool);
+    bool doesNodeVaryByScene (NodeID) const;
 
     // The node's custom name if it has one, otherwise its processor's name.
     String getNodeDisplayName (NodeID) const;
@@ -155,6 +162,56 @@ public:
     static Array<File> getPresetFiles();
 
     //==============================================================================
+    // Scenes: presets sharing their plug-ins and connections (see SceneSync.h)
+
+    // The file's scene group, read from its outer element only; empty if it isn't a scene
+    static String readSceneGroup (const File&);
+
+    // The presets in a scene group, sorted like getPresetFiles()
+    static Array<File> getScenesInGroup (const String& group);
+
+    // The loaded preset's scene group, or empty
+    const String& getSceneGroup() const { return sceneGroup; }
+
+    // Takes a preset out of its scene group. It sounds the same.
+    static Result makeSeparatePreset (const File&, PluginGraph* loadedGraph);
+
+    struct SceneSave
+    {
+        File file;
+        Array<File> otherScenes;   // rewritten with the shared changes
+        Array<File> leftOut;       // in the group, but no longer sharing the graph, so left as they are
+        Array<File> unchanged;     // in the group and already sharing what's saved, so not rewritten
+        Curve::Scenes::SharedChanges changes;   // what saving changes in the scenes rewritten
+        uint32 graphGeneration = 0;             // the loaded preset it was prepared for
+    };
+
+    // Saving the live graph as a scene: over the loaded scene, or as a new scene of the loaded
+    // preset, which becomes a scene too if it isn't one yet
+    SceneSave prepareSceneSave (const File&, bool isNewScene) const;
+
+    // Whether a preset is a scene of the loaded preset's group that still shares its graph
+    bool sharesLoadedGraph (const File&) const;
+
+    // Fails without writing anything if another preset has been loaded since the save was
+    // prepared (e.g. a default preset, or a MIDI program change, while a dialog was open):
+    // its scene files are the old preset's, and would all be rewritten from the new graph.
+    // Also if it would rewrite other scenes while a plug-in failed to load or is still loading,
+    // as the live graph doesn't have it, and every scene would lose it.
+    // wasPresetSaved: whether save.file was written, even if updating another scene failed
+    Result saveScene (const SceneSave&, bool* wasPresetSaved = nullptr);
+
+    // Changes whenever another preset is loaded or started (not when saving)
+    uint32 getGraphGeneration() const { return restoreGeneration; }
+
+    // Saves the live graph as a preset of its own
+    Result saveSeparatePreset (const File&);
+
+    // The loaded preset's file is gone (e.g. moved to the Trash): it's no longer a scene of its
+    // group either, so a later save can't rewrite the scenes it shared with
+    void forgetFile() { setFile ({}); sceneGroup.clear(); loadedXml.reset(); }
+
+    //==============================================================================
     void newDocument();
     String getDocumentTitle() override;
     Result loadDocument (const File& file) override;
@@ -182,7 +239,13 @@ private:
     uint32 restoreGeneration = 0;
     int pendingAsyncRestores = 0;
     StringArray pluginsFailedToRestore;
+    StringArray pluginsMissingFromLoad;   // as above, but kept until the next load, for scene saves
     std::vector<AudioProcessorGraph::Connection> restoredConnections;
+
+    // The loaded preset's scene group, and the preset as loaded or last saved, to check that the
+    // other scenes still share its graph
+    String sceneGroup;
+    std::unique_ptr<XmlElement> loadedXml;
 
     void createNodeFromXml (const XmlElement&, bool restorePluginWindows = false);
     void createNodeFromXmlAsync (std::shared_ptr<const XmlElement> nodeXml,

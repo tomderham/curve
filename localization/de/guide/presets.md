@@ -27,6 +27,30 @@ Um mit einem leeren Graph neu zu beginnen, klicke auf das Menüsymbol oben links
 
 Sofern der Graph nicht nur diese Nodes enthält, fragt Curve vorher nach, denn im Fenster eines Plug-ins geänderte Einstellungen werden nicht als Änderungen erfasst. Wähle Save As Preset..., um das aktuelle Setup zu behalten, oder Discard and Start New.
 
+## Szenen
+
+Wenn sich mehrere Presets nur in wenigen Einstellungen unterscheiden, etwa durch einen umgangenen Node oder ein anders eingestelltes Plug-in, kannst du sie zu Szenen machen. Szenen teilen sich ihre Plug-ins und Verbindungen, sodass du eine Änderung nur einmal vornehmen musst, um alle zu aktualisieren. Jede Szene steht wie jedes andere Preset in Curves Menü, und du wechselst auf dieselbe Weise zu ihr. Im Fenster Save Preset haben Szenen, die miteinander teilen, dieselbe Farbe, und wenn du eine auswählst, werden die anderen hervorgehoben.
+
+Was jede Szene für sich behält:
+
+- Ob jeder Node umgangen ist.
+- Die Einstellungen von Nodes, die auf Vary by Scene gesetzt sind. Klicke mit der rechten Maustaste auf einen Node und wähle Vary by Scene; er zeigt dann ein kleines Symbol aus gestapelten Karten.
+
+Alles andere wird geteilt: die übrigen Nodes und ihre Einstellungen, Verbindungen, Kanal-Routing und MIDI-Zuordnungen. Änderst du einen geteilten Node in einer beliebigen Szene und speicherst sie, erhalten alle Szenen die Änderung. Ein auf Vary by Scene gesetzter Node teilt trotzdem seine Kanäle und Verbindungen.
+
+So erstellst du eine Szene:
+
+1. Lade das Preset, von dem die neue Szene ausgehen soll.
+2. Klicke mit der rechten Maustaste auf jedes Plug-in, das in der neuen Szene anders eingestellt sein soll, und wähle Vary by Scene.
+3. Nimm die Änderungen für die neue Szene vor.
+4. Wähle Save As Preset..., gib einen neuen Namen ein, wähle die Option für eine Szene und klicke auf Save.
+
+Vor dem Speichern zeigt das Fenster Save Preset, welche anderen Szenen aktualisiert werden, und nennt geteilte Nodes, deren Einstellungen sich darin ändern. Ist eine Einstellung nur für diese Szene gedacht, brich ab, setze diesen Node auf Vary by Scene und speichere erneut.
+
+Um eine Szene zu ändern, lade sie, nimm deine Änderungen vor und speichere sie unter demselben Namen. Speicherst du über eine andere Szene, mit der sie teilt, ersetzt du diese Szene, und sie bleibt eine Szene. Ein hinzugefügter Node erscheint auch in den anderen Szenen, dort umgangen, sodass sie gleich klingen, bis du ihn dort einschaltest.
+
+Damit eine Szene nicht mehr mit den anderen teilt, klicke im Fenster Save Preset mit der rechten Maustaste darauf und wähle Convert to Standalone Preset. Sie behält ihre aktuellen Einstellungen.
+
 ## Ein Preset umbenennen oder löschen
 
 Klicke im Fenster Save Preset mit der rechten Maustaste auf ein Preset, um es umzubenennen, in den Papierkorb zu legen oder im Finder anzuzeigen.

@@ -5,7 +5,8 @@
 
 class PresetSaveDialog final : public juce::Component,
                                public juce::ListBoxModel,
-                               public juce::TextEditor::Listener
+                               public juce::TextEditor::Listener,
+                               private juce::Timer
 {
 public:
     PresetSaveDialog (PluginGraph& graph);
@@ -23,12 +24,19 @@ public:
     void paintListBoxItem (int rowNumber, juce::Graphics& g, int width, int height, bool rowIsSelected) override;
     void listBoxItemClicked (int row, const juce::MouseEvent& e) override;
     void listBoxItemDoubleClicked (int row, const juce::MouseEvent& e) override;
+    void selectedRowsChanged (int lastRowSelected) override;
+    juce::String getTooltipForRow (int row) override;
 
     // TextEditor::Listener overrides
     void textEditorReturnKeyPressed (juce::TextEditor&) override;
     void textEditorEscapeKeyPressed (juce::TextEditor&) override;
+    void textEditorTextChanged (juce::TextEditor&) override;
 
     static juce::File getPresetsDirectory();
+
+    // What saving over a scene does to the others of its group, for asking before saving
+    static juce::String describeSceneUpdate (const PluginGraph::SceneSave&);
+    static juce::String getSceneUpdateButtonText (const PluginGraph::SceneSave&, bool replaces = false);
 
 private:
     void refreshPresetList();
@@ -39,12 +47,44 @@ private:
     void promptRename (const juce::File& file);
     void promptMoveToTrash (const juce::File& file);
     void showRowContextMenu (const juce::File& file);
+    void promptMakeSeparate (const juce::File& file);
+    void saveScene (bool isNewScene, const juce::File& file);
+    const PluginGraph::SceneSave& getScenePlan (bool isNewScene, const juce::File& target = {});
+    bool isSceneOfLoadedGroup (const juce::File& target);
+    void updateSceneNames();
+    juce::File getTargetFile() const;
+    void updateSceneChoice();
+    void layOutSaveButton();
+    void fitSceneToggleText();
+    bool isSceneWithOthers (const juce::File& file) const;
+    void timerCallback() override;
+    juce::String getSceneGroupOf (const juce::File& file) const;
 
     PluginGraph& graph;
     std::function<void()> closeCallback;
 
     juce::Array<juce::File> presetFiles;
     juce::File currentActivePreset;
+    juce::uint32 shownGraphGeneration = 0;   // the loaded preset the list, plans and hints are for
+
+    // Each preset's scene group, and how many presets share each group
+    std::map<juce::File, juce::String> sceneGroups;
+    std::map<juce::String, int> sceneGroupSizes;
+
+    // A new name can be a scene of the loaded preset
+    bool canSaveAsScene = false;
+    bool hasScrolledToActivePreset = false;
+
+    // The loaded preset, then the others sharing its graph, for the scene option's label
+    juce::StringArray sceneNames;
+
+    // What saving as a new scene, or over a scene of the loaded group, does to the other scenes.
+    // Made once each, as it reads every plug-in's state, and edits can't be made while this is
+    // open; along with which presets are scenes still sharing the loaded graph. All made again
+    // if another preset loads meanwhile (e.g. a MIDI program change): see timerCallback()
+    std::optional<PluginGraph::SceneSave> newScenePlan;
+    std::map<juce::File, PluginGraph::SceneSave> sceneUpdatePlans;
+    std::map<juce::File, bool> sharesLoadedGraph;
 
     juce::Label titleLabel;
     juce::Label subtitleLabel;
@@ -52,11 +92,14 @@ private:
     juce::ListBox presetListBox;
     juce::Label namePromptLabel;
     juce::TextEditor nameEditor;
+    juce::ToggleButton separateToggle, sceneToggle;
+    juce::Label sceneHintLabel;   // what saving does to the other scenes
     juce::TextButton openFolderButton;
     juce::TextButton cancelButton;
     juce::TextButton saveButton;
 
     juce::ScopedMessageBox scopedAlert;
+    juce::TooltipWindow tooltipWindow { this, 600 };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PresetSaveDialog)
 };

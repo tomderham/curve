@@ -24,6 +24,7 @@ Previous Preset Control
 Import EQ from AutoEQ...
 Import EQ from file...
 Clear Preset Controls
+Convert to Standalone Preset
 Show Volume Overlay
 Interface Loopback (In)
 Next Preset Control
@@ -52,6 +53,7 @@ Toggle Bypass
 Curve Plugins
 Parametric EQ
 Open at Login
+Vary by Scene
 Volume Keys
 Show in Dock
 Invert Phase

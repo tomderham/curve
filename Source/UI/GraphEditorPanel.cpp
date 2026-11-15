@@ -468,9 +468,23 @@ struct GraphEditorPanel::PluginComponent final : public Component,
             drawMidiBadge (g, boxArea.removeFromRight (bypassSlot + bypassMargin)
                                      .withSizeKeepingCentre (bypassSlot, bypassSlot).toFloat());
 
+        if (graph.doesNodeVaryByScene (pluginID))
+            drawSceneBadge (g, box);
+
         g.setColour (findColour (TextEditor::textColourId).withMultipliedAlpha (isBypassed ? 0.5f : 1.0f));
         g.setFont (font);
         g.drawFittedText (getName(), textArea, Justification::centred, 2);
+    }
+
+    // Two stacked cards in the bottom right corner: the node's settings vary by scene
+    static void drawSceneBadge (Graphics& g, Rectangle<float> box)
+    {
+        const auto card = Rectangle<float> (7.0f, 5.5f);
+        const auto corner = box.getBottomRight() - Point<float> (6.0f, 5.0f);
+
+        g.setColour (Curve::Colours::accent);
+        g.drawRoundedRectangle (card.withPosition (corner - Point<float> (card.getWidth(), card.getHeight())), 1.2f, 1.0f);
+        g.fillRoundedRectangle (card.withPosition (corner - Point<float> (card.getWidth() + 2.5f, card.getHeight() + 2.5f)), 1.2f);
     }
 
     void resized() override
@@ -619,6 +633,9 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         if (const auto mappings = graph.describeMidiMappingsForNode (pluginID); mappings.isNotEmpty())
             tooltip << "  " << String::fromUTF8 ("\xe2\x80\xa2") << "  MIDI: " << mappings;
 
+        if (f->properties[PluginGraph::varyBySceneProp])
+            tooltip << "  " << String::fromUTF8 ("\xe2\x80\xa2") << "  Settings vary by scene";
+
         if (f->properties.contains (PluginGraph::hiddenPortsProp))
             tooltip << "  " << String::fromUTF8 ("\xe2\x80\xa2") << "  Some ports hidden in Configure Audio I/O";
 
@@ -697,6 +714,12 @@ struct GraphEditorPanel::PluginComponent final : public Component,
                 menu->addItem ("Clear MIDI Mappings", [this] { graph.removeMidiMappingsForNode (pluginID); });
         }
 
+        if (auto* proc = getProcessor(); proc != nullptr && canVaryByScene (*proc))
+        {
+            menu->addSeparator();
+            menu->addItem ("Vary by Scene", true, graph.doesNodeVaryByScene (pluginID), [this] { toggleVaryByScene(); });
+        }
+
         menu->addSeparator();
         if (auto* proc = getProcessor())
         {
@@ -748,6 +771,49 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         menu->addItem ("Load Plug-in State", [this] { loadPluginState(); });
 
         menu->showMenuAsync (PopupMenu::Options{}.withTargetScreenArea (Rectangle<int>{}.withPosition (localPointToGlobal (localPos))));
+    }
+
+    static bool canVaryByScene (AudioProcessor& processor)
+    {
+        return dynamic_cast<AudioProcessorGraph::AudioGraphIOProcessor*> (&processor) == nullptr
+            && ! PluginGraph::isConfiguredByAudioSettings (processor);
+    }
+
+    void toggleVaryByScene()
+    {
+        const bool varies = graph.doesNodeVaryByScene (pluginID);
+
+        const auto apply = [safeThis = SafePointer<PluginComponent> (this), varies]
+        {
+            if (safeThis != nullptr)
+            {
+                safeThis->graph.setNodeVariesByScene (safeThis->pluginID, ! varies);
+                safeThis->update();
+                safeThis->repaint();
+            }
+        };
+
+        // Sharing it again replaces the other scenes' settings for it when this one is saved. Only
+        // scenes still sharing the graph: a save leaves the others as they are
+        const auto plan = varies ? graph.prepareSceneSave (graph.getFile(), false) : PluginGraph::SceneSave {};
+        if (! varies || (plan.otherScenes.isEmpty() && plan.unchanged.isEmpty()))
+        {
+            apply();
+            return;
+        }
+
+        auto options = MessageBoxOptions::makeOptionsOkCancel (MessageBoxIconType::QuestionIcon,
+                                                               "Share This Node's Settings?",
+                                                               "When you save this scene, the scenes it shares with will use the settings "
+                                                               + graph.getNodeDisplayName (pluginID) + " has here, instead of their own.",
+                                                               "Share Settings", "Cancel");
+
+        // Plain button indices: Share Settings is 0
+        NativeMessageBox::showAsync (options, [apply] (int button)
+        {
+            if (button == 0)
+                apply();
+        });
     }
 
     bool isNodeBypassed() const

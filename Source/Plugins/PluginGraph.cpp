@@ -278,8 +278,11 @@ void PluginGraph::clear()
     ++restoreGeneration;
     pendingAsyncRestores = 0;
     pluginsFailedToRestore.clear();
+    pluginsMissingFromLoad.clear();
     restoredConnections.clear();
     midiMappings.clear();
+    sceneGroup.clear();
+    loadedXml.reset();
 
     closeAnyOpenPluginWindows();
 
@@ -669,12 +672,10 @@ Result PluginGraph::loadDocument (const File& file)
 
 Result PluginGraph::saveDocument (const File& file)
 {
-    auto xml = createXml();
+    if (file == getFile() && sceneGroup.isNotEmpty())
+        return saveScene (prepareSceneSave (file, false));
 
-    if (! xml->writeTo (file, {}))
-        return Result::fail ("Couldn't write to the file");
-
-    return Result::ok();
+    return saveSeparatePreset (file);
 }
 
 File PluginGraph::getLastDocumentOpened()
@@ -781,6 +782,9 @@ static XmlElement* createNodeXml (AudioProcessorGraph::Node* const node) noexcep
 
         if (node->properties[PluginGraph::freePositionProp])
             e->setAttribute (PluginGraph::freePositionProp, true);
+
+        if (node->properties[PluginGraph::varyBySceneProp])
+            e->setAttribute (PluginGraph::varyBySceneProp, true);
 
         if (node->properties.contains (PluginGraph::hiddenPortsProp))
             e->setAttribute (PluginGraph::hiddenPortsProp, node->properties[PluginGraph::hiddenPortsProp].toString());
@@ -894,7 +898,10 @@ void PluginGraph::createNodeFromXml (const XmlElement& xml, bool restorePluginWi
         if (instance != nullptr)
         {
             if (! finishNodeFromXml (wrapInstanceForARA (std::move (instance), description), xml, restorePluginWindows))
+            {
                 pluginsFailedToRestore.add (getRestoreFailureName (pd.pluginDescription));
+                pluginsMissingFromLoad.add (getRestoreFailureName (pd.pluginDescription));
+            }
 
             return;
         }
@@ -954,6 +961,7 @@ void PluginGraph::asyncNodeRestoreFinished (std::unique_ptr<AudioPluginInstance>
                 break;
 
         pluginsFailedToRestore.add (getRestoreFailureName (saved));
+        pluginsMissingFromLoad.add (getRestoreFailureName (saved));
         CURVE_AUDIO_LOG ("[PresetRestore] Async restore failed for '%s'", getRestoreFailureName (saved).toRawUTF8());
     };
 
@@ -1088,6 +1096,9 @@ bool PluginGraph::finishNodeFromXml (std::unique_ptr<AudioPluginInstance> instan
         if (xml.getBoolAttribute (freePositionProp))
             node->properties.set (freePositionProp, true);
 
+        if (xml.getBoolAttribute (varyBySceneProp))
+            node->properties.set (varyBySceneProp, true);
+
         if (const auto hiddenPorts = xml.getStringAttribute (hiddenPortsProp); hiddenPorts.isNotEmpty())
             node->properties.set (hiddenPortsProp, hiddenPorts);
 
@@ -1167,6 +1178,9 @@ void PluginGraph::restoreFromXml (const XmlElement& xml, bool restorePluginWindo
 {
     clear();
 
+    sceneGroup = xml.getStringAttribute (Curve::Scenes::groupAttribute);
+    loadedXml = std::make_unique<XmlElement> (xml);
+
     preConfigureGraphChannels (graph, &xml);
 
     for (auto* e : xml.getChildWithTagNameIterator ("CONNECTION"))
@@ -1191,4 +1205,219 @@ void PluginGraph::restoreFromXml (const XmlElement& xml, bool restorePluginWindo
 
     if (pendingAsyncRestores == 0)
         showRestoreFailures();
+}
+
+//==============================================================================
+// Scenes
+
+void PluginGraph::setNodeVariesByScene (NodeID nodeID, bool shouldVary)
+{
+    if (auto* node = graph.getNodeForId (nodeID))
+    {
+        if ((bool) node->properties[varyBySceneProp] == shouldVary)
+            return;
+
+        if (shouldVary)
+            node->properties.set (varyBySceneProp, true);
+        else
+            node->properties.remove (varyBySceneProp);
+
+        changed();
+    }
+}
+
+bool PluginGraph::doesNodeVaryByScene (NodeID nodeID) const
+{
+    if (auto* node = graph.getNodeForId (nodeID))
+        return node->properties[varyBySceneProp];
+
+    return false;
+}
+
+String PluginGraph::readSceneGroup (const File& file)
+{
+    XmlDocument doc (file);
+
+    if (auto outer = doc.getDocumentElement (true))
+        if (outer->hasTagName ("FILTERGRAPH"))
+            return outer->getStringAttribute (Curve::Scenes::groupAttribute);
+
+    return {};
+}
+
+Array<File> PluginGraph::getScenesInGroup (const String& group)
+{
+    Array<File> scenes;
+
+    if (group.isEmpty())
+        return scenes;
+
+    for (const auto& file : getPresetFiles())
+        if (readSceneGroup (file) == group)
+            scenes.add (file);
+
+    return scenes;
+}
+
+Result PluginGraph::makeSeparatePreset (const File& file, PluginGraph* loadedGraph)
+{
+    auto xml = parseXMLIfTagMatches (file, "FILTERGRAPH");
+
+    if (xml == nullptr)
+        return Result::fail ("Not a valid graph file");
+
+    // Each scene's file is the whole preset as it sounds, so this is all it takes
+    xml->removeAttribute (Curve::Scenes::groupAttribute);
+
+    if (! xml->writeTo (file, {}))
+        return Result::fail ("Couldn't write to the file");
+
+    if (loadedGraph != nullptr && loadedGraph->getFile() == file)
+        loadedGraph->sceneGroup.clear();
+
+    return Result::ok();
+}
+
+PluginGraph::SceneSave PluginGraph::prepareSceneSave (const File& file, bool isNewScene) const
+{
+    SceneSave save;
+    save.file = file;
+    save.graphGeneration = restoreGeneration;
+
+    auto candidates = getScenesInGroup (sceneGroup);
+
+    // A new scene of a preset that isn't a scene yet: the preset joins the new group
+    if (isNewScene && getFile().existsAsFile())
+        candidates.addIfNotAlreadyThere (getFile());
+
+    candidates.removeAllInstancesOf (file);
+
+    Array<File> otherFiles;
+    OwnedArray<XmlElement> otherXmls;
+    const auto loadedShared = loadedXml != nullptr ? Curve::Scenes::getSharedPart (*loadedXml) : nullptr;
+
+    // Only rewrite scenes that still share the loaded preset's graph, as every save writes it.
+    // A file that merely has the same group, e.g. copied from another Mac, would otherwise lose
+    // its plug-ins, and have its own bypass and settings applied to whichever nodes have its uids.
+    for (const auto& other : candidates)
+    {
+        auto xml = parseXMLIfTagMatches (other, "FILTERGRAPH");
+
+        if (xml != nullptr && loadedShared != nullptr
+            && Curve::Scenes::getSharedPart (*xml)->isEquivalentTo (loadedShared.get(), true))
+        {
+            otherFiles.add (other);
+            otherXmls.add (std::move (xml));
+        }
+        else
+        {
+            save.leftOut.add (other);
+        }
+    }
+
+    if (otherXmls.isEmpty())
+        return save;
+
+    const auto saved = createXml();
+
+    // A scene of the group already sharing what's saved needs no rewriting. One joining the
+    // group does, to be given the group
+    for (int i = 0; i < otherXmls.size(); ++i)
+    {
+        const auto& other = *otherXmls[i];
+
+        if (other.getStringAttribute (Curve::Scenes::groupAttribute).isNotEmpty() && Curve::Scenes::shareGraph (*saved, other))
+        {
+            save.unchanged.add (otherFiles[i]);
+            continue;
+        }
+
+        save.otherScenes.add (otherFiles[i]);
+        save.changes.add (Curve::Scenes::describeChanges (*saved, other));
+    }
+
+    return save;
+}
+
+bool PluginGraph::sharesLoadedGraph (const File& file) const
+{
+    if (sceneGroup.isEmpty() || loadedXml == nullptr || readSceneGroup (file) != sceneGroup)
+        return false;
+
+    auto xml = parseXMLIfTagMatches (file, "FILTERGRAPH");
+    return xml != nullptr && Curve::Scenes::shareGraph (*xml, *loadedXml);
+}
+
+Result PluginGraph::saveScene (const SceneSave& save, bool* wasPresetSaved)
+{
+    if (wasPresetSaved != nullptr)
+        *wasPresetSaved = false;
+
+    if (save.graphGeneration != restoreGeneration)
+        return Result::fail ("Another preset was loaded while this save was being prepared, so nothing was saved.");
+
+    auto toUpdate = save.otherScenes;
+    toUpdate.addArray (save.unchanged);
+
+    if (! toUpdate.isEmpty())
+    {
+        if (pendingAsyncRestores > 0)
+            return Result::fail ("Some plug-ins are still loading. Try again once they've loaded, "
+                                 "so the other scenes keep them.");
+
+        if (! pluginsMissingFromLoad.isEmpty())
+            return Result::fail ("These plug-ins didn't load, and saving as a scene would remove them from the other scenes too:\n\n"
+                                 + pluginsMissingFromLoad.joinIntoString ("\n")
+                                 + "\n\nSave it as a standalone preset instead, or install the plug-ins and load the preset again.");
+    }
+
+    auto saved = createXml();
+    const auto group = sceneGroup.isNotEmpty() ? sceneGroup : Uuid().toString();
+    saved->setAttribute (Curve::Scenes::groupAttribute, group);
+
+    if (! saved->writeTo (save.file, {}))
+        return Result::fail ("Couldn't write to the file");
+
+    if (wasPresetSaved != nullptr)
+        *wasPresetSaved = true;
+
+    StringArray failed;
+
+    for (const auto& other : toUpdate)
+    {
+        auto otherXml = parseXMLIfTagMatches (other, "FILTERGRAPH");
+
+        // One that shared what's saved when the save was prepared may not by now
+        if (otherXml != nullptr && save.unchanged.contains (other) && Curve::Scenes::shareGraph (*saved, *otherXml))
+            continue;
+
+        if (otherXml == nullptr || ! Curve::Scenes::createOtherScene (*saved, *otherXml)->writeTo (other, {}))
+            failed.add (other.getFileNameWithoutExtension());
+    }
+
+    setFile (save.file);
+    sceneGroup = group;
+
+    // As read back from a file, like the other scenes it's compared with on the next save
+    loadedXml = parseXML (saved->toString());
+    setChangedFlag (false);
+
+    if (! failed.isEmpty())
+        return Result::fail ("Couldn't update these scenes: " + failed.joinIntoString (", "));
+
+    return Result::ok();
+}
+
+Result PluginGraph::saveSeparatePreset (const File& file)
+{
+    auto xml = createXml();
+
+    if (! xml->writeTo (file, {}))
+        return Result::fail ("Couldn't write to the file");
+
+    setFile (file);
+    sceneGroup.clear();
+    loadedXml = parseXML (xml->toString());
+    setChangedFlag (false);
+    return Result::ok();
 }

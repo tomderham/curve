@@ -685,6 +685,15 @@ public:
     if (mainWindow == nullptr || !AudioResilienceManager::isFollowingSystemOutput())
       return;
 
+    // Not under an open dialog or menu: a Save Preset window or prompt may be about to save
+    // scenes planned for the loaded preset. Load once it's closed, unless a later switch
+    // has replaced this one.
+    const auto request = ++defaultPresetRequest;
+    if (juce::Component::getNumCurrentlyModalComponents() > 0) {
+      waitToLoadDefaultPreset(deviceName, request);
+      return;
+    }
+
     auto presetFileName =
         DefaultPresets::getPresetFileName(getMacOSOutputDeviceUID(deviceName));
     if (presetFileName.isEmpty())
@@ -715,6 +724,26 @@ public:
     showStatus("Loaded " + file.getFileNameWithoutExtension() +
                ", the default preset for " + deviceName + ".");
   }
+
+  void waitToLoadDefaultPreset(const juce::String &deviceName, juce::uint32 request) {
+    juce::Timer::callAfterDelay(300, [this, deviceName, request] {
+      if (request != defaultPresetRequest)
+        return; // a later switch replaced it
+
+      if (juce::Component::getNumCurrentlyModalComponents() > 0) {
+        waitToLoadDefaultPreset(deviceName, request);
+        return;
+      }
+
+      // Still on that interface?
+      if (mainWindow != nullptr)
+        if (auto *device = mainWindow->getDeviceManager().getCurrentAudioDevice())
+          if (device->getName() == deviceName)
+            loadDefaultPresetFor(deviceName);
+    });
+  }
+
+  juce::uint32 defaultPresetRequest = 0;
 
   AudioResilienceManager *getResilienceManager() const {
     return resilienceManager.get();

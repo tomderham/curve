@@ -1130,6 +1130,47 @@ void MainHostWindow::filesDropped (const StringArray& files, int x, int y)
             if (auto* g = graphHolder->graph.get())
             {
                 SafePointer<MainHostWindow> parent { this };
+
+                // Saving a scene also updates the others, so say so rather than only offering to save this one
+                const auto plan = g->hasChangedSinceSaved() && g->getSceneGroup().isNotEmpty()
+                                    ? g->prepareSceneSave (g->getFile(), false) : PluginGraph::SceneSave();
+
+                if (! plan.otherScenes.isEmpty())
+                {
+
+                    auto options = MessageBoxOptions::makeOptionsYesNoCancel (
+                        MessageBoxIconType::QuestionIcon,
+                        "Save changes to \"" + g->getDocumentTitle() + "\"?",
+                        PresetSaveDialog::describeSceneUpdate (plan),
+                        PresetSaveDialog::getSceneUpdateButtonText (plan),
+                        "Discard Changes",
+                        "Cancel");
+
+                    // Plain button indices: Save, Discard Changes, Cancel
+                    NativeMessageBox::showAsync (options, [parent, firstFile, plan] (int button)
+                    {
+                        if (parent == nullptr || parent->graphHolder == nullptr || parent->graphHolder->graph == nullptr)
+                            return;
+
+                        if (button == 0)
+                        {
+                            const auto res = parent->graphHolder->graph->saveScene (plan);
+
+                            if (res.failed())
+                            {
+                                NativeMessageBox::showMessageBoxAsync (MessageBoxIconType::WarningIcon, "Save Failed",
+                                                                       "Could not save preset:\n" + res.getErrorMessage());
+                                return;
+                            }
+                        }
+
+                        if (button == 0 || button == 1)
+                            parent->loadPreset (firstFile);
+                    });
+
+                    return;
+                }
+
                 g->saveIfNeededAndUserAgreesAsync ([parent, firstFile] (FileBasedDocument::SaveResult r)
                 {
                     if (parent == nullptr)
@@ -1313,7 +1354,7 @@ void MainHostWindow::saveAsPreset()
     juce::Process::makeForegroundProcess();
 
     auto* dialogComp = new PresetSaveDialog (*graphHolder->graph);
-    dialogComp->setSize (480, 420);
+    dialogComp->setSize (520, 554);
 
     DialogWindow::LaunchOptions o;
     o.content.setOwned (dialogComp);
