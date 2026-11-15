@@ -458,7 +458,11 @@ public:
     mainWindow->onShowAppMenu = [this](juce::Component *target) {
       if (mainWindow != nullptr && githubUpdater != nullptr) {
         auto menu = TrayIconController::buildAppMenu(*mainWindow,
-                                                     *githubUpdater, false);
+                                                     *githubUpdater, false, nullptr,
+                                                     [this] {
+                                                       if (trayIcon != nullptr)
+                                                         trayIcon->showPreferences();
+                                                     });
         juce::PopupMenu::Options menuOptions;
         if (target != nullptr) {
           menuOptions = menuOptions.withTargetComponent(target);

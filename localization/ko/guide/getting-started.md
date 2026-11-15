@@ -45,8 +45,8 @@ AUNBandEQ 같은 macOS 내장 플러그인이나 [Curve 자체 플러그인](cur
 
 ## 설정 완료
 
-- 로그인할 때 Curve를 시작하려면 Settings > Open at Login을 선택합니다.
-- 자동 업데이트 확인은 기본적으로 켜져 있습니다. Settings > Auto-Check for App Updates에서 변경할 수 있습니다.
+- 로그인할 때 Curve를 시작하려면 Settings > Preferences...를 선택하고 Open at Login을 켭니다.
+- 자동 업데이트 확인은 기본적으로 켜져 있습니다. 끄려면 Settings > Preferences...를 선택하고 Auto-Check for App Updates를 끕니다.
 
 ## 다음 단계
 

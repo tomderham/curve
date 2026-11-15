@@ -42,7 +42,7 @@ Curve 会为你处理常见的设备变化：
 
 ## AirPods 和自动切换
 
-当 Curve 打开音频接口时，macOS 可能不会自动切换 AirPods。要允许自动切换，请打开 Settings > Release audio interface when idle。
+当 Curve 打开音频接口时，macOS 可能不会自动切换 AirPods。要允许自动切换，请选择 Settings > Preferences...，然后打开 Release audio interface when idle。
 
 此后，Curve 会在静音 5 秒后释放接口，并在其他 App 开始使用它时重新打开。只有在 Curve 能够可靠地再次唤醒时才会这样做，因此在以下情况下不会释放接口：
 

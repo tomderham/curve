@@ -27,5 +27,5 @@ Curveは、macOS用の無料で軽量なオーディオプラグインホスト�
 
 ## リファレンス
 
-- [設定リファレンス](settings.md): Settingsメニューのすべての項目。
+- [設定リファレンス](settings.md): SettingsメニューとPreferencesウインドウのすべての項目。
 - [トラブルシューティング](troubleshooting.md): よくある問題の解決方法。

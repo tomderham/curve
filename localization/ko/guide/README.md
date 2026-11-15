@@ -27,5 +27,5 @@ Curve는 macOS용 무료 경량 오디오 플러그인 호스트입니다. 메�
 
 ## 참고 자료
 
-- [설정 참고 자료](settings.md): Settings 메뉴의 모든 항목.
+- [설정 참고 자료](settings.md): Settings 메뉴와 Preferences 창의 모든 항목.
 - [문제 해결](troubleshooting.md): 일반적인 문제의 해결 방법.

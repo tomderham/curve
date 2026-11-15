@@ -27,5 +27,5 @@ Curve, macOS के लिए एक मुफ़्त और हल्का �
 
 ## संदर्भ
 
-- [सेटिंग्स संदर्भ](settings.md): Settings मेनू का हर आइटम।
+- [सेटिंग्स संदर्भ](settings.md): Settings मेनू और Preferences विंडो का हर आइटम।
 - [समस्या निवारण](troubleshooting.md): आम समस्याओं के समाधान।

@@ -43,7 +43,7 @@ MIDI Learn 只能控制插件向宿主开放的参数。有些插件，尤其是
 
 ## 已映射控件的行为
 
-- 旋钮和推子（CC）覆盖参数的完整范围。可以在 MIDI Mappings... 中缩小范围（见下文）。
+- 旋钮和推子（CC）覆盖参数的完整范围。可以在 MIDI Mappings for Current Preset... 中缩小范围（见下文）。
 - 音符和程序更改用于切换目标。
 - 对于旁通，Curve 会判断 CC 按钮是瞬时式（每按一次切换旁通）还是锁定式（旁通跟随按钮状态）。
 
@@ -53,7 +53,7 @@ MIDI Learn 只能控制插件向宿主开放的参数。有些插件，尤其是
 
 ## 调整映射
 
-选择 Settings > MIDI Control > MIDI Mappings... 可查看当前载入预设的映射。使用 MIDI Learn 或切换预设时，窗口可以保持打开。每个映射可以设置：
+选择 Settings > Preferences...，打开 MIDI 标签页，然后点按 MIDI Mappings for Current Preset... 可查看当前载入预设的映射。使用 MIDI Learn 或切换预设时，窗口可以保持打开。每个映射可以设置：
 
 - **Mode：** Range 表示由旋钮或推子设置数值；Toggle 表示每按一次在两个值之间切换；Follow 表示目标跟随按钮，按住或锁定时为开。
 - **From 和 To：** 旋钮或推子移动的数值范围。范围越窄，步进越精细，例如将 Gain 节点设为 -20 dB 到 +6 dB。对于 Toggle 和 Follow，它们是关和开的值。输入参数单位的数值，或 25% 之类的百分比。
@@ -63,10 +63,10 @@ MIDI Learn 只能控制插件向宿主开放的参数。有些插件，尤其是
 
 ## 从控制器切换预设
 
-打开 Settings > MIDI Control。这些设置适用于所有预设：
+选择 Settings > Preferences...，然后打开 MIDI 标签页。这些设置适用于所有预设：
 
 - **Program Change Selects Preset：** 默认关闭。程序更改 0 载入菜单中的第一个预设，1 载入第二个，依此类推，顺序与[数字键快捷键](keyboard-shortcuts.md)相同。
-- **Next Preset Control** 和 **Previous Preset Control：** 选择其中一项，然后按下控制器上要使用的按钮。
+- **Next Preset Control** 和 **Previous Preset Control：** 点按其中一项旁边的 MIDI Learn...，然后按下控制器上要使用的按钮。
 - **Clear Preset Controls：** 移除这两个按钮分配。
 
 ## Curve 自带插件的控件

@@ -4,7 +4,7 @@
 
 グローバルショートカットを使うと、他のアプリが前面にあってもCurveのメニューを開けます。設定するまではオフになっています。
 
-1. Settings > Global Menu Shortcutを選択します。
+1. Settings > Preferences...を選択してKeyboardタブを開き、Global Menu Shortcutの横にあるChange...をクリックします。
 2. Record Shortcutをクリックし、Command、Option、Controlのいずれかを含むキーの組み合わせを押します。キャンセルするにはEscを押します。
 3. Saveをクリックします。
 
@@ -14,7 +14,7 @@ Reset to Defaultをクリックすると⌥⇧Cが使用され、Disableをク�
 
 一部のオーディオインターフェイスにはmacOSが使える音量調整がないため、キーボードの音量キーを押しても何も起きません。Curveは代わりにこのキーで自身の出力音量を調整できます。
 
-1. Settings > Volume Keys > When macOS Can't Control the Interface's Volume を選択します。
+1. Settings > Preferences...を選択してKeyboardタブを開き、Volume KeysをWhen macOS Can't Control the Interface's Volumeに設定します。
 2. macOSに求められたら、システム設定 > プライバシーとセキュリティ > アクセシビリティでCurveにアクセスを許可します。Curveはキーを受け取るためにこれを必要とします。
 
 するとCurveは、macOSと同じようにメニューバーのサウンドアイコンの下に独自の音量表示を表示します。
@@ -24,7 +24,7 @@ Reset to Defaultをクリックすると⌥⇧Cが使用され、Disableをク�
 
 Curveがキーを受け取るのは、macOSの出力がCurveの出力インターフェイスで、Curveが音を出しているチャンネルの音量をmacOSが調整できない間だけです。音量調整がまったくないインターフェイスのほか、macOSの音量調整が一部のチャンネルにしか効かず、Curveが音を出しているチャンネルには効かないインターフェイスもこれに含まれます。それ以外の場合、キーはmacOSで通常どおり動作します。常にキーでCurveの音量を調整するには、代わりにAlwaysを選択します。
 
-デフォルトでは、Curveの音量は、プラグインの後で、Curveが出力するすべての音に適用されます。macOSやほかのアプリの音だけの音量を調整するには、同じメニューでControl Interface Loopback Volumeを選択します。するとキーは[Interface Loopback (In)](loopback.md)ノードの音量だけを下げるので、Audio InputやCurve内の楽器プラグインの音はそのレベルのままです。プリセットに接続されたInterface Loopback (In)ノードがない場合、キーはmacOSで通常どおりに動作します。元に戻すには、Control Curve's Output Volumeを選択します。
+デフォルトでは、Curveの音量は、プラグインの後で、Curveが出力するすべての音に適用されます。macOSやほかのアプリの音だけの音量を調整するには、Volume Keysの下のメニューでControl Interface Loopback Volumeを選択します。するとキーは[Interface Loopback (In)](loopback.md)ノードの音量だけを下げるので、Audio InputやCurve内の楽器プラグインの音はそのレベルのままです。プリセットに接続されたInterface Loopback (In)ノードがない場合、キーはmacOSで通常どおりに動作します。元に戻すには、Control Curve's Output Volumeを選択します。
 
 Curveの音量が適用されるのは、キーで音量を調整している間だけです。Curveは終了しても音量を記憶します。最大音量では、オーディオはまったく変更されません。
 

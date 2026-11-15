@@ -45,8 +45,8 @@ macOSの内蔵プラグイン(AUNBandEQなど)や[Curve独自のプラグイン]
 
 ## セットアップを完了する
 
-- ログイン時にCurveを起動するには、Settings > Open at Loginを選択します。
-- アップデートの自動確認はデフォルトでオンです。Settings > Auto-Check for App Updatesで変更できます。
+- ログイン時にCurveを起動するには、Settings > Preferences...を選択し、Open at Loginをオンにします。
+- アップデートの自動確認はデフォルトでオンです。オフにするには、Settings > Preferences...を選択し、Auto-Check for App Updatesをオフにします。
 
 ## 次のステップ
 

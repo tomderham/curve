@@ -10,6 +10,7 @@ Force macOS system output to this interface
 Prevent macOS from automatically sleeping
 Use output interface selected in macOS
 Always Open Plug-in GUI with Preset
+MIDI Mappings for Current Preset...
 Allow Accessibility Access...
 Release audio interface when idle
 Control Interface Loopback Volume
@@ -41,7 +42,6 @@ Delete This Node
 Rename This Node
 Save As Preset...
 Remove from List
-MIDI Mappings...
 Mid/Side Decoder
 Mid/Side Encoder
 Plug-in Manager
@@ -50,6 +50,7 @@ Record Shortcut
 Audio Settings
 Audio Recorder
 Stereo Utility
+Preferences...
 Toggle Bypass
 Curve Plugins
 Parametric EQ
@@ -69,10 +70,10 @@ Use this EQ
 Save Preset
 Sync Index
 MIDI Learn
-MIDI Control
 Curve Help
 Retry Scan
 Audio I/O
+Change...
 MIDI I/O
 Options...
 About...

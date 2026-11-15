@@ -46,6 +46,35 @@ static bool setActivationPolicy (bool showInDock)
     return true;
 }
 
+// Activates Curve, then brings back the windows that were showing. Activation can be declined
+// since macOS 14 (e.g. while the Dock still has focus), which would leave them behind other apps,
+// so they're ordered to the front explicitly, which works whether or not Curve is active.
+static void reactivate (NSArray<NSWindow*>* windows, NSWindow* keyWindow)
+{
+    if (@available (macOS 14.0, *))
+        [NSApp activate];
+    else
+        [NSApp activateIgnoringOtherApps: YES];
+
+    for (NSWindow* window in windows)
+        [window orderFrontRegardless];
+
+    if (keyWindow != nil && [keyWindow isVisible])
+        [keyWindow makeKeyAndOrderFront: nil];
+}
+
+static NSArray<NSWindow*>* getVisibleWindows()
+{
+    NSMutableArray<NSWindow*>* visible = [NSMutableArray array];
+
+    // Back to front, so ordering each to the front keeps their stacking
+    for (NSWindow* window in [[NSApp orderedWindows] reverseObjectEnumerator])
+        if ([window isVisible] && ! [window isKindOfClass: [NSPanel class]])
+            [visible addObject: window];
+
+    return visible;
+}
+
 static void installReopenHandler()
 {
     static CurveDockReopenHandler* handler = [[CurveDockReopenHandler alloc] init];
@@ -60,8 +89,16 @@ namespace DockIconManager
 {
     void setShowInDock (bool showInDock)
     {
+        // Retained: the block below runs after this returns, and Curve is built without ARC
+        NSArray<NSWindow*>* windows = [getVisibleWindows() retain];
+        NSWindow* keyWindow = [[NSApp keyWindow] retain];
+
         if (! setActivationPolicy (showInDock))
+        {
+            [windows release];
+            [keyWindow release];
             return;
+        }
 
         if (showInDock)
         {
@@ -72,14 +109,18 @@ namespace DockIconManager
                 [dock activateWithOptions: 0];
 
             dispatch_after (dispatch_time (DISPATCH_TIME_NOW, (int64_t) (0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                [NSApp activateIgnoringOtherApps: YES];
+                reactivate (windows, keyWindow);
+                [windows release];
+                [keyWindow release];
             });
         }
         else
         {
             // Changing policy can deactivate the app, which leaves its windows behind
             // other apps; bring it back to the front so open windows stay visible.
-            [NSApp activateIgnoringOtherApps: YES];
+            reactivate (windows, keyWindow);
+            [windows release];
+            [keyWindow release];
         }
     }
 

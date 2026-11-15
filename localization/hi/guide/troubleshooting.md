@@ -13,7 +13,7 @@ Curve Help तभी खुलता है जब Curve आपके Applicatio
 
 ## Curve खोलने के बाद वह नहीं मिल रहा
 
-Curve मेनू बार में चलता है और सामान्यतः कोई विंडो नहीं खोलता। इसके मेनू बार आइकन पर क्लिक करें, फिर Show Editor चुनें। इसे Dock में भी दिखाने के लिए Settings > Show in Dock चालू करें।
+Curve मेनू बार में चलता है और सामान्यतः कोई विंडो नहीं खोलता। इसके मेनू बार आइकन पर क्लिक करें, फिर Show Editor चुनें। इसे Dock में भी दिखाने के लिए Settings > Preferences... चुनें और Show in Dock चालू करें।
 
 ## प्रीसेट में मेरे बदलाव गायब हो गए
 
@@ -35,12 +35,12 @@ Settings > Plug-in Manager चुनें और उस प्लग-इन क
 
 ## AirPods अपने आप स्विच नहीं हो रहे
 
-Settings > Release audio interface when idle चालू करें। [ऑडियो सेटिंग्स और डिवाइस](audio-settings.md) देखें।
+Settings > Preferences... चुनें और Release audio interface when idle चालू करें। [ऑडियो सेटिंग्स और डिवाइस](audio-settings.md) देखें।
 
 ## वॉल्यूम कीज़ से Curve का वॉल्यूम नहीं बदलता
 
-- जाँचें कि Settings > Volume Keys, Off पर सेट न हो।
-- अगर मेनू में Allow Accessibility Access... दिखे, तो उसे चुनें और ऐक्सेसिबिलिटी में Curve चालू करें। अगर Curve वहाँ पहले से चालू है, तो उसे बंद करके फिर से चालू करें।
+- जाँचें कि Settings > Preferences... के Keyboard टैब में Volume Keys, Off पर सेट न हो।
+- अगर Keyboard टैब में Allow Accessibility Access... दिखे, तो उस पर क्लिक करें और ऐक्सेसिबिलिटी में Curve चालू करें। अगर Curve वहाँ पहले से चालू है, तो उसे बंद करके फिर से चालू करें।
 - When macOS Can't Control the Interface's Volume के साथ, अगर macOS उन चैनलों का वॉल्यूम सेट कर सकता है जिनसे Curve आवाज़ भेजता है, या macOS का आउटपुट Curve का आउटपुट इंटरफ़ेस नहीं है, तो कीज़ macOS के पास रहती हैं। Audio Settings में Force macOS system output to this interface चालू करें, या Always चुनें। [कीबोर्ड शॉर्टकट](keyboard-shortcuts.md) देखें।
 - Control Interface Loopback Volume के साथ, Curve कीज़ केवल तभी लेता है जब प्रीसेट में कोई कनेक्टेड Interface Loopback (In) नोड हो। [लूपबैक](loopback.md) देखें।
 

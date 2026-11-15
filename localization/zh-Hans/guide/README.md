@@ -27,5 +27,5 @@ Curve 是一款免费、轻量的 macOS 音频插件宿主。它运行在菜单�
 
 ## 参考
 
-- [设置参考](settings.md)：Settings 菜单中的所有项目。
+- [设置参考](settings.md)：Settings 菜单和 Preferences 窗口中的所有项目。
 - [故障排除](troubleshooting.md)：常见问题的解决方法。

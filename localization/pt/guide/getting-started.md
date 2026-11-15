@@ -45,8 +45,8 @@ Tenha cuidado com roteamentos incomuns. O Curve tem alguma proteção contra loo
 
 ## Concluir a configuração
 
-- Para iniciar o Curve ao fazer login, selecione Settings > Open at Login.
-- As verificações automáticas de atualização vêm ativadas por padrão. Você pode alterar isso em Settings > Auto-Check for App Updates.
+- Para iniciar o Curve ao fazer login, selecione Settings > Preferences... e ative Open at Login.
+- As verificações automáticas de atualização vêm ativadas por padrão. Para desativá-las, selecione Settings > Preferences... e desative Auto-Check for App Updates.
 
 ## Próximos passos
 

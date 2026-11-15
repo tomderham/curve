@@ -43,7 +43,7 @@ Os mapeamentos são salvos com o preset, portanto use Save As Preset... para man
 
 ## Como os controles mapeados se comportam
 
-- Knobs e faders (CC) cobrem toda a faixa de um parâmetro. Você pode restringi-la em MIDI Mappings... (veja abaixo).
+- Knobs e faders (CC) cobrem toda a faixa de um parâmetro. Você pode restringi-la em MIDI Mappings for Current Preset... (veja abaixo).
 - Notas e mudanças de programa alternam o destino.
 - Para o bypass, o Curve identifica se um botão CC é momentâneo, em que cada toque alterna o bypass, ou com trava, em que o bypass acompanha o estado do botão.
 
@@ -53,7 +53,7 @@ Mensagens MIDI mapeadas não são repassadas aos plug-ins pelo nó MIDI Input. T
 
 ## Ajustar um mapeamento
 
-Selecione Settings > MIDI Control > MIDI Mappings... para ver os mapeamentos do preset carregado. A janela pode ficar aberta enquanto você usa o MIDI Learn ou troca de preset. Para cada mapeamento, você pode definir:
+Selecione Settings > Preferences..., abra a aba MIDI e clique em MIDI Mappings for Current Preset... para ver os mapeamentos do preset carregado. A janela pode ficar aberta enquanto você usa o MIDI Learn ou troca de preset. Para cada mapeamento, você pode definir:
 
 - **Mode:** Range, em que um botão ou fader define o valor; Toggle, em que cada toque alterna entre dois valores; ou Follow, em que o alvo segue um botão e fica ativado enquanto ele está pressionado ou travado.
 - **From e To:** os valores entre os quais um botão ou fader se move. Uma faixa mais estreita dá passos mais finos, por exemplo -20 dB a +6 dB em um nó Gain. Para Toggle e Follow, são os valores de desligado e ligado. Digite um valor na unidade do parâmetro ou uma porcentagem como 25%.
@@ -63,10 +63,10 @@ Mapeamentos de bypass não têm From nem To. Clique em × para remover um mapeam
 
 ## Alternar presets a partir de um controlador
 
-Abra Settings > MIDI Control. Estes ajustes valem para todos os presets:
+Selecione Settings > Preferences... e abra a aba MIDI. Estes ajustes valem para todos os presets:
 
 - **Program Change Selects Preset:** desativado por padrão. A mudança de programa 0 carrega o primeiro preset do menu, 1 o segundo, e assim por diante, na mesma ordem dos [atalhos de teclas numéricas](keyboard-shortcuts.md).
-- **Next Preset Control** e **Previous Preset Control:** selecione um deles e pressione o botão do controlador que deseja usar.
+- **Next Preset Control** e **Previous Preset Control:** clique em MIDI Learn... ao lado de um deles e pressione o botão do controlador que deseja usar.
 - **Clear Preset Controls:** remove essas duas atribuições de botões.
 
 ## Controles dos plug-ins do Curve

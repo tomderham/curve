@@ -13,7 +13,7 @@ Curve Help는 Curve가 응용 프로그램 폴더에 있을 때만 열립니다.
 
 ## 연 후에 Curve를 찾을 수 없음
 
-Curve는 메뉴 막대에서 실행되며 일반적으로 창을 열지 않습니다. 메뉴 막대 아이콘을 클릭한 다음 Show Editor를 선택합니다. Dock에도 표시하려면 Settings > Show in Dock을 켭니다.
+Curve는 메뉴 막대에서 실행되며 일반적으로 창을 열지 않습니다. 메뉴 막대 아이콘을 클릭한 다음 Show Editor를 선택합니다. Dock에도 표시하려면 Settings > Preferences...를 선택하고 Show in Dock을 켭니다.
 
 ## 프리셋 변경 사항이 사라짐
 
@@ -35,12 +35,12 @@ Plug-in Manager 목록 맨 아래에 빨간색으로 표시되고 카테고리�
 
 ## AirPods가 자동으로 전환되지 않음
 
-Settings > Release audio interface when idle을 켭니다. [오디오 설정 및 기기](audio-settings.md)를 참조하십시오.
+Settings > Preferences...를 선택하고 Release audio interface when idle을 켭니다. [오디오 설정 및 기기](audio-settings.md)를 참조하십시오.
 
 ## 음량 키로 Curve의 음량이 바뀌지 않음
 
-- Settings > Volume Keys가 Off로 설정되어 있지 않은지 확인하십시오.
-- 메뉴에 Allow Accessibility Access...가 보이면 선택한 다음 손쉬운 사용에서 Curve를 켭니다. 이미 켜져 있으면 껐다가 다시 켭니다.
+- Settings > Preferences...의 Keyboard 탭에서 Volume Keys가 Off로 설정되어 있지 않은지 확인하십시오.
+- Keyboard 탭에 Allow Accessibility Access...가 보이면 클릭한 다음 손쉬운 사용에서 Curve를 켭니다. 이미 켜져 있으면 껐다가 다시 켭니다.
 - When macOS Can't Control the Interface's Volume에서는 Curve가 소리를 내는 채널의 음량을 macOS가 조절할 수 있거나 macOS의 출력이 Curve의 출력 인터페이스가 아니면 macOS가 키를 처리합니다. Audio Settings에서 Force macOS system output to this interface를 켜거나 Always를 선택하십시오. [키보드 단축키](keyboard-shortcuts.md)를 참조하십시오.
 - Control Interface Loopback Volume에서는 프리셋에 연결된 Interface Loopback (In) 노드가 있는 동안에만 Curve가 키를 처리합니다. [루프백](loopback.md)을 참조하십시오.
 

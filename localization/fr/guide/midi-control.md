@@ -43,7 +43,7 @@ Les assignations sont enregistrées avec le preset : utilisez donc Save As Prese
 
 ## Comportement des commandes assignées
 
-- Les boutons rotatifs et les faders (CC) couvrent toute la plage d’un paramètre. Vous pouvez la restreindre dans MIDI Mappings... (voir ci-dessous).
+- Les boutons rotatifs et les faders (CC) couvrent toute la plage d’un paramètre. Vous pouvez la restreindre dans MIDI Mappings for Current Preset... (voir ci-dessous).
 - Les notes et les changements de programme basculent la cible.
 - Pour le contournement, Curve détermine si un bouton CC est momentané, chaque pression basculant le contournement, ou à verrouillage, le contournement suivant l’état du bouton.
 
@@ -53,7 +53,7 @@ Les messages MIDI assignés ne sont pas transmis aux plug-ins par le nœud MIDI 
 
 ## Ajuster une assignation
 
-Sélectionnez Settings > MIDI Control > MIDI Mappings... pour voir les assignations du preset chargé. La fenêtre peut rester ouverte pendant que vous utilisez MIDI Learn ou changez de preset. Pour chaque assignation, vous pouvez régler :
+Sélectionnez Settings > Preferences..., ouvrez l’onglet MIDI et cliquez sur MIDI Mappings for Current Preset... pour voir les assignations du preset chargé. La fenêtre peut rester ouverte pendant que vous utilisez MIDI Learn ou changez de preset. Pour chaque assignation, vous pouvez régler :
 
 - **Mode :** Range, où un bouton ou un fader règle la valeur ; Toggle, où chaque pression bascule entre deux valeurs ; ou Follow, où la cible suit un bouton et est activée tant qu’il est maintenu ou verrouillé.
 - **From et To :** les valeurs entre lesquelles se déplace un bouton ou un fader. Une plage plus étroite donne des pas plus fins, par exemple de -20 dB à +6 dB sur un nœud Gain. Pour Toggle et Follow, ce sont les valeurs d’arrêt et de marche. Saisissez une valeur dans l’unité du paramètre, ou un pourcentage comme 25%.
@@ -63,10 +63,10 @@ Les assignations de bypass n’ont pas de From ni de To. Cliquez sur × pour sup
 
 ## Changer de preset depuis un contrôleur
 
-Ouvrez Settings > MIDI Control. Ces réglages s’appliquent à tous les presets :
+Sélectionnez Settings > Preferences... et ouvrez l’onglet MIDI. Ces réglages s’appliquent à tous les presets :
 
 - **Program Change Selects Preset :** désactivé par défaut. Le changement de programme 0 charge le premier preset du menu, 1 le deuxième, et ainsi de suite, dans le même ordre que les [raccourcis des touches numériques](keyboard-shortcuts.md).
-- **Next Preset Control** et **Previous Preset Control :** sélectionnez l’une de ces options, puis appuyez sur le bouton de votre contrôleur que vous souhaitez utiliser.
+- **Next Preset Control** et **Previous Preset Control :** cliquez sur MIDI Learn... à côté de l’un d’eux, puis appuyez sur le bouton de votre contrôleur que vous souhaitez utiliser.
 - **Clear Preset Controls :** supprime ces deux assignations de boutons.
 
 ## Commandes des plug-ins de Curve

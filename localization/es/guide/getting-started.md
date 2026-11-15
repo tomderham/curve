@@ -45,8 +45,8 @@ Ten cuidado con los enrutamientos poco habituales. Curve tiene cierta protecció
 
 ## Terminar la configuración
 
-- Para iniciar Curve al iniciar sesión, selecciona Settings > Open at Login.
-- La búsqueda automática de actualizaciones está activada por defecto. Puedes cambiarlo con Settings > Auto-Check for App Updates.
+- Para iniciar Curve al iniciar sesión, selecciona Settings > Preferences... y activa Open at Login.
+- La búsqueda automática de actualizaciones está activada por defecto. Para desactivarla, selecciona Settings > Preferences... y desactiva Auto-Check for App Updates.
 
 ## Siguientes pasos
 

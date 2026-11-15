@@ -13,7 +13,7 @@ Curve Helpは、Curveがアプリケーションフォルダにある場合に�
 
 ## 開いた後にCurveが見つからない
 
-Curveはメニューバーで動作し、通常はウインドウを開きません。メニューバーのアイコンをクリックし、Show Editorを選択します。Dockにも表示するには、Settings > Show in Dockをオンにします。
+Curveはメニューバーで動作し、通常はウインドウを開きません。メニューバーのアイコンをクリックし、Show Editorを選択します。Dockにも表示するには、Settings > Preferences...を選択し、Show in Dockをオンにします。
 
 ## プリセットへの変更が消えた
 
@@ -35,12 +35,12 @@ Plug-in Managerのリストの一番下に赤色で表示され、カテゴリ�
 
 ## AirPodsが自動で切り替わらない
 
-Settings > Release audio interface when idleをオンにします。[オーディオ設定とデバイス](audio-settings.md)を参照してください。
+Settings > Preferences...を選択し、Release audio interface when idleをオンにします。[オーディオ設定とデバイス](audio-settings.md)を参照してください。
 
 ## 音量キーでCurveの音量が変わらない
 
-- Settings > Volume Keys がOffになっていないことを確認してください。
-- メニューにAllow Accessibility Access...が表示される場合は、それを選択し、アクセシビリティでCurveをオンにします。すでにオンの場合は、一度オフにしてからオンに戻します。
+- Settings > Preferences...のKeyboardタブで、Volume KeysがOffになっていないことを確認してください。
+- KeyboardタブにAllow Accessibility Access...が表示される場合は、それをクリックし、アクセシビリティでCurveをオンにします。すでにオンの場合は、一度オフにしてからオンに戻します。
 - When macOS Can't Control the Interface's Volumeでは、Curveが音を出しているチャンネルの音量をmacOSが調整できる場合や、macOSの出力がCurveの出力インターフェイスでない場合、キーはmacOSが処理します。Audio SettingsでForce macOS system output to this interfaceをオンにするか、Alwaysを選択してください。[キーボードショートカット](keyboard-shortcuts.md)を参照してください。
 - Control Interface Loopback Volumeでは、Curveがキーを処理するのは、プリセットに接続されたInterface Loopback (In)ノードがある間だけです。[ループバック](loopback.md)を参照してください。
 

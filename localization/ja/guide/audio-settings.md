@@ -42,7 +42,7 @@ Curveは、よくあるデバイスの変更に自動で対応します。
 
 ## AirPodsと自動切り替え
 
-Curveがオーディオインターフェイスを開いている間、macOSはAirPodsを自動で切り替えないことがあります。切り替えを許可するには、Settings > Release audio interface when idleをオンにします。
+Curveがオーディオインターフェイスを開いている間、macOSはAirPodsを自動で切り替えないことがあります。切り替えを許可するには、Settings > Preferences...を選択し、Release audio interface when idleをオンにします。
 
 オンにすると、Curveは5秒間の無音の後にインターフェイスを解放し、他のアプリが使い始めると再び開きます。これはCurveが確実に再開できる場合にのみ行われるため、次の場合はインターフェイスは解放されません。
 
