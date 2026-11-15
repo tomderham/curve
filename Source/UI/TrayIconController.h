@@ -22,6 +22,7 @@
 #include "SystemSleepManager.h"
 #include "IdleReleaseController.h"
 #include "VolumeKeyManager.h"
+#include "PreferencesWindow.h"
 
 inline std::unique_ptr<InputStream>
 createAssetInputStream(const char *resourcePath) {
@@ -56,25 +57,6 @@ inline Image getImageFromAssets(const char *assetName) {
   }
 
   return img;
-}
-
-inline bool attemptToEnableLoginItem() {
-  juce::String errorMessage;
-  LoginItemManager::setEnabled(true, errorMessage);
-
-  bool enabled =
-      (LoginItemManager::getStatus() == LoginItemManager::Status::enabled);
-
-  if (enabled) {
-    if (auto *settings = getAppProperties().getUserSettings()) {
-      settings->setValue("openAtLogin", true);
-      settings->saveIfNeeded();
-    }
-  } else {
-    LoginItemManager::openSystemSettingsLoginItemsPane();
-  }
-
-  return enabled;
 }
 
 class TrayIconController : public juce::SystemTrayIconComponent,
@@ -257,7 +239,7 @@ public:
     auto menu = buildAppMenu(mainWindow, gitHubUpdater, true, &localActions,
                              [safeSelf] {
                                if (auto *self = safeSelf.getComponent())
-                                 self->showGlobalShortcutDialog();
+                                 self->showPreferences();
                              },
                              &initialSelectedPresetId);
 
@@ -392,6 +374,23 @@ public:
     return "(Disabled)";
   }
 
+  void showPreferences() {
+    if (preferencesWindow == nullptr) {
+      juce::Component::SafePointer<TrayIconController> safeSelf(this);
+      PreferencesComponent::Callbacks callbacks;
+      callbacks.changeGlobalShortcut = [safeSelf] {
+        if (auto *self = safeSelf.getComponent())
+          self->showGlobalShortcutDialog();
+      };
+      callbacks.describeGlobalShortcut = [] { return getGlobalShortcutDisplayString(); };
+      preferencesWindow = std::make_unique<PreferencesWindow>(mainWindow, gitHubUpdater, std::move(callbacks));
+    }
+
+    juce::Process::makeForegroundProcess();
+    preferencesWindow->setVisible(true);
+    preferencesWindow->toFront(true);
+  }
+
   void showGlobalShortcutDialog() {
     bool enabled = false;
     uint32_t keyCode = GlobalShortcutManager::defaultCarbonKeyCode;
@@ -445,17 +444,9 @@ public:
                                       GitHubUpdater &gitHubUpdater,
                                       bool includeVisibilityToggle = false,
                                       GlobalShortcutManager::LocalActionMap *outLocalActions = nullptr,
-                                      std::function<void()> onOpenShortcutSettings = nullptr,
+                                      std::function<void()> onOpenPreferences = nullptr,
                                       int *outInitialSelectedId = nullptr) {
-    bool isAutoAppUpdateCheckEnabled = true;
-    bool isPreventSleepEnabled = false;
-    if (auto *settings = getAppProperties().getUserSettings()) {
-      isAutoAppUpdateCheckEnabled =
-          settings->getBoolValue("automaticUpdateChecks", true);
-      isPreventSleepEnabled =
-          settings->getBoolValue("preventSystemSleep", false);
-    }
-
+    juce::ignoreUnused(gitHubUpdater);
     juce::Component::SafePointer<MainHostWindow> safeWindow (&mainWindow);
 
     juce::PopupMenu settingsmenu;
@@ -467,83 +458,11 @@ public:
       if (auto* w = safeWindow.getComponent())
         w->showPluginListWindow();
     });
-    settingsmenu.addSeparator();
-    settingsmenu.addItem(
-        "Prevent macOS from automatically sleeping", true, isPreventSleepEnabled,
-        [isPreventSleepEnabled] {
-          bool newState = !isPreventSleepEnabled;
-          if (auto *settings = getAppProperties().getUserSettings()) {
-            settings->setValue("preventSystemSleep", newState);
-            settings->saveIfNeeded();
-          }
-          SystemSleepManager::setPreventSystemSleep(newState);
-        });
-    const bool isIdleReleaseEnabled = IdleReleaseController::isEnabledInSettings();
-    settingsmenu.addItem(
-        "Release audio interface when idle", true, isIdleReleaseEnabled,
-        [isIdleReleaseEnabled] {
-          IdleReleaseController::setEnabledInSettings(!isIdleReleaseEnabled);
-        });
-    settingsmenu.addSeparator();
-    auto updaterToken = gitHubUpdater.getLifetimeToken();
-    settingsmenu.addItem("Check for Updates...", [updaterToken] {
-      if (updaterToken != nullptr)
-        if (auto* u = updaterToken->load())
-          u->checkForUpdates(true);
+    // Everything else: General, Keyboard and MIDI tabs
+    settingsmenu.addItem("Preferences...", onOpenPreferences != nullptr, false, [onOpenPreferences] {
+      if (onOpenPreferences)
+        onOpenPreferences();
     });
-    settingsmenu.addItem(
-        "Auto-Check for App Updates", true, isAutoAppUpdateCheckEnabled,
-        [updaterToken, isAutoAppUpdateCheckEnabled] {
-          bool newState = !isAutoAppUpdateCheckEnabled;
-          if (auto *settings = getAppProperties().getUserSettings()) {
-            settings->setValue("automaticUpdateChecks", newState);
-            settings->saveIfNeeded();
-          }
-          if (newState && updaterToken != nullptr)
-            if (auto* u = updaterToken->load())
-              u->doCheckNow();
-        });
-    bool isOpenAtLoginEnabled =
-        (LoginItemManager::getStatus() == LoginItemManager::Status::enabled);
-    settingsmenu.addItem("Open at Login", true, isOpenAtLoginEnabled,
-                         [isOpenAtLoginEnabled] {
-      if (isOpenAtLoginEnabled) {
-        juce::String errorMessage;
-        if (LoginItemManager::setEnabled(false, errorMessage)) {
-          if (auto *settings = getAppProperties().getUserSettings()) {
-            settings->setValue("openAtLogin", false);
-            settings->saveIfNeeded();
-          }
-        } else {
-          juce::NativeMessageBox::showMessageBoxAsync(
-              juce::MessageBoxIconType::WarningIcon, "Open at Login",
-              "Could not remove Curve from Login Items:\n" + errorMessage);
-        }
-      } else if (attemptToEnableLoginItem()) {
-        juce::NativeMessageBox::showMessageBoxAsync(
-            juce::MessageBoxIconType::InfoIcon, "Open at Login",
-            "Curve will now open automatically at login.");
-      }
-    });
-    const bool isShowInDockEnabled = DockIconManager::isShowInDockEnabled();
-    settingsmenu.addItem("Show in Dock", true, isShowInDockEnabled,
-                         [isShowInDockEnabled] {
-      bool newState = !isShowInDockEnabled;
-      if (auto *settings = getAppProperties().getUserSettings()) {
-        settings->setValue("showInDock", newState);
-        settings->saveIfNeeded();
-      }
-      DockIconManager::setShowInDock(newState);
-    });
-    settingsmenu.addSubMenu("Volume Keys", buildVolumeKeysMenu());
-    juce::String shortcutLabel = "Global Menu Shortcut: " + getGlobalShortcutDisplayString() + "...";
-    settingsmenu.addItem(shortcutLabel, [onOpenShortcutSettings] {
-      if (onOpenShortcutSettings)
-        onOpenShortcutSettings();
-    });
-    // Next to the keyboard shortcut: both are quick ways to change presets
-    if (mainWindow.graphHolder != nullptr)
-      settingsmenu.addSubMenu("MIDI Control", buildMidiControlMenu(mainWindow));
     settingsmenu.addSeparator();
     settingsmenu.addItem("Curve Help", [] {
       HelpBookManager::showHelp();
@@ -594,165 +513,6 @@ public:
     return menu;
   }
 
-  static juce::PopupMenu buildVolumeKeysMenu() {
-    using Mode = VolumeKeyManager::Mode;
-    const auto mode = VolumeKeyManager::getMode();
-
-    juce::PopupMenu m;
-    m.addItem("Off", true, mode == Mode::off,
-              [] { VolumeKeyManager::setMode(Mode::off); });
-    m.addItem("When macOS Can't Control the Interface's Volume", true, mode == Mode::automatic,
-              [] { VolumeKeyManager::setMode(Mode::automatic); });
-    m.addItem("Always", true, mode == Mode::always,
-              [] { VolumeKeyManager::setMode(Mode::always); });
-    m.addSeparator();
-
-    using Target = VolumeKeyManager::Target;
-    const auto target = VolumeKeyManager::getTarget();
-    m.addItem("Control Curve's Output Volume", true, target == Target::output,
-              [] { VolumeKeyManager::setTarget(Target::output); });
-    m.addItem("Control Interface Loopback Volume", true, target == Target::loopback,
-              [] { VolumeKeyManager::setTarget(Target::loopback); });
-    m.addSeparator();
-
-    const bool overlayEnabled = VolumeKeyManager::isOverlayEnabled();
-    m.addItem("Show Volume Overlay", true, overlayEnabled,
-              [overlayEnabled] { VolumeKeyManager::setOverlayEnabled(!overlayEnabled); });
-
-    if (mode == Mode::off)
-      return m;
-
-    m.addSeparator();
-
-    if (VolumeKeyManager::needsAccessibilityAccess())
-      m.addItem("Allow Accessibility Access...",
-                [] { VolumeKeyManager::openAccessibilitySettings(); });
-    else
-      m.addCustomItem(volumeStatusItemId, std::make_unique<VolumeStatusItem>());
-
-    return m;
-  }
-
-  // A greyed-out line showing Curve's volume, which follows the volume keys while the menu is open
-  class VolumeStatusItem final : public juce::PopupMenu::CustomComponent,
-                                 private juce::Timer {
-  public:
-    VolumeStatusItem() : juce::PopupMenu::CustomComponent(false), text(currentText()) {
-      startTimerHz(10);
-    }
-
-    void getIdealSize(int &idealWidth, int &idealHeight) override {
-      // Wide enough for any level, so the menu doesn't change size
-      for (auto sample : {"Interface Loopback Volume: -63.5 dB", "Interface Uses macOS Volume",
-                          "No Interface Loopback in Preset"}) {
-        int width = 0, height = 0;
-        getLookAndFeel().getIdealPopupMenuItemSize(sample, false, 0, width, height);
-        idealWidth = juce::jmax(idealWidth, width);
-        idealHeight = juce::jmax(idealHeight, height);
-      }
-    }
-
-    void paint(juce::Graphics &g) override {
-      getLookAndFeel().drawPopupMenuItem(g, getLocalBounds(), false, false, false, false,
-                                         false, text, {}, nullptr, nullptr);
-    }
-
-  private:
-    juce::String text;
-
-    static juce::String currentText() {
-      const bool loopback = VolumeKeyManager::getTarget() == VolumeKeyManager::Target::loopback;
-
-      if (VolumeKeyManager::isControllingVolume())
-        return (loopback ? "Interface Loopback Volume: " : "Output Volume: ")
-               + VolumeKeyManager::describeVolume();
-
-      if (loopback && !VolumeKeyManager::hasConnectedLoopback())
-        return "No Interface Loopback in Preset";
-
-      return "Interface Uses macOS Volume";
-    }
-
-    void timerCallback() override {
-      auto newText = currentText();
-      if (newText != text) {
-        text = newText;
-        repaint();
-      }
-    }
-  };
-
-  static constexpr int volumeStatusItemId = 900;
-
-  static juce::PopupMenu buildMidiControlMenu(MainHostWindow &mainWindow) {
-    juce::PopupMenu m;
-    auto *engine = mainWindow.graphHolder->midiEngine.get();
-    juce::Component::SafePointer<MainHostWindow> safeWindow (&mainWindow);
-
-    const bool pcEnabled = MidiControlEngine::isProgramChangePresetSelectEnabled();
-    m.addItem("Program Change Selects Preset", true, pcEnabled,
-              [safeWindow, pcEnabled] {
-                if (auto *w = safeWindow.getComponent())
-                  if (w->graphHolder != nullptr)
-                    w->graphHolder->midiEngine->setProgramChangePresetSelectEnabled(!pcEnabled);
-              });
-    m.addItem("MIDI Mappings...", [safeWindow] {
-      if (auto *w = safeWindow.getComponent())
-        w->showMidiMappingsWindow();
-    });
-    m.addSeparator();
-
-    for (const bool next : {true, false}) {
-      juce::String label = next ? "Next Preset Control" : "Previous Preset Control";
-      if (auto *mapping = engine->getGlobalMappings().findFor(MidiMappingTarget::forPresetStep(next)))
-        label << ": " << mapping->trigger.describe();
-      label << " (MIDI Learn)...";
-
-      m.addItem(label, [safeWindow, next] {
-        if (auto *w = safeWindow.getComponent())
-          learnPresetStepControl(*w, next);
-      });
-    }
-
-    m.addItem("Clear Preset Controls", !engine->getGlobalMappings().isEmpty(),
-              false, [safeWindow] {
-                if (auto *w = safeWindow.getComponent())
-                  if (w->graphHolder != nullptr)
-                    w->graphHolder->midiEngine->clearGlobalMappings();
-              });
-    return m;
-  }
-
-  // Waits for the next MIDI control, with a window the user can cancel
-  static void learnPresetStepControl(MainHostWindow &mainWindow, bool next) {
-    if (mainWindow.graphHolder == nullptr)
-      return;
-
-    juce::Process::makeForegroundProcess();
-
-    auto *alert = new juce::AlertWindow(
-        next ? "Next Preset Control" : "Previous Preset Control",
-        "Press a button or move a control on your MIDI controller.\n\n"
-        "Controllers must be enabled under MIDI Inputs in Audio Settings.",
-        juce::MessageBoxIconType::NoIcon);
-    alert->addButton("Cancel", 0, juce::KeyPress(juce::KeyPress::escapeKey));
-
-    juce::Component::SafePointer<juce::AlertWindow> safeAlert (alert);
-    juce::Component::SafePointer<MainHostWindow> safeWindow (&mainWindow);
-
-    mainWindow.graphHolder->midiEngine->learnPresetStep(next, [safeAlert](const MidiTrigger &) {
-      if (auto *a = safeAlert.getComponent())
-        a->exitModalState(1);
-    });
-
-    alert->enterModalState(true, juce::ModalCallbackFunction::create([safeWindow](int result) {
-      if (result == 0)
-        if (auto *w = safeWindow.getComponent())
-          if (w->graphHolder != nullptr)
-            w->graphHolder->midiEngine->cancelPresetStepLearn();
-    }), true);
-  }
-
 private:
   MainHostWindow &mainWindow;
   GitHubUpdater &gitHubUpdater;
@@ -761,6 +521,7 @@ private:
   juce::uint32 lastMenuDismissTime = 0;
   void *activeMenuKeyMonitor = nullptr;
   std::unique_ptr<MacOSDisplayChangeNotifierBase> displayChangeNotifier;
+  std::unique_ptr<PreferencesWindow> preferencesWindow;
   std::vector<juce::uint32> knownDisplayIDs;
 
   struct CallbackTimer : juce::Timer {

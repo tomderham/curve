@@ -13,7 +13,7 @@ Curve Help only opens when Curve is in your Applications folder. Move it there a
 
 ## I can't find Curve after opening it
 
-Curve runs in the menu bar and normally opens no windows. Click its menu bar icon, then select Show Editor. To also show it in the Dock, turn on Settings > Show in Dock.
+Curve runs in the menu bar and normally opens no windows. Click its menu bar icon, then select Show Editor. To also show it in the Dock, select Settings > Preferences... and turn on Show in Dock.
 
 ## My changes to a preset are gone
 
@@ -35,12 +35,12 @@ Another app may be changing the hardware's sample rate. To make Curve force it b
 
 ## AirPods won't switch automatically
 
-Turn on Settings > Release audio interface when idle. See [Audio settings and devices](audio-settings.md).
+Select Settings > Preferences... and turn on Release audio interface when idle. See [Audio settings and devices](audio-settings.md).
 
 ## The volume keys don't change Curve's volume
 
-- Check that Settings > Volume Keys isn't set to Off.
-- If the menu shows Allow Accessibility Access..., select it and turn on Curve in Accessibility. If Curve is already on there, turn it off and on again.
+- Check that Volume Keys, in the Keyboard tab of Settings > Preferences..., isn't set to Off.
+- If the Keyboard tab shows Allow Accessibility Access..., click it and turn on Curve in Accessibility. If Curve is already on there, turn it off and on again.
 - With When macOS Can't Control the Interface's Volume, macOS keeps the keys if it can set the volume of the channels Curve plays through, or if macOS's output isn't Curve's output interface. Turn on Force macOS system output to this interface in Audio Settings, or select Always. See [Keyboard shortcuts](keyboard-shortcuts.md).
 - With Control Interface Loopback Volume, Curve takes the keys only while the preset has a connected Interface Loopback (In) node. See [Loopback](loopback.md).
 

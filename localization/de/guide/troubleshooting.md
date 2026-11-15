@@ -13,7 +13,7 @@ Curve Help öffnet sich nur, wenn sich Curve im Ordner „Programme“ befindet.
 
 ## Ich finde Curve nach dem Öffnen nicht
 
-Curve läuft in der Menüleiste und öffnet normalerweise keine Fenster. Klicke auf das Symbol in der Menüleiste und wähle dann Show Editor. Um Curve auch im Dock anzuzeigen, aktiviere Settings > Show in Dock.
+Curve läuft in der Menüleiste und öffnet normalerweise keine Fenster. Klicke auf das Symbol in der Menüleiste und wähle dann Show Editor. Um Curve auch im Dock anzuzeigen, wähle Settings > Preferences... und aktiviere Show in Dock.
 
 ## Meine Änderungen an einem Preset sind weg
 
@@ -35,12 +35,12 @@ Möglicherweise ändert eine andere App die Samplerate der Hardware. Damit Curve
 
 ## AirPods schalten nicht automatisch um
 
-Aktiviere Settings > Release audio interface when idle. Siehe [Audioeinstellungen und Geräte](audio-settings.md).
+Wähle Settings > Preferences... und aktiviere Release audio interface when idle. Siehe [Audioeinstellungen und Geräte](audio-settings.md).
 
 ## Die Lautstärketasten ändern Curves Lautstärke nicht
 
-- Prüfe, dass Settings > Volume Keys nicht auf Off steht.
-- Wenn das Menü Allow Accessibility Access... anzeigt, wähle es aus und schalte Curve unter Bedienungshilfen ein. Ist Curve dort schon eingeschaltet, schalte es aus und wieder ein.
+- Prüfe, dass Volume Keys im Tab Keyboard von Settings > Preferences... nicht auf Off steht.
+- Wenn der Tab Keyboard Allow Accessibility Access... anzeigt, klicke darauf und schalte Curve unter Bedienungshilfen ein. Ist Curve dort schon eingeschaltet, schalte es aus und wieder ein.
 - Mit When macOS Can't Control the Interface's Volume behält macOS die Tasten, wenn macOS die Lautstärke der Kanäle, über die Curve spielt, einstellen kann oder wenn der Ausgang von macOS nicht Curves Ausgangs-Interface ist. Schalte in Audio Settings Force macOS system output to this interface ein oder wähle Always. Siehe [Tastaturkurzbefehle](keyboard-shortcuts.md).
 - Mit Control Interface Loopback Volume übernimmt Curve die Tasten nur, solange das Preset einen verbundenen Node Interface Loopback (In) hat. Siehe [Loopback](loopback.md).
 

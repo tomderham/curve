@@ -42,7 +42,7 @@ Curve se encarga de los cambios de dispositivo más habituales:
 
 ## AirPods y cambio automático
 
-Es posible que macOS no cambie los AirPods automáticamente mientras Curve tenga abierta una interfaz de audio. Para permitirlo, activa Settings > Release audio interface when idle.
+Es posible que macOS no cambie los AirPods automáticamente mientras Curve tenga abierta una interfaz de audio. Para permitirlo, selecciona Settings > Preferences... y activa Release audio interface when idle.
 
 Curve libera entonces la interfaz tras 5 segundos de silencio y la vuelve a abrir cuando otra app empieza a usarla. Esto solo ocurre si Curve puede reactivarse de forma fiable, por lo que la interfaz no se libera en estos casos:
 

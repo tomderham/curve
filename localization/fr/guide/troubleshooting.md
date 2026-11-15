@@ -13,7 +13,7 @@ Curve Help ne s’ouvre que si Curve se trouve dans votre dossier Applications. 
 
 ## Je ne trouve plus Curve après l’avoir ouvert
 
-Curve s’exécute dans la barre des menus et n’ouvre normalement aucune fenêtre. Cliquez sur son icône dans la barre des menus, puis sélectionnez Show Editor. Pour l’afficher aussi dans le Dock, activez Settings > Show in Dock.
+Curve s’exécute dans la barre des menus et n’ouvre normalement aucune fenêtre. Cliquez sur son icône dans la barre des menus, puis sélectionnez Show Editor. Pour l’afficher aussi dans le Dock, sélectionnez Settings > Preferences... et activez Show in Dock.
 
 ## Mes modifications d’un preset ont disparu
 
@@ -35,12 +35,12 @@ Une autre app modifie peut-être la fréquence d’échantillonnage du matériel
 
 ## Les AirPods ne basculent pas automatiquement
 
-Activez Settings > Release audio interface when idle. Voir [Réglages audio et appareils](audio-settings.md).
+Sélectionnez Settings > Preferences... et activez Release audio interface when idle. Voir [Réglages audio et appareils](audio-settings.md).
 
 ## Les touches de volume ne changent pas le volume de Curve
 
-- Vérifiez que Settings > Volume Keys n’est pas réglé sur Off.
-- Si le menu affiche Allow Accessibility Access..., sélectionnez-le et activez Curve dans Accessibilité. Si Curve y est déjà activé, désactivez-le puis réactivez-le.
+- Vérifiez que Volume Keys, dans l’onglet Keyboard de Settings > Preferences..., n’est pas réglé sur Off.
+- Si l’onglet Keyboard affiche Allow Accessibility Access..., cliquez dessus et activez Curve dans Accessibilité. Si Curve y est déjà activé, désactivez-le puis réactivez-le.
 - Avec When macOS Can't Control the Interface's Volume, macOS garde les touches s’il peut régler le volume des canaux par lesquels Curve joue, ou si la sortie de macOS n’est pas l’interface de sortie de Curve. Activez Force macOS system output to this interface dans Audio Settings ou sélectionnez Always. Voir [Raccourcis clavier](keyboard-shortcuts.md).
 - Avec Control Interface Loopback Volume, Curve ne prend les touches que tant que le preset a un nœud Interface Loopback (In) connecté. Voir [Loopback](loopback.md).
 

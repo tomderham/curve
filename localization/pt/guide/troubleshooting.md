@@ -13,7 +13,7 @@ Curve Help só abre quando o Curve está na pasta Aplicativos. Mova-o para lá e
 
 ## Não encontro o Curve depois de abri-lo
 
-O Curve fica na barra de menus e normalmente não abre nenhuma janela. Clique no ícone dele na barra de menus e selecione Show Editor. Para mostrá-lo também no Dock, ative Settings > Show in Dock.
+O Curve fica na barra de menus e normalmente não abre nenhuma janela. Clique no ícone dele na barra de menus e selecione Show Editor. Para mostrá-lo também no Dock, selecione Settings > Preferences... e ative Show in Dock.
 
 ## Minhas alterações em um preset sumiram
 
@@ -35,12 +35,12 @@ Outro app pode estar alterando a taxa de amostragem do hardware. Para que o Curv
 
 ## Os AirPods não trocam automaticamente
 
-Ative Settings > Release audio interface when idle. Consulte [Ajustes de áudio e dispositivos](audio-settings.md).
+Selecione Settings > Preferences... e ative Release audio interface when idle. Consulte [Ajustes de áudio e dispositivos](audio-settings.md).
 
 ## As teclas de volume não mudam o volume do Curve
 
-- Verifique se Settings > Volume Keys não está em Off.
-- Se o menu mostrar Allow Accessibility Access..., selecione essa opção e ative o Curve em Acessibilidade. Se o Curve já estiver ativado lá, desative e ative de novo.
+- Verifique se Volume Keys, na aba Keyboard de Settings > Preferences..., não está em Off.
+- Se a aba Keyboard mostrar Allow Accessibility Access..., clique nessa opção e ative o Curve em Acessibilidade. Se o Curve já estiver ativado lá, desative e ative de novo.
 - Com When macOS Can't Control the Interface's Volume, o macOS fica com as teclas se puder ajustar o volume dos canais pelos quais o Curve toca, ou se a saída do macOS não for a interface de saída do Curve. Ative Force macOS system output to this interface em Audio Settings ou selecione Always. Consulte [Atalhos de teclado](keyboard-shortcuts.md).
 - Com Control Interface Loopback Volume, o Curve só fica com as teclas enquanto o preset tiver um nó Interface Loopback (In) conectado. Consulte [Loopback](loopback.md).
 

@@ -13,7 +13,7 @@ Curve Help solo se abre cuando Curve está en tu carpeta Aplicaciones. Muévelo 
 
 ## No encuentro Curve después de abrirlo
 
-Curve se ejecuta en la barra de menús y normalmente no abre ninguna ventana. Haz clic en su icono de la barra de menús y selecciona Show Editor. Para que también aparezca en el Dock, activa Settings > Show in Dock.
+Curve se ejecuta en la barra de menús y normalmente no abre ninguna ventana. Haz clic en su icono de la barra de menús y selecciona Show Editor. Para que también aparezca en el Dock, selecciona Settings > Preferences... y activa Show in Dock.
 
 ## Mis cambios en un preset han desaparecido
 
@@ -35,12 +35,12 @@ Puede que otra app esté cambiando la frecuencia de muestreo del hardware. Para 
 
 ## Los AirPods no cambian automáticamente
 
-Activa Settings > Release audio interface when idle. Consulta [Ajustes de audio y dispositivos](audio-settings.md).
+Selecciona Settings > Preferences... y activa Release audio interface when idle. Consulta [Ajustes de audio y dispositivos](audio-settings.md).
 
 ## Las teclas de volumen no cambian el volumen de Curve
 
-- Comprueba que Settings > Volume Keys no esté en Off.
-- Si el menú muestra Allow Accessibility Access..., selecciónalo y activa Curve en Accesibilidad. Si Curve ya está activado allí, desactívalo y vuelve a activarlo.
+- Comprueba que Volume Keys, en la pestaña Keyboard de Settings > Preferences..., no esté en Off.
+- Si la pestaña Keyboard muestra Allow Accessibility Access..., haz clic en él y activa Curve en Accesibilidad. Si Curve ya está activado allí, desactívalo y vuelve a activarlo.
 - Con When macOS Can't Control the Interface's Volume, macOS conserva las teclas si puede ajustar el volumen de los canales por los que suena Curve, o si la salida de macOS no es la interfaz de salida de Curve. Activa Force macOS system output to this interface en Audio Settings o selecciona Always. Consulta [Atajos de teclado](keyboard-shortcuts.md).
 - Con Control Interface Loopback Volume, Curve toma las teclas solo mientras el preset tiene un nodo Interface Loopback (In) conectado. Consulta [Loopback](loopback.md).
 

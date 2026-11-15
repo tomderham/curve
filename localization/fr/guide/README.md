@@ -27,5 +27,5 @@ Curve est un hôte de plug-ins audio gratuit et léger pour macOS. Il s’exécu
 
 ## Référence
 
-- [Référence des réglages](settings.md) : tous les éléments du menu Settings.
+- [Référence des réglages](settings.md) : tous les éléments du menu Settings et de la fenêtre Preferences.
 - [Dépannage](troubleshooting.md) : solutions aux problèmes courants.

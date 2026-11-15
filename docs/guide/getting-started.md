@@ -45,8 +45,8 @@ Take care with unusual routing. Curve has some protection against feedback loops
 
 ## Finish setting up
 
-- To start Curve at login, select Settings > Open at Login.
-- Automatic update checks are on by default. You can change this with Settings > Auto-Check for App Updates.
+- To start Curve at login, select Settings > Preferences... and turn on Open at Login.
+- Automatic update checks are on by default. To turn them off, select Settings > Preferences... and turn off Auto-Check for App Updates.
 
 ## Next steps
 

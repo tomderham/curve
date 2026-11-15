@@ -45,8 +45,8 @@ Sei vorsichtig mit ungewöhnlichem Routing. Curve bietet einen gewissen Schutz v
 
 ## Einrichtung abschließen
 
-- Um Curve bei der Anmeldung zu starten, wähle Settings > Open at Login.
-- Die automatische Suche nach Updates ist standardmäßig aktiviert. Du kannst das unter Settings > Auto-Check for App Updates ändern.
+- Um Curve bei der Anmeldung zu starten, wähle Settings > Preferences... und aktiviere Open at Login.
+- Die automatische Suche nach Updates ist standardmäßig aktiviert. Um sie auszuschalten, wähle Settings > Preferences... und deaktiviere Auto-Check for App Updates.
 
 ## Nächste Schritte
 

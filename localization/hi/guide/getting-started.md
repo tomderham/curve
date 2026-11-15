@@ -45,8 +45,8 @@ Curve का मेनू खोलने के लिए मेनू बा�
 
 ## सेटअप पूरा करें
 
-- लॉग इन पर Curve शुरू करने के लिए Settings > Open at Login चुनें।
-- अपडेट की ऑटोमैटिक जाँच डिफ़ॉल्ट रूप से चालू है। आप इसे Settings > Auto-Check for App Updates से बदल सकते हैं।
+- लॉग इन पर Curve शुरू करने के लिए Settings > Preferences... चुनें और Open at Login चालू करें।
+- अपडेट की ऑटोमैटिक जाँच डिफ़ॉल्ट रूप से चालू है। इसे बंद करने के लिए Settings > Preferences... चुनें और Auto-Check for App Updates बंद करें।
 
 ## अगले कदम
 

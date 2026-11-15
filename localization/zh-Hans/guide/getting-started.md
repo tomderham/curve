@@ -45,8 +45,8 @@ Curve 运行在菜单栏中，因此默认情况下其图标显示在菜单栏�
 
 ## 完成设置
 
-- 要在登录时启动 Curve，请选择 Settings > Open at Login。
-- 自动检查更新默认打开。你可以通过 Settings > Auto-Check for App Updates 更改此设置。
+- 要在登录时启动 Curve，请选择 Settings > Preferences...，然后打开 Open at Login。
+- 自动检查更新默认打开。要关闭它，请选择 Settings > Preferences...，然后关闭 Auto-Check for App Updates。
 
 ## 后续步骤
 

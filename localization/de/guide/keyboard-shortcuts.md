@@ -4,7 +4,7 @@
 
 Der globale Kurzbefehl öffnet Curves Menü auch dann, wenn eine andere App im Vordergrund ist. Er ist deaktiviert, bis du ihn einrichtest.
 
-1. Wähle Settings > Global Menu Shortcut.
+1. Wähle Settings > Preferences..., öffne den Tab Keyboard und klicke auf Change... neben Global Menu Shortcut.
 2. Klicke auf Record Shortcut und drücke dann eine Tastenkombination mit Command, Option oder Control. Drücke Esc, um abzubrechen.
 3. Klicke auf Save.
 
@@ -14,7 +14,7 @@ Klicke auf Reset to Default, um ⌥⇧C zu verwenden, oder auf Disable, um den K
 
 Manche Audio-Interfaces haben keine Lautstärkeregelung, die macOS nutzen kann, daher bewirken die Lautstärketasten der Tastatur nichts. Curve kann die Tasten stattdessen für seine eigene Ausgangslautstärke verwenden.
 
-1. Wähle Settings > Volume Keys > When macOS Can't Control the Interface's Volume.
+1. Wähle Settings > Preferences..., öffne den Tab Keyboard und stelle Volume Keys auf When macOS Can't Control the Interface's Volume.
 2. Wenn macOS fragt, gib Curve unter Systemeinstellungen > Datenschutz & Sicherheit > Bedienungshilfen Zugriff. Curve braucht ihn, um die Tasten abzufangen.
 
 Curve zeigt dann wie macOS seine eigene Lautstärkeanzeige unter dem Ton-Symbol in der Menüleiste.
@@ -24,7 +24,7 @@ Curve zeigt dann wie macOS seine eigene Lautstärkeanzeige unter dem Ton-Symbol 
 
 Curve übernimmt die Tasten nur, solange der Ausgang von macOS Curves Ausgangs-Interface ist und macOS die Lautstärke der Kanäle, über die Curve spielt, nicht einstellen kann. Dazu gehören Interfaces ganz ohne Lautstärkeregelung und Interfaces, deren Lautstärkeregelung in macOS nur einige ihrer Kanäle umfasst, nicht die, über die Curve spielt. Andernfalls funktionieren die Tasten wie gewohnt in macOS. Damit die Tasten immer Curves Lautstärke einstellen, wähle stattdessen Always.
 
-Standardmäßig gilt Curves Lautstärke für alles, was Curve ausgibt, nach deinen Plug-ins. Um nur die Lautstärke des Audios von macOS und anderen Apps einzustellen, wähle im selben Menü Control Interface Loopback Volume. Die Tasten regeln dann nur den Node [Interface Loopback (In)](loopback.md), sodass Audio von Audio Input und von Instrument-Plug-ins in Curve seinen Pegel behält. Hat das Preset keinen verbundenen Node Interface Loopback (In), funktionieren die Tasten wie gewohnt in macOS. Wähle Control Curve's Output Volume, um zurückzuwechseln.
+Standardmäßig gilt Curves Lautstärke für alles, was Curve ausgibt, nach deinen Plug-ins. Um nur die Lautstärke des Audios von macOS und anderen Apps einzustellen, wähle im Menü unter Volume Keys Control Interface Loopback Volume. Die Tasten regeln dann nur den Node [Interface Loopback (In)](loopback.md), sodass Audio von Audio Input und von Instrument-Plug-ins in Curve seinen Pegel behält. Hat das Preset keinen verbundenen Node Interface Loopback (In), funktionieren die Tasten wie gewohnt in macOS. Wähle Control Curve's Output Volume, um zurückzuwechseln.
 
 Curves Lautstärke gilt nur, solange die Tasten sie einstellen. Curve merkt sie sich, wenn du es beendest. Bei voller Lautstärke bleibt das Audio unverändert.
 

@@ -43,7 +43,7 @@ MIDI에 반응하는 이펙트 플러그인도 같은 방식으로 연결합니�
 
 ## 매핑된 컨트롤의 동작
 
-- 노브와 페이더(CC)는 파라미터의 전체 범위를 사용합니다. MIDI Mappings...에서 범위를 좁힐 수 있습니다(아래 참조).
+- 노브와 페이더(CC)는 파라미터의 전체 범위를 사용합니다. MIDI Mappings for Current Preset...에서 범위를 좁힐 수 있습니다(아래 참조).
 - 노트와 프로그램 체인지는 대상을 전환합니다.
 - 바이패스의 경우 Curve는 CC 버튼이 누를 때마다 바이패스를 전환하는 모멘터리 방식인지, 바이패스가 버튼 상태를 따르는 래칭 방식인지 판단합니다.
 
@@ -53,7 +53,7 @@ MIDI에 반응하는 이펙트 플러그인도 같은 방식으로 연결합니�
 
 ## 매핑 조정
 
-Settings > MIDI Control > MIDI Mappings...를 선택하면 불러온 프리셋의 매핑을 볼 수 있습니다. MIDI Learn을 사용하거나 프리셋을 전환하는 동안에도 창을 열어 둘 수 있습니다. 매핑마다 다음을 설정할 수 있습니다:
+Settings > Preferences...를 선택하고 MIDI 탭을 연 다음 MIDI Mappings for Current Preset...를 클릭하면 불러온 프리셋의 매핑을 볼 수 있습니다. MIDI Learn을 사용하거나 프리셋을 전환하는 동안에도 창을 열어 둘 수 있습니다. 매핑마다 다음을 설정할 수 있습니다:
 
 - **Mode:** 노브나 페이더로 값을 설정하는 Range, 누를 때마다 두 값 사이를 전환하는 Toggle, 또는 버튼을 따라 누르고 있거나 잠겨 있는 동안 켜지는 Follow입니다.
 - **From 및 To:** 노브나 페이더가 움직이는 값의 범위입니다. 범위를 좁히면 단계가 더 세밀해집니다. 예를 들어 Gain 노드에서 -20 dB에서 +6 dB로 설정합니다. Toggle과 Follow에서는 끄기와 켜기 값입니다. 파라미터의 단위로 값을 입력하거나 25%와 같은 백분율을 입력하십시오.
@@ -63,10 +63,10 @@ Settings > MIDI Control > MIDI Mappings...를 선택하면 불러온 프리셋�
 
 ## 컨트롤러로 프리셋 전환
 
-Settings > MIDI Control을 엽니다. 이 설정은 모든 프리셋에 적용됩니다.
+Settings > Preferences...를 선택하고 MIDI 탭을 엽니다. 이 설정은 모든 프리셋에 적용됩니다.
 
 - **Program Change Selects Preset:** 기본적으로 꺼져 있습니다. 프로그램 체인지 0은 메뉴의 첫 번째 프리셋을, 1은 두 번째 프리셋을 불러오며, [숫자 키 단축키](keyboard-shortcuts.md)와 같은 순서를 따릅니다.
-- **Next Preset Control** 및 **Previous Preset Control:** 하나를 선택한 다음 사용할 컨트롤러 버튼을 누릅니다.
+- **Next Preset Control** 및 **Previous Preset Control:** 하나 옆의 MIDI Learn...를 클릭한 다음 사용할 컨트롤러 버튼을 누릅니다.
 - **Clear Preset Controls:** 이 두 버튼 할당을 제거합니다.
 
 ## Curve 자체 플러그인의 컨트롤
