@@ -6,7 +6,6 @@
 |---|---|---|
 | Audio Settings | 选择音频和 MIDI 设备。请参阅[音频设置和设备](audio-settings.md)。 | |
 | Plug-in Manager | 扫描和管理插件。请参阅[入门指南](getting-started.md)。 | |
-| Force macOS System Audio to loopback | 让 macOS 的系统输出保持在 Curve 所选的接口上。请参阅[环回](loopback.md)。 | 打开 |
 | Prevent macOS from automatically sleeping | 在 Curve 的音频运行时阻止 Mac 进入空闲睡眠。 | 关闭 |
 | Release audio interface when idle | 静音 5 秒后释放接口，以便 AirPods 自动切换。请参阅[音频设置](audio-settings.md)。 | 关闭 |
 | Check for Updates... | 立即检查新版本。 | |

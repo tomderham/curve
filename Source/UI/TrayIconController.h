@@ -448,13 +448,10 @@ public:
                                       std::function<void()> onOpenShortcutSettings = nullptr,
                                       int *outInitialSelectedId = nullptr) {
     bool isAutoAppUpdateCheckEnabled = true;
-    bool isAutoSyncSoundEnabled = true;
     bool isPreventSleepEnabled = false;
     if (auto *settings = getAppProperties().getUserSettings()) {
       isAutoAppUpdateCheckEnabled =
           settings->getBoolValue("automaticUpdateChecks", true);
-      isAutoSyncSoundEnabled =
-          settings->getBoolValue("autoSyncSystemOutput", true);
       isPreventSleepEnabled =
           settings->getBoolValue("preventSystemSleep", false);
     }
@@ -471,18 +468,6 @@ public:
         w->showPluginListWindow();
     });
     settingsmenu.addSeparator();
-    settingsmenu.addItem(
-        "Force macOS System Audio to loopback", true, isAutoSyncSoundEnabled,
-        [safeWindow, isAutoSyncSoundEnabled] {
-          bool newState = !isAutoSyncSoundEnabled;
-          if (auto *settings = getAppProperties().getUserSettings()) {
-            settings->setValue("autoSyncSystemOutput", newState);
-            settings->saveIfNeeded();
-          }
-          if (auto* w = safeWindow.getComponent())
-            if (w->graphHolder != nullptr)
-              w->graphHolder->propagateDeviceSettingsToNodes();
-        });
     settingsmenu.addItem(
         "Prevent macOS from automatically sleeping", true, isPreventSleepEnabled,
         [isPreventSleepEnabled] {

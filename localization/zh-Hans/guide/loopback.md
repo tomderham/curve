@@ -14,7 +14,7 @@
 
 ## 将所有系统音频发送到 Curve
 
-Settings 菜单中的 **Force macOS System Audio to loopback** 默认打开。它会让 macOS 的系统输出保持在 Curve 中选择的接口上。如果你想自行选择系统输出，请将其关闭。
+[Audio Settings](audio-settings.md) 中的 **Force macOS system output to this interface** 默认打开。它会让 macOS 的系统输出保持在 Curve 中选择的接口上。如果你想自行选择系统输出，请将其关闭。如果你希望 Curve 跟随你在 macOS 中选择的输出，请改为打开 Use output interface selected in macOS。
 
 ## 使用音频接口自带的环回
 

@@ -8,6 +8,18 @@
 
 如果你使用 Curve 的 [Interface Loopback (In) 节点](loopback.md)，则不需要输入接口。
 
+Curve 会记住每个输出接口的采样率、缓冲区大小和已启用的输出通道，并在你切换回该接口时恢复它们。
+
+## 跟随 macOS 的输出
+
+打开 **Use output interface selected in macOS**，即可由 macOS 选择 Curve 的输出。当你在系统设置、控制中心或菜单栏中选择一个输出时，Curve 会在大约一秒内将处理移到该输出。如果该接口断开连接，Curve 会转到 macOS 接下来使用的输出。此选项打开时，Curve 的 Output 菜单会显示为灰色。
+
+预设中连接到新接口所没有的输出的连接会被保留，但在你切换回具有这些输出的接口之前，它们不会发声。为某个接口设计的校正（例如特定耳机的 EQ）会应用到 macOS 切换到的任何输出上。
+
+## 让 macOS 保持在 Curve 的接口上
+
+**Force macOS system output to this interface** 默认打开。它会让 macOS 的系统输出保持在 Curve 的输出接口上，使 [Interface Loopback (In) 节点](loopback.md)接收所有系统音频。如果你想自行选择系统输出，请将其关闭。Use output interface selected in macOS 打开时，它会显示为灰色，因为此时 macOS 的输出始终就是 Curve 的输出。
+
 ## 采样率和缓冲区大小
 
 在此处选择采样率和缓冲区大小。缓冲区越小，延迟越低，但会增加 Mac 的负载，并可能导致音频中断。
@@ -22,7 +34,7 @@
 
 Curve 会为你处理常见的设备变化：
 
-- 它会保持使用你选择的接口。如果该接口断开连接，Curve 会保持静音，而不是回退到其他输出，例如 Mac 的扬声器。
+- 除非打开了 Use output interface selected in macOS，否则它会保持使用你选择的接口。如果该接口断开连接，Curve 会保持静音，而不是回退到其他输出，例如 Mac 的扬声器。
 - 接口恢复后，它会重新连接并恢复音频。
 - Mac 从睡眠中唤醒后，它会重新启动音频。
 

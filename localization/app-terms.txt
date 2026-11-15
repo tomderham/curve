@@ -5,8 +5,9 @@
 'Scan for new or updated AudioUnit plug-ins'
 'Scan for new or updated VST3 plug-ins'
 When macOS Can't Control the Interface's Volume
-Force macOS System Audio to loopback
+Force macOS system output to this interface
 Prevent macOS from automatically sleeping
+Use output interface selected in macOS
 Always Open Plug-in GUI with Preset
 Allow Accessibility Access...
 Release audio interface when idle

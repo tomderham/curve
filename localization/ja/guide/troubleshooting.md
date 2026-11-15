@@ -41,7 +41,7 @@ Settings > Release audio interface when idleをオンにします。[オーデ�
 
 - Settings > Volume Keys がOffになっていないことを確認してください。
 - メニューにAllow Accessibility Access...が表示される場合は、それを選択し、アクセシビリティでCurveをオンにします。すでにオンの場合は、一度オフにしてからオンに戻します。
-- When macOS Can't Control the Interface's Volumeでは、Curveが音を出しているチャンネルの音量をmacOSが調整できる場合や、macOSの出力がCurveの出力インターフェイスでない場合、キーはmacOSが処理します。Force macOS System Audio to loopbackをオンにするか、Alwaysを選択してください。[キーボードショートカット](keyboard-shortcuts.md)を参照してください。
+- When macOS Can't Control the Interface's Volumeでは、Curveが音を出しているチャンネルの音量をmacOSが調整できる場合や、macOSの出力がCurveの出力インターフェイスでない場合、キーはmacOSが処理します。Audio SettingsでForce macOS system output to this interfaceをオンにするか、Alwaysを選択してください。[キーボードショートカット](keyboard-shortcuts.md)を参照してください。
 - Control Interface Loopback Volumeでは、Curveがキーを処理するのは、プリセットに接続されたInterface Loopback (In)ノードがある間だけです。[ループバック](loopback.md)を参照してください。
 
 ## CurveがMIDIコントローラに反応しない

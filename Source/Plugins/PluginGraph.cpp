@@ -975,7 +975,13 @@ void PluginGraph::asyncNodeRestoreFinished (std::unique_ptr<AudioPluginInstance>
                 if (connection.source.nodeID == nodeID || connection.destination.nodeID == nodeID)
                     graph.addConnection (connection);
 
-            graph.removeIllegalConnections();
+            // Only this node's connections: pruning the whole graph would also delete connections
+            // to Audio Output channels the current device lacks (e.g. outputs 3-4 while following
+            // macOS onto 2-channel headphones), which should be kept for when the device returns
+            for (const auto& connection : graph.getConnections())
+                if ((connection.source.nodeID == nodeID || connection.destination.nodeID == nodeID)
+                    && ! graph.isConnectionLegal (connection))
+                    graph.removeConnection (connection);
 
             CURVE_AUDIO_LOG ("[PresetRestore] Async restore succeeded for '%s' (node uid=%u)",
                              description.pluginDescription.name.toRawUTF8(), (unsigned) nodeID.uid);

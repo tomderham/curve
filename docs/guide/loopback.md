@@ -14,7 +14,7 @@ The node receives bit-perfect audio that would otherwise have gone straight to t
 
 ## Send all system audio to Curve
 
-**Force macOS System Audio to loopback** in the Settings menu is on by default. It keeps macOS's system output set to the interface selected in Curve. Turn it off if you want to choose the system output yourself.
+**Force macOS system output to this interface** in [Audio Settings](audio-settings.md) is on by default. It keeps macOS's system output set to the interface selected in Curve. Turn it off if you want to choose the system output yourself. If you'd rather Curve follow the output you choose in macOS, turn on Use output interface selected in macOS instead.
 
 ## Use your audio interface's own loopback
 

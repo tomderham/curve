@@ -26,6 +26,10 @@
     output device selection drop-down lists to prevent internal feedback loops,
     and places the "Always enforce sample rate" option cleanly between Sample Rate
     and Audio Buffer Size.
+
+    Above JUCE's controls it adds "Use output interface selected in macOS" (follow
+    mode, see AudioResilienceManager) and "Force macOS system output to this interface",
+    which has nothing to do while following, so it's greyed out then.
 */
 class FilteredAudioDeviceSelectorComponent : public juce::AudioDeviceSelectorComponent,
                                              private juce::Timer
@@ -65,18 +69,84 @@ public:
             }
         };
 
+        followToggle.setButtonText ("Use output interface selected in macOS");
+        followToggle.setTooltip ("Curve's output switches whenever you choose a different output in macOS: in System Settings, Control Center or the menu bar.");
+        followToggle.setToggleState (AudioResilienceManager::isFollowingSystemOutput(), juce::dontSendNotification);
+        followToggle.onClick = [this]
+        {
+            if (auto* settings = getUserSettings())
+            {
+                settings->setValue ("followSystemOutput", followToggle.getToggleState());
+                settings->saveIfNeeded();
+            }
+
+            if (followToggle.getToggleState())
+                switchToFollowedDevice();
+
+            updateFollowControls();
+            resized();
+        };
+
+        followWarning.setText ("Curve's output follows macOS. If macOS switches to a device with fewer channels, "
+                               "outputs that device doesn't have are silent until you switch back.",
+                               juce::dontSendNotification);
+        followWarning.setFont (juce::FontOptions (13.0f));
+        followWarning.setJustificationType (juce::Justification::topLeft);
+        followWarning.setMinimumHorizontalScale (1.0f);
+        followWarning.setBorderSize ({ 0, 2, 0, 0 });
+        followWarning.setColour (juce::Label::textColourId,
+                                 getLookAndFeel().findColour (juce::Label::textColourId).withAlpha (0.7f));
+
+        forceToggle.setButtonText ("Force macOS system output to this interface");
+        forceToggle.setTooltip ("Keeps macOS's output set to Curve's output interface, so Interface Loopback captures all system audio. "
+                                "Not used while Curve follows the interface selected in macOS.");
+        if (auto* settings = getUserSettings())
+            forceToggle.setToggleState (settings->getBoolValue ("autoSyncSystemOutput", true), juce::dontSendNotification);
+        forceToggle.onClick = [this]
+        {
+            if (auto* settings = getUserSettings())
+            {
+                settings->setValue ("autoSyncSystemOutput", forceToggle.getToggleState());
+                settings->saveIfNeeded();
+            }
+        };
+
+        // Picking a device returns it to the rate and buffer size it last used, as follow mode does
+        rememberedSettings = AudioResilienceManager::getAllRememberedDeviceSettings();
+        if (auto* device = deviceManager.getCurrentAudioDevice())
+            lastDeviceName = device->getName();
+        deviceWatcher.onChange = [this] { handleDeviceChange(); };
+        deviceManager.addChangeListener (&deviceWatcher);
+
+        addAndMakeVisible (followToggle);
+        addChildComponent (followWarning);
+        addAndMakeVisible (forceToggle);
+        updateFollowControls();
+
         filterLoopbackItems();
         startTimer (100);
     }
 
     ~FilteredAudioDeviceSelectorComponent() override
     {
+        deviceManager.removeChangeListener (&deviceWatcher);
         stopTimer();
     }
 
     void timerCallback() override
     {
         filterLoopbackItems();
+        updateFollowControls();
+
+        if (isLayoutStale())
+            resized();
+
+        // The resilience manager is suspended while this is open, so follow macOS from here
+        if (followToggle.getToggleState() && ++followCheckTicks >= 5)
+        {
+            followCheckTicks = 0;
+            switchToFollowedDevice();
+        }
     }
 
     void resized() override
@@ -85,8 +155,9 @@ public:
             return;
 
         isAdjustingLayout = true;
+        returnAdoptedControls();
         juce::AudioDeviceSelectorComponent::resized();
-        applyCustomLayout();
+        layoutControls();
         isAdjustingLayout = false;
     }
 
@@ -105,164 +176,327 @@ public:
 
 private:
     juce::ToggleButton enforceRateToggle;
+    juce::ToggleButton followToggle, forceToggle;
+    juce::Label followWarning;
+    int followCheckTicks = 0;
+
+    struct DeviceWatcher : juce::ChangeListener
+    {
+        std::function<void()> onChange;
+        void changeListenerCallback (juce::ChangeBroadcaster*) override { if (onChange) onChange(); }
+    };
+    DeviceWatcher deviceWatcher;
+
+    // Own copy while the dialog is open: JUCE first opens a newly picked device at the old
+    // device's rate, and the resilience manager records that before it can be corrected here
+    std::map<juce::String, AudioResilienceManager::DeviceSettings> rememberedSettings;
+    juce::String lastDeviceName;
+
+    void handleDeviceChange()
+    {
+        auto* device = deviceManager.getCurrentAudioDevice();
+        if (device == nullptr || ! device->isPlaying())
+            return;
+
+        const auto name = device->getName();
+        const auto current = AudioResilienceManager::DeviceSettings::of (*device);
+
+        if (name == lastDeviceName)
+        {
+            rememberedSettings[name] = current; // the user changed the rate, buffer size or outputs
+            return;
+        }
+
+        lastDeviceName = name;
+        auto it = rememberedSettings.find (name);
+        if (it == rememberedSettings.end() || it->second.sampleRate <= 0.0)
+        {
+            rememberedSettings[name] = current;
+            return;
+        }
+
+        const auto wanted = it->second;
+        if (std::abs (wanted.sampleRate - current.sampleRate) < 0.001
+            && (wanted.bufferSize <= 0 || wanted.bufferSize == current.bufferSize)
+            && (wanted.outputChannels.isZero() || wanted.outputChannels == current.outputChannels))
+            return;
+
+        juce::Component::SafePointer<FilteredAudioDeviceSelectorComponent> safeThis (this);
+        juce::MessageManager::callAsync ([safeThis, name, wanted]
+        {
+            if (safeThis == nullptr)
+                return;
+
+            auto& dm = safeThis->deviceManager;
+            auto* device = dm.getCurrentAudioDevice();
+            if (device == nullptr || device->getName() != name)
+                return;
+
+            juce::AudioDeviceManager::AudioDeviceSetup setup;
+            dm.getAudioDeviceSetup (setup);
+            setup.sampleRate = wanted.sampleRate;
+            if (wanted.bufferSize > 0)
+                setup.bufferSize = wanted.bufferSize;
+            if (! wanted.outputChannels.isZero())
+            {
+                setup.outputChannels = wanted.outputChannels;
+                setup.useDefaultOutputChannels = false;
+            }
+            dm.setAudioDeviceSetup (setup, true);
+        });
+    }
     bool isAdjustingLayout = false;
 
-    struct SelectorChildren
+    // JUCE's output device menu: the combo box the "Output:" label is attached to
+    juce::Component* findOutputDeviceMenu (juce::Component* comp)
     {
-        juce::Component* settingsComp = nullptr;
-        juce::Component* sampleRateComp = nullptr;
-        juce::Component* bufferSizeComp = nullptr;
-        juce::Label* bufferSizeLabel = nullptr;
-        juce::Component* midiInputsList = nullptr;
-        juce::Component* bluetoothButton = nullptr;
-        juce::Component* midiOutputSelector = nullptr;
+        for (int i = 0; i < comp->getNumChildComponents(); ++i)
+        {
+            auto* child = comp->getChildComponent (i);
+            if (auto* label = dynamic_cast<juce::Label*> (child))
+                if (label->getText().trim() == "Output:" && label->getAttachedComponent() != nullptr)
+                    return label->getAttachedComponent();
+
+            if (auto* found = findOutputDeviceMenu (child))
+                return found;
+        }
+        return nullptr;
+    }
+
+    void updateFollowControls()
+    {
+        const bool isFollowing = followToggle.getToggleState();
+        forceToggle.setEnabled (! isFollowing);
+        followWarning.setVisible (isFollowing);
+
+        // JUCE can recreate the menu when the device changes, so this runs from the timer too
+        if (auto* outputMenu = findOutputDeviceMenu (this))
+            if (outputMenu->isEnabled() == isFollowing)
+                outputMenu->setEnabled (! isFollowing);
+    }
+
+    void switchToFollowedDevice()
+    {
+        auto name = AudioResilienceManager::getFollowedOutputDeviceName();
+        auto* type = deviceManager.getCurrentDeviceTypeObject();
+        if (name.isEmpty() || type == nullptr)
+            return;
+
+        juce::AudioDeviceManager::AudioDeviceSetup setup;
+        deviceManager.getAudioDeviceSetup (setup);
+        if (setup.outputDeviceName == name || ! type->getDeviceNames (false).contains (name))
+            return;
+
+        setup.outputDeviceName = name;
+
+        // Not the old device's settings: the ones last used on this device, or with nothing
+        // remembered, the hardware's current rate (JUCE's choice for 0) and all outputs
+        const auto it = rememberedSettings.find (name);
+        const auto remembered = it != rememberedSettings.end() ? it->second : AudioResilienceManager::DeviceSettings {};
+        setup.sampleRate = remembered.sampleRate;
+        setup.bufferSize = remembered.bufferSize;
+        setup.outputChannels = remembered.outputChannels;
+        setup.useDefaultOutputChannels = remembered.outputChannels.isZero();
+
+        if (setup.inputDeviceName.isNotEmpty() && ! type->getDeviceNames (true).contains (setup.inputDeviceName))
+        {
+            setup.inputDeviceName = {};
+            setup.useDefaultInputChannels = true;
+        }
+
+        deviceManager.setAudioDeviceSetup (setup, true);
+    }
+
+    //==============================================================================
+    // Layout. JUCE's settings panel lays out the device menus, channel lists, sample rate and
+    // buffer size inside itself and clips them to its own height, so nothing can be inserted
+    // between them. After JUCE's layout, its controls are moved into this component, where the
+    // follow options go below the Output menu and Always enforce sample rate below Sample Rate.
+    // Before each layout they go back, so JUCE always lays them out in its own coordinates.
+    struct AdoptedControl
+    {
+        juce::Component::SafePointer<juce::Component> component;
+        juce::Rectangle<int> boundsInPanel, boundsHere;
     };
+    std::vector<AdoptedControl> adopted;
+    juce::Component::SafePointer<juce::Component> settingsPanel;
 
-    SelectorChildren findSelectorChildren()
+    static bool isAttachedLabel (juce::Component* c)
     {
-        SelectorChildren c;
+        auto* label = dynamic_cast<juce::Label*> (c);
+        return label != nullptr && label->getAttachedComponent() != nullptr;
+    }
 
+    juce::Component* findSettingsPanel()
+    {
         for (int i = 0; i < getNumChildComponents(); ++i)
         {
             auto* child = getChildComponent (i);
-
-            if (auto* lb = dynamic_cast<juce::ListBox*> (child))
-                c.midiInputsList = lb;
-            else if (auto* btn = dynamic_cast<juce::Button*> (child))
-            {
-                if (btn->getButtonText().containsIgnoreCase ("Bluetooth"))
-                    c.bluetoothButton = btn;
-            }
-            else if (auto* label = dynamic_cast<juce::Label*> (child))
-            {
-                if (label->getText().containsIgnoreCase ("buffer size"))
-                {
-                    c.bufferSizeLabel = label;
-                    c.bufferSizeComp = label->getAttachedComponent();
-                }
-                else if (label->getText().containsIgnoreCase ("MIDI Output"))
-                {
-                    c.midiOutputSelector = label->getAttachedComponent();
-                }
-            }
-
-            for (int j = 0; j < child->getNumChildComponents(); ++j)
-            {
-                if (auto* label = dynamic_cast<juce::Label*> (child->getChildComponent (j)))
-                {
-                    auto text = label->getText();
-                    if (text.containsIgnoreCase ("Sample rate"))
-                    {
-                        c.settingsComp = child;
-                        c.sampleRateComp = label->getAttachedComponent();
-                    }
-                    else if (text.containsIgnoreCase ("buffer size"))
-                    {
-                        c.bufferSizeLabel = label;
-                        c.bufferSizeComp = label->getAttachedComponent();
-                    }
-                    else if (text.containsIgnoreCase ("MIDI Output"))
-                    {
-                        c.midiOutputSelector = label->getAttachedComponent();
-                    }
-                }
-            }
+            if (child->getX() == 0 && child->getWidth() == getWidth()
+                && dynamic_cast<juce::ListBox*> (child) == nullptr
+                && dynamic_cast<juce::Button*> (child) == nullptr
+                && dynamic_cast<juce::ComboBox*> (child) == nullptr
+                && dynamic_cast<juce::Label*> (child) == nullptr
+                && std::none_of (adopted.begin(), adopted.end(), [child] (const auto& a) { return a.component == child; }))
+                return child;
         }
-
-        return c;
+        return nullptr;
     }
 
-    void applyCustomLayout()
+    void returnAdoptedControls()
     {
-        auto c = findSelectorChildren();
-        if (c.sampleRateComp == nullptr || c.bufferSizeComp == nullptr || c.settingsComp == nullptr)
+        for (auto& a : adopted)
         {
+            if (a.component == nullptr || settingsPanel == nullptr || a.component->getParentComponent() != this)
+                continue;
+
+            settingsPanel->addChildComponent (a.component.getComponent());
+            a.component->setBounds (a.boundsInPanel);
+        }
+        adopted.clear();
+    }
+
+    // JUCE also re-lays the panel by itself when the device changes, sometimes after this
+    // component's layout has run
+    bool isLayoutStale()
+    {
+        if (settingsPanel != nullptr)
+            for (int i = 0; i < settingsPanel->getNumChildComponents(); ++i)
+                if (! isAttachedLabel (settingsPanel->getChildComponent (i)))
+                    return true;
+
+        for (auto& a : adopted)
+            if (a.component != nullptr && a.component->getBounds() != a.boundsHere)
+                return true;
+
+        return false;
+    }
+
+    void layoutControls()
+    {
+        settingsPanel = findSettingsPanel();
+        auto* panel = settingsPanel.getComponent();
+        auto* outputMenu = panel != nullptr ? findOutputDeviceMenu (panel) : nullptr;
+
+        const int x = proportionOfWidth (0.35f);
+        const int w = proportionOfWidth (0.6f);
+        const int toggleHeight = 22, space = 6;
+
+        if (panel == nullptr || outputMenu == nullptr)
+        {
+            followToggle.setVisible (false);
+            followWarning.setVisible (false);
+            forceToggle.setVisible (false);
             enforceRateToggle.setVisible (false);
             return;
         }
 
-        // Reparent controls to this component so settingsComp cannot clip them
-        if (enforceRateToggle.getParentComponent() != this)
-            addAndMakeVisible (enforceRateToggle);
+        followToggle.setVisible (true);
+        forceToggle.setVisible (true);
+        followWarning.setVisible (followToggle.getToggleState());
 
-        if (c.bufferSizeComp->getParentComponent() != this)
-            addAndMakeVisible (c.bufferSizeComp);
+        const auto offset = panel->getPosition();
+        const int outputRowTop = outputMenu->getY();
+        const int outputRowBottom = outputMenu->getBottom() + offset.y;
 
-        if (c.bufferSizeLabel != nullptr && c.bufferSizeLabel->getParentComponent() != this)
-            addAndMakeVisible (c.bufferSizeLabel);
+        // Follow options, below the Output menu
+        followToggle.setBounds (x, outputRowBottom + space, w, toggleHeight);
+        int y = followToggle.getBottom() + 2;
 
-        const bool isAdvancedVisible = c.sampleRateComp->isVisible();
-        enforceRateToggle.setVisible (isAdvancedVisible);
-        c.bufferSizeComp->setVisible (isAdvancedVisible);
-        if (c.bufferSizeLabel != nullptr)
-            c.bufferSizeLabel->setVisible (isAdvancedVisible);
-
-        const int space = 6;
-
-        if (! isAdvancedVisible)
+        if (followWarning.isVisible())
         {
-            int curY = c.settingsComp->getBottom() + space;
-            if (c.midiInputsList != nullptr)
+            juce::AttributedString text;
+            text.append (followWarning.getText(), followWarning.getFont());
+            juce::TextLayout layout;
+            layout.createLayout (text, (float) (w - 22 - 4));
+            followWarning.setBounds (x + 22, y, w - 22, (int) std::ceil (layout.getHeight()) + 4);
+            y = followWarning.getBottom() + 2;
+        }
+
+        forceToggle.setBounds (x, y + 2, w, toggleHeight);
+        const int belowOutputShift = forceToggle.getBottom() + space - outputRowBottom;
+
+        // Move JUCE's controls out of the panel; those below the Output row make room for the above
+        juce::Array<juce::Component*> children;
+        for (int i = 0; i < panel->getNumChildComponents(); ++i)
+            children.add (panel->getChildComponent (i));
+
+        juce::Component* sampleRateMenu = nullptr;
+        for (auto* child : children)
+            if (auto* label = dynamic_cast<juce::Label*> (child))
+                if (label->getText().containsIgnoreCase ("Sample rate"))
+                    sampleRateMenu = label->getAttachedComponent();
+
+        const int sampleRateTop = sampleRateMenu != nullptr ? sampleRateMenu->getY() : std::numeric_limits<int>::max();
+        const bool showEnforceToggle = sampleRateMenu != nullptr && sampleRateMenu->isVisible();
+
+        for (auto* child : children)
+        {
+            if (isAttachedLabel (child))
+                continue; // follows its component
+
+            auto bounds = child->getBounds();
+            const auto boundsInPanel = bounds;
+            bounds += offset;
+
+            if (child->getY() > outputRowTop)
+                bounds.translate (0, belowOutputShift);
+
+            // Always enforce sample rate goes directly below Sample Rate
+            if (showEnforceToggle && child->getY() > sampleRateTop)
+                bounds.translate (0, toggleHeight + space);
+
+            addChildComponent (child);
+            child->setBounds (bounds);
+            adopted.push_back ({ child, boundsInPanel, bounds });
+        }
+
+        int contentBottom = forceToggle.getBottom();
+        for (auto& a : adopted)
+            if (a.component != nullptr && a.component->isVisible())
+                contentBottom = juce::jmax (contentBottom, a.component->getBottom());
+
+        if (showEnforceToggle)
+        {
+            if (enforceRateToggle.getParentComponent() != this)
+                addAndMakeVisible (enforceRateToggle);
+
+            enforceRateToggle.setVisible (true);
+            enforceRateToggle.setBounds (sampleRateMenu->getX(), sampleRateMenu->getBottom() + space,
+                                         sampleRateMenu->getWidth(), toggleHeight);
+            contentBottom = juce::jmax (contentBottom, enforceRateToggle.getBottom());
+        }
+        else
+        {
+            enforceRateToggle.setVisible (false);
+        }
+
+        panel->setInterceptsMouseClicks (false, false);
+        panel->toBack();
+        followToggle.toFront (false);
+        followWarning.toFront (false);
+        forceToggle.toFront (false);
+
+        // The rest of JUCE's controls (MIDI inputs, Bluetooth, MIDI output) follow underneath
+        int curY = contentBottom + space * 2;
+        juce::Array<juce::Component*> below;
+        for (int i = 0; i < getNumChildComponents(); ++i)
+            below.add (getChildComponent (i));
+        std::stable_sort (below.begin(), below.end(), [] (auto* l, auto* r) { return l->getY() < r->getY(); });
+
+        for (auto* child : below)
+        {
+            const bool isOurs = child == panel || child == &followToggle || child == &followWarning
+                             || child == &forceToggle || child == &enforceRateToggle || isAttachedLabel (child)
+                             || std::any_of (adopted.begin(), adopted.end(), [child] (const auto& a) { return a.component == child; });
+
+            if (! isOurs && child->isVisible() && child->getY() >= panel->getY())
             {
-                c.midiInputsList->setTopLeftPosition (c.midiInputsList->getX(), curY);
-                curY = c.midiInputsList->getBottom() + space;
+                child->setTopLeftPosition (child->getX(), curY);
+                curY = child->getBottom() + space;
             }
-            if (c.bluetoothButton != nullptr)
-            {
-                c.bluetoothButton->setTopLeftPosition (c.bluetoothButton->getX(), curY);
-                curY = c.bluetoothButton->getBottom() + space;
-            }
-            if (c.midiOutputSelector != nullptr)
-            {
-                c.midiOutputSelector->setTopLeftPosition (c.midiOutputSelector->getX(), curY);
-                curY = c.midiOutputSelector->getBottom() + space;
-            }
-            setSize (getWidth(), curY + 15);
-            return;
         }
 
-        const int toggleHeight = 22;
-        auto srBounds = getLocalArea (c.sampleRateComp->getParentComponent(), c.sampleRateComp->getBounds());
-
-        // 1. Position toggle directly below Sample Rate dropdown
-        enforceRateToggle.setBounds (srBounds.getX(),
-                                     srBounds.getBottom() + space,
-                                     srBounds.getWidth(),
-                                     toggleHeight);
-
-        // 2. Position Audio Buffer Size dropdown directly below toggle
-        c.bufferSizeComp->setBounds (srBounds.getX(),
-                                     enforceRateToggle.getBottom() + space,
-                                     srBounds.getWidth(),
-                                     c.sampleRateComp->getHeight());
-
-        if (c.bufferSizeLabel != nullptr)
-            c.bufferSizeLabel->attachToComponent (c.bufferSizeComp, true);
-
-        // 3. Position MIDI inputs list below Audio Buffer Size
-        int curY = c.bufferSizeComp->getBottom() + (space * 2);
-
-        if (c.midiInputsList != nullptr)
-        {
-            c.midiInputsList->setTopLeftPosition (c.midiInputsList->getX(), curY);
-            curY = c.midiInputsList->getBottom() + space;
-        }
-
-        // 4. Position bluetooth button
-        if (c.bluetoothButton != nullptr)
-        {
-            c.bluetoothButton->setTopLeftPosition (c.bluetoothButton->getX(), curY);
-            curY = c.bluetoothButton->getBottom() + space;
-        }
-
-        // 5. Position MIDI output selector
-        if (c.midiOutputSelector != nullptr)
-        {
-            c.midiOutputSelector->setTopLeftPosition (c.midiOutputSelector->getX(), curY);
-            curY = c.midiOutputSelector->getBottom() + space;
-        }
-
-        // 6. Set total height
         setSize (getWidth(), curY + 15);
     }
 

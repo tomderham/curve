@@ -77,6 +77,112 @@ std::unique_ptr<MacOSSleepWakeNotifierBase> createMacOSSleepWakeNotifier (std::f
     return std::make_unique<MacOSSleepWakeNotifier> (std::move (callback));
 }
 
+//==============================================================================
+// Follow mode: macOS's current output device, named the way JUCE names it.
+static int getDeviceChannelCount (AudioObjectID devID, bool isInput)
+{
+    AudioObjectPropertyAddress prop = { kAudioDevicePropertyStreamConfiguration,
+                                        isInput ? kAudioDevicePropertyScopeInput : kAudioDevicePropertyScopeOutput,
+                                        kAudioObjectPropertyElementMain };
+    UInt32 size = 0;
+    if (AudioObjectGetPropertyDataSize (devID, &prop, 0, NULL, &size) != noErr || size == 0)
+        return 0;
+
+    std::vector<std::byte> storage (size);
+    auto* bufferList = reinterpret_cast<AudioBufferList*> (storage.data());
+    if (AudioObjectGetPropertyData (devID, &prop, 0, NULL, &size, bufferList) != noErr)
+        return 0;
+
+    int total = 0;
+    for (UInt32 i = 0; i < bufferList->mNumberBuffers; ++i)
+        total += (int) bufferList->mBuffers[i].mNumberChannels;
+    return total;
+}
+
+juce::String getMacOSDefaultOutputDeviceName()
+{
+    AudioObjectPropertyAddress defaultProp = { kAudioHardwarePropertyDefaultOutputDevice, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
+    AudioObjectID defaultID = kAudioObjectUnknown;
+    UInt32 defaultSize = sizeof (defaultID);
+    if (AudioObjectGetPropertyData (kAudioObjectSystemObject, &defaultProp, 0, NULL, &defaultSize, &defaultID) != noErr
+        || defaultID == kAudioObjectUnknown)
+        return {};
+
+    AudioObjectPropertyAddress devicesProp = { kAudioHardwarePropertyDevices, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
+    UInt32 dataSize = 0;
+    if (AudioObjectGetPropertyDataSize (kAudioObjectSystemObject, &devicesProp, 0, NULL, &dataSize) != noErr || dataSize == 0)
+        return {};
+
+    std::vector<AudioObjectID> devIDs (dataSize / sizeof (AudioObjectID));
+    if (AudioObjectGetPropertyData (kAudioObjectSystemObject, &devicesProp, 0, NULL, &dataSize, devIDs.data()) != noErr)
+        return {};
+
+    // Same list, order and duplicate numbering as JUCE's CoreAudioIODeviceType::scanForDevices(),
+    // so two devices with the same name map to the same "Name (2)" JUCE shows
+    juce::StringArray names;
+    int defaultIndex = -1;
+
+    for (auto devID : devIDs)
+    {
+        if (getDeviceChannelCount (devID, false) <= 0)
+            continue;
+
+        AudioObjectPropertyAddress nameProp = { kAudioDevicePropertyDeviceNameCFString, kAudioObjectPropertyScopeWildcard, kAudioObjectPropertyElementMain };
+        CFStringRef cfName = NULL;
+        UInt32 nameSize = sizeof (cfName);
+        if (AudioObjectGetPropertyData (devID, &nameProp, 0, NULL, &nameSize, &cfName) != noErr || cfName == NULL)
+            continue;
+
+        if (devID == defaultID)
+            defaultIndex = names.size();
+
+        names.add (juce::String::fromCFString (cfName));
+        CFRelease (cfName);
+    }
+
+    if (defaultIndex < 0)
+        return {};
+
+    names.appendNumbersToDuplicates (false, true);
+    return names[defaultIndex];
+}
+
+class MacOSDefaultOutputChangeNotifier final : public MacOSDefaultOutputChangeNotifierBase
+{
+public:
+    explicit MacOSDefaultOutputChangeNotifier (std::function<void()> callbackIn)
+        : callback (std::make_shared<std::function<void()>> (std::move (callbackIn)))
+    {
+        // The block owns a reference, so a notification already queued when this is destroyed is harmless
+        auto cb = callback;
+        // Copied explicitly: Curve is built without ARC
+        listenerBlock = Block_copy (^(UInt32, const AudioObjectPropertyAddress*) {
+            if (*cb)
+                (*cb)();
+        });
+
+        AudioObjectAddPropertyListenerBlock (kAudioObjectSystemObject, &address, dispatch_get_main_queue(), listenerBlock);
+    }
+
+    ~MacOSDefaultOutputChangeNotifier() override
+    {
+        AudioObjectRemovePropertyListenerBlock (kAudioObjectSystemObject, &address, dispatch_get_main_queue(), listenerBlock);
+        Block_release (listenerBlock);
+    }
+
+private:
+    std::shared_ptr<std::function<void()>> callback;
+    AudioObjectPropertyListenerBlock listenerBlock = nil;
+    AudioObjectPropertyAddress address { kAudioHardwarePropertyDefaultOutputDevice,
+                                         kAudioObjectPropertyScopeGlobal,
+                                         kAudioObjectPropertyElementMain };
+};
+
+std::unique_ptr<MacOSDefaultOutputChangeNotifierBase> createMacOSDefaultOutputChangeNotifier (std::function<void()> callback)
+{
+    return std::make_unique<MacOSDefaultOutputChangeNotifier> (std::move (callback));
+}
+
 using namespace juce;
 
 juce::PropertiesFile* getUserSettings();

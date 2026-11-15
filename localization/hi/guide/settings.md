@@ -6,7 +6,6 @@ Curve के मेनू से Settings खोलें।
 |---|---|---|
 | Audio Settings | ऑडियो और MIDI डिवाइस चुनें। [ऑडियो सेटिंग्स और डिवाइस](audio-settings.md) देखें। | |
 | Plug-in Manager | प्लग-इन स्कैन और मैनेज करें। [शुरुआत करना](getting-started.md) देखें। | |
-| Force macOS System Audio to loopback | macOS के सिस्टम आउटपुट को Curve में चुने गए इंटरफ़ेस पर बनाए रखता है। [लूपबैक](loopback.md) देखें। | चालू |
 | Prevent macOS from automatically sleeping | Curve का ऑडियो चलते समय आपके Mac को निष्क्रियता के कारण स्लीप में जाने से रोकता है। | बंद |
 | Release audio interface when idle | 5 सेकंड की खामोशी के बाद इंटरफ़ेस छोड़ देता है, जिससे AirPods की ऑटोमैटिक स्विचिंग संभव होती है। [ऑडियो सेटिंग्स](audio-settings.md) देखें। | बंद |
 | Check for Updates... | अभी नए वर्शन की जाँच करता है। | |

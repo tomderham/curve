@@ -41,7 +41,7 @@ Curve 不会自动存储更改。请使用 Save As Preset... 并替换现有预�
 
 - 检查 Settings > Volume Keys 是否未设为 Off。
 - 如果菜单显示 Allow Accessibility Access...，请选择它，并在“辅助功能”中打开 Curve。如果 Curve 已经打开，请先关闭再重新打开。
-- 使用 When macOS Can't Control the Interface's Volume 时，如果 macOS 能设置 Curve 所用声道的音量，或者 macOS 的输出不是 Curve 的输出接口，按键会由 macOS 处理。请打开 Force macOS System Audio to loopback，或选择 Always。请参阅[键盘快捷键](keyboard-shortcuts.md)。
+- 使用 When macOS Can't Control the Interface's Volume 时，如果 macOS 能设置 Curve 所用声道的音量，或者 macOS 的输出不是 Curve 的输出接口，按键会由 macOS 处理。请在 Audio Settings 中打开 Force macOS system output to this interface，或选择 Always。请参阅[键盘快捷键](keyboard-shortcuts.md)。
 - 使用 Control Interface Loopback Volume 时，只有当预设中有已连接的 Interface Loopback (In) 节点时，Curve 才会处理按键。请参阅[环回](loopback.md)。
 
 ## Curve 对我的 MIDI 控制器没有响应

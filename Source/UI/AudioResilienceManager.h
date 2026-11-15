@@ -14,6 +14,7 @@
 #pragma once
 #include <JuceHeader.h>
 #include <functional>
+#include <map>
 
 juce::PropertiesFile* getUserSettings();
 
@@ -24,6 +25,16 @@ struct MacOSSleepWakeNotifierBase
     virtual ~MacOSSleepWakeNotifierBase() = default;
 };
 std::unique_ptr<MacOSSleepWakeNotifierBase> createMacOSSleepWakeNotifier (std::function<void(bool)> callback);
+
+/** macOS's current output device, named as JUCE's CoreAudio device list names it. Empty if unknown. */
+juce::String getMacOSDefaultOutputDeviceName();
+
+struct MacOSDefaultOutputChangeNotifierBase
+{
+    virtual ~MacOSDefaultOutputChangeNotifierBase() = default;
+};
+/** Calls back on the message thread whenever macOS's output device changes. */
+std::unique_ptr<MacOSDefaultOutputChangeNotifierBase> createMacOSDefaultOutputChangeNotifier (std::function<void()> callback);
 
 class AudioResilienceManager : private juce::MultiTimer,
                                private juce::ChangeListener
@@ -83,7 +94,122 @@ public:
             }
         });
 
+        defaultOutputNotifier = createMacOSDefaultOutputChangeNotifier ([this, aliveToken]
+        {
+            if (! aliveToken->load (std::memory_order_acquire))
+                return;
+
+            // Follow mode: switch soon after macOS does, rather than at the next health check
+            if (isFollowingSystemOutput() && isWarmedUp && ! isSuspended && ! isIdleReleased)
+                startTimer (timerDebouncedResilience, 200);
+        });
+
         startTimer (timerPeriodicHealthCheck, 5000);
+    }
+
+    //==============================================================================
+    // Follow mode ("Use output interface selected in macOS"): Curve's output device is whatever
+    // macOS outputs to. The followed device is written into audioDeviceState like any other choice,
+    // so turning follow mode off keeps the current device.
+    static bool isFollowingSystemOutput()
+    {
+        if (auto* settings = getUserSettings())
+            return settings->getBoolValue ("followSystemOutput", false);
+        return false;
+    }
+
+    /** Whether "Force macOS system output to this interface" applies: never while following, since macOS's output
+        is already Curve's output. */
+    static bool shouldForceSystemOutput()
+    {
+        if (isFollowingSystemOutput())
+            return false;
+        if (auto* settings = getUserSettings())
+            return settings->getBoolValue ("autoSyncSystemOutput", true);
+        return true;
+    }
+
+    /** Sample rate, buffer size and active outputs last used on each output device, so following
+        macOS from a 96 kHz interface to 44.1 kHz speakers and back returns the interface to 96 kHz
+        and the outputs that were enabled on it. 0 / empty for a device Curve hasn't used. */
+    struct DeviceSettings
+    {
+        double sampleRate = 0.0;
+        int bufferSize = 0;
+        juce::BigInteger outputChannels;
+
+        bool matches (const DeviceSettings& other) const
+        {
+            return std::abs (sampleRate - other.sampleRate) < 0.001
+                && bufferSize == other.bufferSize
+                && outputChannels == other.outputChannels;
+        }
+
+        static DeviceSettings of (juce::AudioIODevice& device)
+        {
+            return { device.getCurrentSampleRate(), device.getCurrentBufferSizeSamples(), device.getActiveOutputChannels() };
+        }
+    };
+
+    static std::map<juce::String, DeviceSettings> getAllRememberedDeviceSettings()
+    {
+        std::map<juce::String, DeviceSettings> result;
+        if (auto* settings = getUserSettings())
+            if (auto xml = settings->getXmlValue ("outputDeviceSettings"))
+                for (auto* e : xml->getChildWithTagNameIterator ("DEVICE"))
+                {
+                    DeviceSettings d { e->getDoubleAttribute ("rate"), e->getIntAttribute ("bufferSize"), {} };
+                    d.outputChannels.parseString (e->getStringAttribute ("outputChannels"), 2);
+                    result[e->getStringAttribute ("name")] = d;
+                }
+        return result;
+    }
+
+    static DeviceSettings getRememberedDeviceSettings (const juce::String& deviceName)
+    {
+        auto all = getAllRememberedDeviceSettings();
+        auto it = all.find (deviceName);
+        return it != all.end() ? it->second : DeviceSettings {};
+    }
+
+    static void rememberDeviceSettings (juce::AudioIODevice* device)
+    {
+        if (device == nullptr || ! device->isPlaying() || device->getName().isEmpty())
+            return;
+
+        const auto current = DeviceSettings::of (*device);
+        if (getRememberedDeviceSettings (device->getName()).matches (current))
+            return;
+
+        auto* settings = getUserSettings();
+        if (settings == nullptr)
+            return;
+
+        auto xml = settings->getXmlValue ("outputDeviceSettings");
+        if (xml == nullptr)
+            xml = std::make_unique<juce::XmlElement> ("OUTPUTDEVICESETTINGS");
+
+        auto* entry = xml->getChildByAttribute ("name", device->getName());
+        if (entry == nullptr)
+        {
+            entry = xml->createNewChildElement ("DEVICE");
+            entry->setAttribute ("name", device->getName());
+        }
+
+        entry->setAttribute ("rate", current.sampleRate);
+        entry->setAttribute ("bufferSize", current.bufferSize);
+        entry->setAttribute ("outputChannels", current.outputChannels.toString (2));
+        settings->setValue ("outputDeviceSettings", xml.get());
+        settings->saveIfNeeded();
+    }
+
+    /** The device follow mode should use: macOS's output, unless that's one of Curve's own devices. */
+    static juce::String getFollowedOutputDeviceName()
+    {
+        auto name = getMacOSDefaultOutputDeviceName();
+        if (name.containsIgnoreCase ("Curve Loopback"))
+            return {};
+        return name;
     }
 
     ~AudioResilienceManager() override
@@ -91,6 +217,7 @@ public:
         if (isAlive)
             isAlive->store (false, std::memory_order_release);
         sleepWakeNotifier.reset();
+        defaultOutputNotifier.reset();
         stopTimer (timerPeriodicHealthCheck);
         stopTimer (timerDebouncedResilience);
         stopTimer (timerWakeRecovery);
@@ -136,6 +263,13 @@ public:
 
         isIdleReleased = false;
         consecutiveEnforceFailures = 0;
+
+        // Following, and macOS changed output while released: open the new device instead
+        if (resolveFollowedTarget())
+        {
+            enforceConfiguration (cachedAudioState.get(), true /* forceTapReinit */);
+            return;
+        }
 
         // Reopen exactly the setup that was running before the release (including its active
         // channels). Re-initialising from the saved XML instead would enable all input channels
@@ -260,11 +394,93 @@ public:
                 }
             }
         }
+
+        resolveFollowedTarget();
+    }
+
+    /** In follow mode, retargets to macOS's current output device if it has changed and JUCE
+        can see it. Returns true if the target changed. */
+    bool resolveFollowedTarget()
+    {
+        if (! isFollowingSystemOutput())
+            return false;
+
+        auto name = getFollowedOutputDeviceName();
+        bool outputChanged = name.isNotEmpty() && name != targetOutputDeviceName;
+
+        // JUCE rescans on hardware changes itself; scan here only if the new device isn't listed yet
+        if (outputChanged && ! isDeviceAvailable (name, false, false))
+        {
+            scanDevices();
+            if (! isDeviceAvailable (name, false, false))
+                outputChanged = false; // not enumerated yet; the next pass tries again
+        }
+
+        // An input on a device that's gone (typically the interface just left) would stop
+        // the followed output opening at all
+        bool inputDropped = targetInputDeviceName.isNotEmpty() && ! isDeviceAvailable (targetInputDeviceName, true, false);
+
+        if (! outputChanged && ! inputDropped)
+            return false;
+
+        if (cachedAudioState == nullptr)
+            cachedAudioState = deviceManager.createStateXml();
+        if (cachedAudioState == nullptr)
+            cachedAudioState = std::make_unique<juce::XmlElement> ("DEVICESETUP");
+
+        if (outputChanged)
+        {
+            cachedAudioState->setAttribute ("audioOutputDeviceName", name);
+            targetOutputDeviceName = name;
+
+            // The old device's settings would otherwise carry over to this one. With nothing
+            // remembered, leave them out: JUCE then keeps the hardware's current rate and opens
+            // all outputs.
+            const auto remembered = getRememberedDeviceSettings (name);
+            if (! remembered.outputChannels.isZero())
+                cachedAudioState->setAttribute ("audioDeviceOutChans", remembered.outputChannels.toString (2));
+            else
+                cachedAudioState->removeAttribute ("audioDeviceOutChans");
+
+            targetSampleRate = remembered.sampleRate;
+            followedRateToApply = remembered.sampleRate;
+            if (remembered.sampleRate > 0.0)
+                cachedAudioState->setAttribute ("audioDeviceRate", remembered.sampleRate);
+            else
+                cachedAudioState->removeAttribute ("audioDeviceRate");
+
+            targetBufferSize = remembered.bufferSize;
+            if (remembered.bufferSize > 0)
+                cachedAudioState->setAttribute ("audioDeviceBufferSize", remembered.bufferSize);
+            else
+                cachedAudioState->removeAttribute ("audioDeviceBufferSize");
+        }
+
+        if (inputDropped)
+        {
+            cachedAudioState->removeAttribute ("audioInputDeviceName");
+            cachedAudioState->removeAttribute ("audioDeviceInChans");
+            targetInputDeviceName = {};
+        }
+
+        consecutiveEnforceFailures = 0;
+
+        if (auto* settings = getUserSettings())
+        {
+            settings->setValue ("audioDeviceState", cachedAudioState.get());
+            settings->saveIfNeeded();
+        }
+
+        return true;
     }
 
     // callback when an audio config change occurs
     void changeListenerCallback(juce::ChangeBroadcaster*) override
     {
+        // Before the early return: also records changes made in Audio Settings, which suspends this
+        if (! isRestarting)
+            rememberDeviceSettings (deviceManager.getCurrentAudioDevice());
+
         if (isRestarting || isSuspended || isIdleReleased) return;
 
         // Update baseline device properties immediately
@@ -305,6 +521,10 @@ public:
         {
             stopTimer (timerDebouncedResilience);
             forceNullDevice();
+
+            // Following: macOS may not have picked its next output yet. Look again shortly.
+            if (isFollowingSystemOutput())
+                startTimer (timerDebouncedResilience, 500);
             return;
         }
 
@@ -336,6 +556,7 @@ public:
 
         if (timerId == timerWakeRecovery)
         {
+            resolveFollowedTarget();
             scanDevices();
             bool isPresent = isDeviceAvailable (targetOutputDeviceName, false, false)
                           && isDeviceAvailable (targetInputDeviceName, true, false);
@@ -422,6 +643,8 @@ public:
         if (wokeFromSleep)
             consecutiveEnforceFailures = 0;
 
+        resolveFollowedTarget();
+
         // Use cached settings to avoid parsing XML on every tick
         bool isTargetDeviceSaved = targetOutputDeviceName.isNotEmpty();
         if (!isTargetDeviceSaved || cachedAudioState == nullptr)
@@ -434,11 +657,7 @@ public:
             disconnectedCheckCount = 0;
             consecutiveEnforceFailures = 0;
 
-            bool autoSync = true;
-            if (auto* settings = getUserSettings())
-                autoSync = settings->getBoolValue ("autoSyncSystemOutput", true);
-
-            if (autoSync)
+            if (shouldForceSystemOutput())
                 OutputInterfaceLoopbackNode::syncSystemOutputDevice (targetOutputDeviceName);
 
             if (OutputInterfaceLoopbackNode::isAnyTapActiveInGraph())
@@ -547,6 +766,7 @@ private:
     juce::uint32 wakeRecoveryStartTimeMs = 0;
     std::shared_ptr<std::atomic<bool>> isAlive = std::make_shared<std::atomic<bool>> (true);
     std::unique_ptr<MacOSSleepWakeNotifierBase> sleepWakeNotifier;
+    std::unique_ptr<MacOSDefaultOutputChangeNotifierBase> defaultOutputNotifier;
     int disconnectedCheckCount = 0;
     int consecutiveEnforceFailures = 0;
     juce::uint32 lastEnforceFailureTime = 0;
@@ -561,6 +781,7 @@ private:
     double targetSampleRate = 0.0;
     int targetBufferSize = 0;
     bool alwaysEnforceSampleRate = false;
+    double followedRateToApply = 0.0;
     std::unique_ptr<juce::XmlElement> cachedAudioState;
 
     void scanDevices()
@@ -594,10 +815,14 @@ private:
 
         if (savedState != nullptr)
         {
-            if (alwaysEnforceSampleRate && targetSampleRate > 0.0)
+            if (followedRateToApply > 0.0)
+                savedState->setAttribute ("audioDeviceRate", followedRateToApply); // once, on a follow switch
+            else if (alwaysEnforceSampleRate && targetSampleRate > 0.0)
                 savedState->setAttribute ("audioDeviceRate", targetSampleRate);
             else if (! alwaysEnforceSampleRate)
                 savedState->removeAttribute ("audioDeviceRate");
+
+            followedRateToApply = 0.0;
 
             if (targetBufferSize > 0)
                 savedState->setAttribute ("audioDeviceBufferSize", targetBufferSize);

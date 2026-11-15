@@ -14,7 +14,7 @@
 
 ## 모든 시스템 오디오를 Curve로 보내기
 
-Settings 메뉴의 **Force macOS System Audio to loopback**은 기본적으로 켜져 있습니다. 이 옵션은 macOS의 시스템 출력을 Curve에서 선택한 인터페이스로 유지합니다. 시스템 출력을 직접 선택하려면 끄십시오.
+[Audio Settings](audio-settings.md)의 **Force macOS system output to this interface**는 기본적으로 켜져 있습니다. 이 옵션은 macOS의 시스템 출력을 Curve에서 선택한 인터페이스로 유지합니다. 시스템 출력을 직접 선택하려면 끄십시오. macOS에서 선택한 출력을 Curve가 따르게 하려면 대신 Use output interface selected in macOS를 켜십시오.
 
 ## 오디오 인터페이스의 자체 루프백 사용
 

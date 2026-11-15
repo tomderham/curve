@@ -14,7 +14,7 @@ Le nœud reçoit, au bit près, l’audio qui serait sinon allé directement à 
 
 ## Envoyer tout l’audio du système vers Curve
 
-**Force macOS System Audio to loopback** dans le menu Settings est activé par défaut. Cette option maintient la sortie système de macOS sur l’interface sélectionnée dans Curve. Désactivez-la si vous voulez choisir vous-même la sortie système.
+**Force macOS system output to this interface** dans [Audio Settings](audio-settings.md) est activé par défaut. Cette option maintient la sortie système de macOS sur l’interface sélectionnée dans Curve. Désactivez-la si vous voulez choisir vous-même la sortie système. Si vous préférez que Curve suive la sortie choisie dans macOS, activez plutôt Use output interface selected in macOS.
 
 ## Utiliser le loopback de votre interface audio
 

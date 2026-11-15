@@ -8,6 +8,18 @@ Selecciona una interfaz de salida y, si tu preset la usa, una interfaz de entrad
 
 Si usas el [nodo Interface Loopback (In)](loopback.md) de Curve, no necesitas una interfaz de entrada.
 
+Curve recuerda la frecuencia de muestreo, el tamaño de búfer y los canales de salida activados de cada interfaz de salida, y los restablece cuando vuelves a ella.
+
+## Seguir la salida de macOS
+
+Activa **Use output interface selected in macOS** para que macOS elija la salida de Curve. Cuando eliges una salida en Ajustes del Sistema, el Centro de control o la barra de menús, Curve traslada su procesamiento a ella en aproximadamente un segundo. Si esa interfaz se desconecta, Curve pasa a la salida que macOS use a continuación. El menú Output de Curve aparece atenuado mientras esta opción está activada.
+
+Las conexiones de tu preset a salidas que la nueva interfaz no tiene se conservan, pero quedan en silencio hasta que vuelvas a una interfaz que las tenga. Una corrección pensada para una interfaz, como el EQ para unos auriculares concretos, se aplica a cualquier salida a la que cambie macOS.
+
+## Mantener macOS en la interfaz de Curve
+
+**Force macOS system output to this interface** está activado por defecto. Mantiene la salida del sistema de macOS en la interfaz de salida de Curve, para que el [nodo Interface Loopback (In)](loopback.md) reciba todo el audio del sistema. Desactívalo si quieres elegir tú mismo la salida del sistema. Aparece atenuado mientras Use output interface selected in macOS está activado, porque entonces la salida de macOS siempre es la de Curve.
+
 ## Frecuencia de muestreo y tamaño de búfer
 
 Aquí se seleccionan la frecuencia de muestreo y el tamaño de búfer. Un búfer más pequeño significa menos latencia, pero supone más carga para el Mac y puede provocar cortes.
@@ -22,7 +34,7 @@ Activa las entradas y la salida MIDI que quieras usar. Usa un nodo MIDI Input o 
 
 Curve se encarga de los cambios de dispositivo más habituales:
 
-- Se mantiene en la interfaz que seleccionaste. Si esa interfaz se desconecta, Curve queda en silencio en lugar de pasar a otra salida, como los altavoces del Mac.
+- Se mantiene en la interfaz que seleccionaste, salvo que Use output interface selected in macOS esté activado. Si esa interfaz se desconecta, Curve queda en silencio en lugar de pasar a otra salida, como los altavoces del Mac.
 - Se reconecta y restablece el audio cuando la interfaz vuelve.
 - Reinicia el audio cuando el Mac sale del reposo.
 

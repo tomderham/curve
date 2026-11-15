@@ -385,7 +385,7 @@ bypassed (audio passes straight through it with no processing).
             "--rate exactly.",
             "- Confirm Curve's OUTPUT device specifically is set to your loopback "
             "device (Curve's Input device setting is not used by the tap or by "
-            "\"Force macOS System Audio to loopback\" at all -- only Output matters).",
+            "\"Force macOS system output to this interface\" at all -- only Output matters).",
         ]
         if not args.selftest:
             bullets.insert(0, "- Run with --selftest to check whether the recording "

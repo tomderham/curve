@@ -8,6 +8,18 @@ Settings > Audio Settings를 선택하여 오디오 및 MIDI 기기를 선택합
 
 Curve의 [Interface Loopback (In) 노드](loopback.md)를 사용하는 경우에는 입력 인터페이스가 필요하지 않습니다.
 
+Curve는 출력 인터페이스마다 샘플레이트, 버퍼 크기, 활성화된 출력 채널을 기억하고, 해당 인터페이스로 다시 전환하면 이를 복원합니다.
+
+## macOS 출력 따르기
+
+**Use output interface selected in macOS**를 켜면 macOS에서 Curve의 출력을 선택할 수 있습니다. 시스템 설정, 제어 센터 또는 메뉴 막대에서 출력을 선택하면 Curve가 약 1초 안에 처리를 해당 출력으로 옮깁니다. 해당 인터페이스의 연결이 끊어지면 Curve는 macOS가 다음으로 사용하는 출력으로 이동합니다. 이 옵션이 켜져 있는 동안 Curve의 Output 메뉴는 회색으로 표시됩니다.
+
+새 인터페이스에 없는 출력에 대한 프리셋의 연결은 유지되지만, 해당 출력이 있는 인터페이스로 다시 전환할 때까지 무음입니다. 특정 헤드폰용 EQ처럼 하나의 인터페이스를 위한 보정은 macOS가 전환하는 모든 출력에 적용됩니다.
+
+## macOS를 Curve의 인터페이스에 유지
+
+**Force macOS system output to this interface**는 기본적으로 켜져 있습니다. 이 옵션은 macOS의 시스템 출력을 Curve의 출력 인터페이스로 유지하므로 [Interface Loopback (In) 노드](loopback.md)가 모든 시스템 오디오를 받습니다. 시스템 출력을 직접 선택하려면 끄십시오. Use output interface selected in macOS가 켜져 있는 동안에는 macOS의 출력이 항상 Curve의 출력이므로 회색으로 표시됩니다.
+
 ## 샘플레이트 및 버퍼 크기
 
 여기에서 샘플레이트와 버퍼 크기를 선택합니다. 버퍼가 작을수록 지연 시간은 줄어들지만 Mac의 부하가 커지고 소리가 끊길 수 있습니다.
@@ -22,7 +34,7 @@ Curve의 [Interface Loopback (In) 노드](loopback.md)를 사용하는 경우에
 
 Curve는 일반적인 기기 변경을 자동으로 처리합니다.
 
-- 선택한 인터페이스를 계속 사용합니다. 해당 인터페이스의 연결이 끊어지면 Mac 스피커와 같은 다른 출력으로 전환하지 않고 무음 상태가 됩니다.
+- Use output interface selected in macOS가 켜져 있지 않으면 선택한 인터페이스를 계속 사용합니다. 해당 인터페이스의 연결이 끊어지면 Mac 스피커와 같은 다른 출력으로 전환하지 않고 무음 상태가 됩니다.
 - 인터페이스가 다시 연결되면 재연결하고 오디오를 복원합니다.
 - Mac이 잠자기에서 깨어나면 오디오를 다시 시작합니다.
 

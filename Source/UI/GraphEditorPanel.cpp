@@ -2258,11 +2258,7 @@ void GraphDocumentComponent::propagateDeviceSettingsToNodes()
             OutputInterfaceLoopbackNode::teardownTap();
         }
 
-        bool autoSync = true;
-        if (auto* settings = getAppProperties().getUserSettings())
-            autoSync = settings->getBoolValue ("autoSyncSystemOutput", true);
-
-        if (autoSync)
+        if (AudioResilienceManager::shouldForceSystemOutput())
             OutputInterfaceLoopbackNode::syncSystemOutputDevice (currentDeviceName);
 
         // After the sync, so automatic mode compares against macOS's new output, not the old one

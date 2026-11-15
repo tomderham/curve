@@ -564,6 +564,33 @@ MainHostWindow::MainHostWindow()
     }
 
     auto savedState = getAppProperties().getUserSettings()->getXmlValue ("audioDeviceState");
+    // Follow mode: start on macOS's current output rather than the one used last time
+    if (savedState != nullptr && AudioResilienceManager::isFollowingSystemOutput())
+    {
+        auto followedName = AudioResilienceManager::getFollowedOutputDeviceName();
+        if (followedName.isNotEmpty() && followedName != savedState->getStringAttribute ("audioOutputDeviceName"))
+        {
+            savedState->setAttribute ("audioOutputDeviceName", followedName);
+
+            // That device's own settings, not the previous device's
+            const auto remembered = AudioResilienceManager::getRememberedDeviceSettings (followedName);
+            if (remembered.outputChannels.isZero())
+                savedState->removeAttribute ("audioDeviceOutChans");
+            else
+                savedState->setAttribute ("audioDeviceOutChans", remembered.outputChannels.toString (2));
+
+            if (remembered.sampleRate > 0.0)
+                savedState->setAttribute ("audioDeviceRate", remembered.sampleRate);
+            else
+                savedState->removeAttribute ("audioDeviceRate");
+
+            if (remembered.bufferSize > 0)
+                savedState->setAttribute ("audioDeviceBufferSize", remembered.bufferSize);
+            else
+                savedState->removeAttribute ("audioDeviceBufferSize");
+        }
+    }
+
     if (savedState != nullptr && savedState->getStringAttribute ("audioOutputDeviceName").isNotEmpty())
     {
         juce::String inputDeviceName = savedState->getStringAttribute ("audioInputDeviceName");

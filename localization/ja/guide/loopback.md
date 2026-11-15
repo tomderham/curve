@@ -14,7 +14,7 @@
 
 ## すべてのシステムオーディオをCurveに送る
 
-Settingsメニューの**Force macOS System Audio to loopback**は、デフォルトでオンです。これにより、macOSのシステム出力がCurveで選択したインターフェイスに保たれます。システム出力を自分で選びたい場合はオフにします。
+[Audio Settings](audio-settings.md)の**Force macOS system output to this interface**は、デフォルトでオンです。これにより、macOSのシステム出力がCurveで選択したインターフェイスに保たれます。システム出力を自分で選びたい場合はオフにします。macOSで選んだ出力にCurveを従わせたい場合は、代わりにUse output interface selected in macOSをオンにします。
 
 ## オーディオインターフェイスのループバックを使用する
 

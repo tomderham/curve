@@ -14,7 +14,7 @@
 
 ## पूरा सिस्टम ऑडियो Curve को भेजें
 
-Settings मेनू में **Force macOS System Audio to loopback** डिफ़ॉल्ट रूप से चालू है। यह macOS के सिस्टम आउटपुट को Curve में चुने गए इंटरफ़ेस पर बनाए रखता है। यदि आप सिस्टम आउटपुट खुद चुनना चाहते हैं, तो इसे बंद करें।
+[Audio Settings](audio-settings.md) में **Force macOS system output to this interface** डिफ़ॉल्ट रूप से चालू है। यह macOS के सिस्टम आउटपुट को Curve में चुने गए इंटरफ़ेस पर बनाए रखता है। यदि आप सिस्टम आउटपुट खुद चुनना चाहते हैं, तो इसे बंद करें। यदि आप चाहते हैं कि Curve macOS में चुने गए आउटपुट का पालन करे, तो इसके बजाय Use output interface selected in macOS चालू करें।
 
 ## अपने ऑडियो इंटरफ़ेस के लूपबैक का उपयोग करें
 

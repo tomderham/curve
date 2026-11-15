@@ -6,7 +6,6 @@ Abre Settings desde el menú de Curve.
 |---|---|---|
 | Audio Settings | Elegir dispositivos de audio y MIDI. Consulta [Ajustes de audio y dispositivos](audio-settings.md). | |
 | Plug-in Manager | Buscar y gestionar plug-ins. Consulta [Primeros pasos](getting-started.md). | |
-| Force macOS System Audio to loopback | Mantiene la salida del sistema de macOS en la interfaz seleccionada en Curve. Consulta [Loopback](loopback.md). | Activado |
 | Prevent macOS from automatically sleeping | Impide que el Mac entre en reposo mientras el audio de Curve está en marcha. | Desactivado |
 | Release audio interface when idle | Libera la interfaz tras 5 segundos de silencio, lo que permite el cambio automático de los AirPods. Consulta [Ajustes de audio](audio-settings.md). | Desactivado |
 | Check for Updates... | Busca una nueva versión ahora. | |

@@ -41,7 +41,7 @@ Activa Settings > Release audio interface when idle. Consulta [Ajustes de audio 
 
 - Comprueba que Settings > Volume Keys no esté en Off.
 - Si el menú muestra Allow Accessibility Access..., selecciónalo y activa Curve en Accesibilidad. Si Curve ya está activado allí, desactívalo y vuelve a activarlo.
-- Con When macOS Can't Control the Interface's Volume, macOS conserva las teclas si puede ajustar el volumen de los canales por los que suena Curve, o si la salida de macOS no es la interfaz de salida de Curve. Activa Force macOS System Audio to loopback o selecciona Always. Consulta [Atajos de teclado](keyboard-shortcuts.md).
+- Con When macOS Can't Control the Interface's Volume, macOS conserva las teclas si puede ajustar el volumen de los canales por los que suena Curve, o si la salida de macOS no es la interfaz de salida de Curve. Activa Force macOS system output to this interface en Audio Settings o selecciona Always. Consulta [Atajos de teclado](keyboard-shortcuts.md).
 - Con Control Interface Loopback Volume, Curve toma las teclas solo mientras el preset tiene un nodo Interface Loopback (In) conectado. Consulta [Loopback](loopback.md).
 
 ## Curve no responde a mi controlador MIDI
