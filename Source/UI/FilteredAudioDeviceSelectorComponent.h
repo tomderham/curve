@@ -98,7 +98,7 @@ public:
         followWarning.setColour (juce::Label::textColourId,
                                  getLookAndFeel().findColour (juce::Label::textColourId).withAlpha (0.7f));
 
-        defaultPresetsButton.setButtonText ("Default Presets...");
+        defaultPresetsButton.setButtonText ("Default Presets for each output interface...");
         defaultPresetsButton.setTooltip ("Choose a preset for Curve to load when macOS switches to each interface.");
         defaultPresetsButton.onClick = [this] { showDefaultPresets(); };
 
@@ -119,13 +119,21 @@ public:
         // Picking a device returns it to the rate and buffer size it last used, as follow mode does
         rememberedSettings = AudioResilienceManager::getAllRememberedDeviceSettings();
         if (auto* device = deviceManager.getCurrentAudioDevice())
-            lastDeviceName = device->getName();
+            lastDeviceName = deviceNameAtOpen = device->getName();
         deviceWatcher.onChange = [this] { handleDeviceChange(); };
         deviceManager.addChangeListener (&deviceWatcher);
 
+        // The resilience manager is suspended while this is open, so follow macOS from here
+        juce::Component::SafePointer<FilteredAudioDeviceSelectorComponent> safeThis (this);
+        defaultOutputNotifier = createMacOSDefaultOutputChangeNotifier ([safeThis]
+        {
+            if (safeThis != nullptr && safeThis->followToggle.getToggleState())
+                safeThis->switchToFollowedDevice();
+        });
+
         addAndMakeVisible (followToggle);
         addChildComponent (followWarning);
-        addAndMakeVisible (defaultPresetsButton);
+        addChildComponent (defaultPresetsButton);
         addAndMakeVisible (forceToggle);
         updateFollowControls();
 
@@ -135,11 +143,18 @@ public:
 
     ~FilteredAudioDeviceSelectorComponent() override
     {
+        defaultOutputNotifier.reset();
         deviceManager.removeChangeListener (&deviceWatcher);
         stopTimer();
 
         // JUCE's panel owns these, so hand them back before it deletes them
         returnAdoptedControls();
+
+        // Followed onto another interface while open: load its default preset now, once Audio
+        // Settings has saved the new device (the preset's channels are sized from it) and closed
+        // (so plug-in windows the preset opens don't appear over it)
+        if (followedDeviceToLoadPresetFor.isNotEmpty() && followedDeviceToLoadPresetFor != deviceNameAtOpen)
+            juce::MessageManager::callAsync ([name = followedDeviceToLoadPresetFor] { loadDefaultPresetForOutputDevice (name); });
     }
 
     void timerCallback() override
@@ -150,12 +165,6 @@ public:
         if (isLayoutStale())
             resized();
 
-        // The resilience manager is suspended while this is open, so follow macOS from here
-        if (followToggle.getToggleState() && ++followCheckTicks >= 5)
-        {
-            followCheckTicks = 0;
-            switchToFollowedDevice();
-        }
     }
 
     void resized() override
@@ -201,7 +210,7 @@ private:
         o.launchAsync();
     }
     juce::Label followWarning;
-    int followCheckTicks = 0;
+    std::unique_ptr<MacOSDefaultOutputChangeNotifierBase> defaultOutputNotifier;
 
     struct DeviceWatcher : juce::ChangeListener
     {
@@ -213,7 +222,8 @@ private:
     // Own copy while the dialog is open: JUCE first opens a newly picked device at the old
     // device's rate, and the resilience manager records that before it can be corrected here
     std::map<juce::String, AudioResilienceManager::DeviceSettings> rememberedSettings;
-    juce::String lastDeviceName;
+    juce::String lastDeviceName, deviceNameAtOpen, followedDeviceToLoadPresetFor;
+    juce::Component::SafePointer<juce::ComboBox> hookedOutputMenu;
 
     void handleDeviceChange()
     {
@@ -290,26 +300,67 @@ private:
     {
         const bool isFollowing = followToggle.getToggleState();
         forceToggle.setEnabled (! isFollowing);
-        defaultPresetsButton.setEnabled (isFollowing);
         followWarning.setVisible (isFollowing);
+        defaultPresetsButton.setVisible (isFollowing); // only used while following
 
         // JUCE can recreate the menu when the device changes, so this runs from the timer too
         if (auto* outputMenu = findOutputDeviceMenu (this))
+        {
             if (outputMenu->isEnabled() == isFollowing)
                 outputMenu->setEnabled (! isFollowing);
+
+            hookOutputMenu (dynamic_cast<juce::ComboBox*> (outputMenu));
+        }
+    }
+
+    // Picking a device in JUCE's Output menu would open it with the previous device's sample rate
+    // and buffer size. Open it with its own remembered settings instead, or the first time, with
+    // the hardware's current rate and all outputs, as follow mode does.
+    void hookOutputMenu (juce::ComboBox* outputMenu)
+    {
+        if (outputMenu == nullptr || outputMenu == hookedOutputMenu.getComponent())
+            return;
+
+        hookedOutputMenu = outputMenu;
+        auto juceHandler = outputMenu->onChange;
+
+        outputMenu->onChange = [this, outputMenu, juceHandler]
+        {
+            auto* type = deviceManager.getCurrentDeviceTypeObject();
+            const auto name = outputMenu->getText();
+
+            if (outputMenu->getSelectedId() > 0 && type != nullptr && type->getDeviceNames (false).contains (name))
+                switchOutputDevice (name);
+            else if (juceHandler)
+                juceHandler(); // e.g. "<< none >>"
+        };
     }
 
     void switchToFollowedDevice()
     {
         auto name = AudioResilienceManager::getFollowedOutputDeviceName();
+        if (name.isNotEmpty() && switchOutputDevice (name))
+            followedDeviceToLoadPresetFor = name;
+    }
+
+    static void showOpenError (const juce::String& error)
+    {
+        // As JUCE's own Output menu handler reports it
+        juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon,
+                                                TRANS ("Error when trying to open audio device!"), error);
+    }
+
+    /** Returns true if it switched. */
+    bool switchOutputDevice (const juce::String& name)
+    {
         auto* type = deviceManager.getCurrentDeviceTypeObject();
         if (name.isEmpty() || type == nullptr)
-            return;
+            return false;
 
         juce::AudioDeviceManager::AudioDeviceSetup setup;
         deviceManager.getAudioDeviceSetup (setup);
         if (setup.outputDeviceName == name || ! type->getDeviceNames (false).contains (name))
-            return;
+            return false;
 
         setup.outputDeviceName = name;
 
@@ -317,7 +368,8 @@ private:
         // remembered, the hardware's current rate (JUCE's choice for 0) and all outputs
         const auto it = rememberedSettings.find (name);
         const auto remembered = it != rememberedSettings.end() ? it->second : AudioResilienceManager::DeviceSettings {};
-        setup.sampleRate = remembered.sampleRate;
+        if (! (AudioResilienceManager::isSampleRateEnforcedSetting() && setup.sampleRate > 0.0))
+            setup.sampleRate = remembered.sampleRate; // else the enforced rate, kept on every interface
         setup.bufferSize = remembered.bufferSize;
         setup.outputChannels = remembered.outputChannels;
         setup.useDefaultOutputChannels = remembered.outputChannels.isZero();
@@ -328,8 +380,10 @@ private:
             setup.useDefaultInputChannels = true;
         }
 
-        if (deviceManager.setAudioDeviceSetup (setup, true).isEmpty())
-            loadDefaultPresetForOutputDevice (name);
+        const auto error = deviceManager.setAudioDeviceSetup (setup, true);
+        if (error.isNotEmpty())
+            showOpenError (error);
+        return error.isEmpty();
     }
 
     //==============================================================================
@@ -379,6 +433,10 @@ private:
             a.component->setBounds (a.boundsInPanel);
         }
         adopted.clear();
+
+        // Taken away while its controls were out of it (see layoutControls())
+        if (settingsPanel != nullptr)
+            settingsPanel->setInterceptsMouseClicks (true, true);
     }
 
     // JUCE also re-lays the panel by itself when the device changes, sometimes after this
@@ -418,9 +476,9 @@ private:
         }
 
         followToggle.setVisible (true);
-        defaultPresetsButton.setVisible (true);
         forceToggle.setVisible (true);
         followWarning.setVisible (followToggle.getToggleState());
+        defaultPresetsButton.setVisible (followToggle.getToggleState());
 
         const auto offset = panel->getPosition();
         const int outputRowTop = outputMenu->getY();
@@ -440,9 +498,12 @@ private:
             y = followWarning.getBottom() + 2;
         }
 
-        defaultPresetsButton.changeWidthToFitText (24);
-        defaultPresetsButton.setTopLeftPosition (x + 22, y + 4);
-        y = defaultPresetsButton.getBottom() + 2;
+        if (defaultPresetsButton.isVisible())
+        {
+            defaultPresetsButton.changeWidthToFitText (24);
+            defaultPresetsButton.setTopLeftPosition (x + 22, y + 4);
+            y = defaultPresetsButton.getBottom() + 2;
+        }
 
         forceToggle.setBounds (x, y + 2, w, toggleHeight);
         const int belowOutputShift = forceToggle.getBottom() + space - outputRowBottom;

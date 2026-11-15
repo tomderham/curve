@@ -3,6 +3,7 @@
 # scripts/check_translations.py enforces that. Longest first, so that a label inside a longer
 # label isn't counted twice.
 'Scan for new or updated AudioUnit plug-ins'
+Default Presets for each output interface...
 'Scan for new or updated VST3 plug-ins'
 When macOS Can't Control the Interface's Volume
 Force macOS system output to this interface
@@ -35,7 +36,6 @@ Load Plug-in State
 Save Plug-in State
 Check for Updates...
 Also load at launch
-Default Presets...
 Delete This Node
 Rename This Node
 Save As Preset...

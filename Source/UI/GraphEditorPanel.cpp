@@ -1970,16 +1970,33 @@ struct GraphDocumentComponent::TooltipBar final : public Component,
             repaint();
         }
 
-        if (messageExpiryMs != 0 && Time::getMillisecondCounter() >= messageExpiryMs)
-            setMessage ({});
+        if (transientExpiryMs != 0 && Time::currentTimeMillis() >= transientExpiryMs)
+        {
+            transientExpiryMs = 0;
+            updateMessage();
+        }
     }
 
-    // clearAfterMs 0: stays until replaced
+    // clearAfterMs 0: stays until replaced. Otherwise it's shown over the lasting message for that
+    // long, and the lasting message (e.g. a MIDI Learn prompt) comes back afterwards.
     void setMessage (const String& newMessage, int clearAfterMs = 0)
     {
-        messageExpiryMs = (clearAfterMs > 0 && newMessage.isNotEmpty())
-                            ? juce::jmax ((uint32) 1, Time::getMillisecondCounter() + (uint32) clearAfterMs)
-                            : 0;
+        if (clearAfterMs > 0 && newMessage.isNotEmpty())
+        {
+            transientMessage = newMessage;
+            transientExpiryMs = Time::currentTimeMillis() + clearAfterMs;
+        }
+        else
+        {
+            lastingMessage = newMessage;
+        }
+
+        updateMessage();
+    }
+
+    void updateMessage()
+    {
+        const auto& newMessage = transientExpiryMs != 0 ? transientMessage : lastingMessage;
 
         if (newMessage != message)
         {
@@ -1988,8 +2005,8 @@ struct GraphDocumentComponent::TooltipBar final : public Component,
         }
     }
 
-    String tip, message;
-    uint32 messageExpiryMs = 0;
+    String tip, message, lastingMessage, transientMessage;
+    int64 transientExpiryMs = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TooltipBar)
 };

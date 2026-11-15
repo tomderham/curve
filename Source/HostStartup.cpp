@@ -703,6 +703,9 @@ public:
       return;
     }
 
+    // Loaded as if picked from the preset menu, which doesn't ask about unsaved changes either:
+    // the changed flag isn't reliable enough to guard with (a device switch sets it, and changes
+    // made inside a plug-in don't)
     if (mainWindow->graphHolder != nullptr &&
         mainWindow->graphHolder->graph != nullptr &&
         mainWindow->graphHolder->graph->getFile() == file)

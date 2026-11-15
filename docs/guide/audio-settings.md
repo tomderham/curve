@@ -16,7 +16,7 @@ Turn on **Use output interface selected in macOS** to let macOS choose Curve's o
 
 Your preset's connections to outputs the new interface doesn't have are kept, but they're silent until you switch back to an interface that has them. Correction made for one interface, such as EQ for particular headphones, is applied to whatever macOS switches to.
 
-Select **Default Presets...** to choose a preset for each interface. When macOS switches to an interface, Curve loads its default preset. Interfaces set to None keep the preset that's loaded. Turn on **Also load at launch** to load the default preset of the interface macOS is using when Curve starts, instead of the preset used last. If a default preset can't be found, Curve keeps the current preset and says so in the editor's status bar.
+While it's on, select **Default Presets for each output interface...** to choose a preset for each interface. When macOS switches to an interface, Curve loads its default preset. Interfaces set to None keep the preset that's loaded. Turn on **Also load at launch** to load the default preset of the interface macOS is using when Curve starts, instead of the preset used last. If a default preset can't be found, Curve keeps the current preset and says so in the editor's status bar.
 
 ## Keep macOS on Curve's interface
 

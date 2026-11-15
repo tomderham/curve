@@ -971,6 +971,37 @@ void PluginGraph::asyncNodeRestoreFinished (std::unique_ptr<AudioPluginInstance>
         {
             const NodeID nodeID ((uint32) nodeXml.getIntAttribute ("uid"));
 
+            // If the device changed to one with fewer outputs while this plug-in was loading,
+            // the Audio Output node has shrunk, and its connections to the higher outputs would be
+            // refused. Size the graph to fit them, as preConfigureGraphChannels() does on load.
+            using IOProcessor = AudioProcessorGraph::AudioGraphIOProcessor;
+            int outputsNeeded = 0;
+            IOProcessor* audioOutputNode = nullptr;
+
+            for (const auto& connection : restoredConnections)
+                if (connection.source.nodeID == nodeID && connection.destination.channelIndex != AudioProcessorGraph::midiChannelIndex)
+                    if (auto* dest = graph.getNodeForId (connection.destination.nodeID))
+                        if (auto* io = dynamic_cast<IOProcessor*> (dest->getProcessor()))
+                            if (io->getType() == IOProcessor::audioOutputNode)
+                            {
+                                audioOutputNode = io;
+                                outputsNeeded = jmax (outputsNeeded, connection.destination.channelIndex + 1);
+                            }
+
+            if (audioOutputNode != nullptr && outputsNeeded > audioOutputNode->getTotalNumInputChannels())
+            {
+                graph.suspendProcessing (true);
+                graph.setPlayConfigDetails (graph.getTotalNumInputChannels(),
+                                            jmax (outputsNeeded, graph.getTotalNumOutputChannels()),
+                                            graph.getSampleRate(), graph.getBlockSize());
+                // No prepareToPlay needed: the graph renders into a buffer as wide as the one the
+                // player passes, and the Audio Output node copies only the channels both have, so
+                // the extra outputs are silent until the device has them
+                // The existing Audio Output node only takes the graph's new size from this
+                audioOutputNode->setParentGraph (&graph);
+                graph.suspendProcessing (false);
+            }
+
             for (const auto& connection : restoredConnections)
                 if (connection.source.nodeID == nodeID || connection.destination.nodeID == nodeID)
                     graph.addConnection (connection);

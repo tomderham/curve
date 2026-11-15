@@ -321,6 +321,7 @@ public:
                         callback();
                 });
 
+            loadPendingDefaultPreset (currentDevice->getName());
             return;
         }
 
@@ -401,7 +402,10 @@ public:
 
         if (! alwaysEnforceSampleRate)
         {
-            if (auto* currentDevice = deviceManager.getCurrentAudioDevice())
+            // Not while a switch to another device is pending (following macOS): that device's
+            // remembered rate is what's wanted, not the old device's
+            auto* currentDevice = deviceManager.getCurrentAudioDevice();
+            if (currentDevice != nullptr && currentDevice->getName() == targetOutputDeviceName)
             {
                 targetSampleRate = currentDevice->getCurrentSampleRate();
                 if (cachedAudioState != nullptr && targetSampleRate > 0.0)
@@ -427,67 +431,32 @@ public:
             return false;
 
         auto name = getFollowedOutputDeviceName();
-        bool outputChanged = name.isNotEmpty() && name != targetOutputDeviceName;
+        if (name.isEmpty() || name == targetOutputDeviceName)
+            return false;
 
         // JUCE rescans on hardware changes itself; scan here only if the new device isn't listed yet
-        if (outputChanged && ! isDeviceAvailable (name, false, false))
+        if (! isDeviceAvailable (name, false, false))
         {
             scanDevices();
             if (! isDeviceAvailable (name, false, false))
-                outputChanged = false; // not enumerated yet; the next pass tries again
+                return false; // not enumerated yet; the next pass tries again
         }
-
-        // An input on a device that's gone (typically the interface just left) would stop
-        // the followed output opening at all
-        bool inputDropped = targetInputDeviceName.isNotEmpty() && ! isDeviceAvailable (targetInputDeviceName, true, false);
-
-        if (! outputChanged && ! inputDropped)
-            return false;
 
         if (cachedAudioState == nullptr)
             cachedAudioState = deviceManager.createStateXml();
         if (cachedAudioState == nullptr)
             cachedAudioState = std::make_unique<juce::XmlElement> ("DEVICESETUP");
 
-        if (outputChanged)
-        {
-            cachedAudioState->setAttribute ("audioOutputDeviceName", name);
-            targetOutputDeviceName = name;
-
-            // A real change of interface (restoring the same one never gets here)
-            juce::MessageManager::callAsync ([name] { loadDefaultPresetForOutputDevice (name); });
-
-            // The old device's settings would otherwise carry over to this one. With nothing
-            // remembered, leave them out: JUCE then keeps the hardware's current rate and opens
-            // all outputs.
-            const auto remembered = getRememberedDeviceSettings (name);
-            if (! remembered.outputChannels.isZero())
-                cachedAudioState->setAttribute ("audioDeviceOutChans", remembered.outputChannels.toString (2));
-            else
-                cachedAudioState->removeAttribute ("audioDeviceOutChans");
-
-            targetSampleRate = remembered.sampleRate;
-            followedRateToApply = remembered.sampleRate;
-            if (remembered.sampleRate > 0.0)
-                cachedAudioState->setAttribute ("audioDeviceRate", remembered.sampleRate);
-            else
-                cachedAudioState->removeAttribute ("audioDeviceRate");
-
-            targetBufferSize = remembered.bufferSize;
-            if (remembered.bufferSize > 0)
-                cachedAudioState->setAttribute ("audioDeviceBufferSize", remembered.bufferSize);
-            else
-                cachedAudioState->removeAttribute ("audioDeviceBufferSize");
-        }
-
-        if (inputDropped)
-        {
-            cachedAudioState->removeAttribute ("audioInputDeviceName");
-            cachedAudioState->removeAttribute ("audioDeviceInChans");
-            targetInputDeviceName = {};
-        }
-
+        applyFollowedDevice (*cachedAudioState, name);
+        targetOutputDeviceName = name;
+        targetSampleRate = cachedAudioState->getDoubleAttribute ("audioDeviceRate", 0.0);
+        targetBufferSize = cachedAudioState->getIntAttribute ("audioDeviceBufferSize", 0);
+        followedRateToApply = targetSampleRate;
         consecutiveEnforceFailures = 0;
+
+        // A real change of interface (restoring the same one never gets here). Its default
+        // preset loads once the device has actually opened: see loadPendingDefaultPreset().
+        pendingDefaultPresetDevice = name;
 
         if (auto* settings = getUserSettings())
         {
@@ -496,6 +465,64 @@ public:
         }
 
         return true;
+    }
+
+    /** With "Always enforce sample rate" on, the rate in use carries over to every interface,
+        instead of each one's remembered rate. Read from the settings, as it's needed at launch too. */
+    static bool isSampleRateEnforcedSetting()
+    {
+        auto* settings = getUserSettings();
+        return settings != nullptr && settings->getBoolValue ("enforceSampleRate", false);
+    }
+
+    /** Points a saved device state (as createStateXml() writes it) at another output device, with
+        that device's remembered rate, buffer size and outputs rather than the previous device's.
+        With nothing remembered they're left out, so JUCE keeps the hardware's current rate and
+        opens all outputs. Used when following macOS, here and at launch. The rate is kept
+        instead if it's enforced. */
+    static void applyFollowedDevice (juce::XmlElement& state, const juce::String& deviceName)
+    {
+        const bool keepRate = isSampleRateEnforcedSetting() && state.getDoubleAttribute ("audioDeviceRate", 0.0) > 0.0;
+
+        state.setAttribute ("audioOutputDeviceName", deviceName);
+        const auto remembered = getRememberedDeviceSettings (deviceName);
+
+        if (! remembered.outputChannels.isZero())
+            state.setAttribute ("audioDeviceOutChans", remembered.outputChannels.toString (2));
+        else
+            state.removeAttribute ("audioDeviceOutChans");
+
+        if (keepRate)
+        {
+            // Enforced on every interface
+        }
+        else if (remembered.sampleRate > 0.0)
+        {
+            state.setAttribute ("audioDeviceRate", remembered.sampleRate);
+        }
+        else
+        {
+            state.removeAttribute ("audioDeviceRate");
+        }
+
+        if (remembered.bufferSize > 0)
+            state.setAttribute ("audioDeviceBufferSize", remembered.bufferSize);
+        else
+            state.removeAttribute ("audioDeviceBufferSize");
+    }
+
+    /** Following macOS, an input device that isn't connected doesn't stop the output opening:
+        Curve opens without it and adds it back when it reappears. It stays in the saved settings. */
+    bool isInputMissingWhileFollowing() const
+    {
+        return isFollowingSystemOutput()
+            && targetInputDeviceName.isNotEmpty()
+            && ! isDeviceAvailable (targetInputDeviceName, true, false);
+    }
+
+    bool isTargetInputPresent() const
+    {
+        return isDeviceAvailable (targetInputDeviceName, true, false) || isInputMissingWhileFollowing();
     }
 
     // callback when an audio config change occurs
@@ -582,6 +609,8 @@ public:
         {
             resolveFollowedTarget();
             scanDevices();
+            // Waits for the input too, even when following: after wake it's usually still
+            // enumerating, and opening without it would mean reopening moments later
             bool isPresent = isDeviceAvailable (targetOutputDeviceName, false, false)
                           && isDeviceAvailable (targetInputDeviceName, true, false);
 
@@ -681,6 +710,9 @@ public:
             disconnectedCheckCount = 0;
             consecutiveEnforceFailures = 0;
 
+            // Already on the new interface (e.g. switched from Audio Settings)
+            loadPendingDefaultPreset (currentDevice->getName());
+
             if (shouldForceSystemOutput())
                 OutputInterfaceLoopbackNode::syncSystemOutputDevice (targetOutputDeviceName);
 
@@ -702,7 +734,7 @@ public:
         scanDevices();
 
         bool isTargetPhysicallyPresent = isDeviceAvailable(targetOutputDeviceName, false, false)
-                                      && isDeviceAvailable(targetInputDeviceName, true, false);
+                                      && isTargetInputPresent();
         if (!isTargetPhysicallyPresent)
         {
             // Allow USB/Thunderbolt interfaces time to enumerate immediately on system wake
@@ -762,7 +794,8 @@ public:
         deviceManager.getAudioDeviceSetup (currentSetup);
 
         bool isOutputMatching = (currentSetup.outputDeviceName == targetOutputDeviceName);
-        bool isInputMatching  = (targetInputDeviceName.isEmpty() || currentSetup.inputDeviceName == targetInputDeviceName);
+        bool isInputMatching  = (targetInputDeviceName.isEmpty() || currentSetup.inputDeviceName == targetInputDeviceName
+                                 || isInputMissingWhileFollowing());
         bool isBufferMatching = (targetBufferSize <= 0 || currentDevice->getCurrentBufferSizeSamples() == targetBufferSize);
 
         if (! isOutputMatching || ! isInputMatching || ! isBufferMatching)
@@ -806,6 +839,17 @@ private:
     int targetBufferSize = 0;
     bool alwaysEnforceSampleRate = false;
     double followedRateToApply = 0.0;
+    juce::String pendingDefaultPresetDevice;
+
+    // After onConfigRestored, so the preset loads against the device that's now open
+    void loadPendingDefaultPreset (const juce::String& openedDeviceName)
+    {
+        if (pendingDefaultPresetDevice.isEmpty() || pendingDefaultPresetDevice != openedDeviceName)
+            return;
+
+        pendingDefaultPresetDevice.clear();
+        juce::MessageManager::callAsync ([name = openedDeviceName] { loadDefaultPresetForOutputDevice (name); });
+    }
     std::unique_ptr<juce::XmlElement> cachedAudioState;
 
     void scanDevices()
@@ -814,7 +858,7 @@ private:
             type->scanForDevices();
     }
 
-    bool isDeviceAvailable(const juce::String& name, bool isInput, bool forceScan)
+    bool isDeviceAvailable(const juce::String& name, bool isInput, bool forceScan) const
     {
         if (name.isEmpty())
             return true; // No device required/specified for input
@@ -846,19 +890,28 @@ private:
             else if (! alwaysEnforceSampleRate)
                 savedState->removeAttribute ("audioDeviceRate");
 
-            followedRateToApply = 0.0;
-
             if (targetBufferSize > 0)
                 savedState->setAttribute ("audioDeviceBufferSize", targetBufferSize);
         }
 
-        auto error = deviceManager.initialise (numInputs, 256, savedState, false);
+        // Following, without an input that isn't connected (see isInputMissingWhileFollowing())
+        std::unique_ptr<juce::XmlElement> withoutInput;
+        if (savedState != nullptr && isInputMissingWhileFollowing())
+        {
+            withoutInput = std::make_unique<juce::XmlElement> (*savedState);
+            withoutInput->removeAttribute ("audioInputDeviceName");
+            withoutInput->removeAttribute ("audioDeviceInChans");
+            numInputs = 0;
+        }
+
+        auto error = deviceManager.initialise (numInputs, 256, withoutInput != nullptr ? withoutInput.get() : savedState, false);
         isRestarting = false;
 
         auto* currentDevice = deviceManager.getCurrentAudioDevice();
         if (currentDevice != nullptr && currentDevice->isPlaying() && error.isEmpty())
         {
             consecutiveEnforceFailures = 0;
+            followedRateToApply = 0.0; // applied; kept for a retry if opening failed
             lastDeviceName = currentDevice->getName();
             lastInputChannels = currentDevice->getActiveInputChannels();
             lastOutputChannels = currentDevice->getActiveOutputChannels();
@@ -885,6 +938,8 @@ private:
                         callback();
                 });
             }
+
+            loadPendingDefaultPreset (currentDevice->getName());
         }
         else
         {

@@ -570,28 +570,28 @@ MainHostWindow::MainHostWindow()
         auto followedName = AudioResilienceManager::getFollowedOutputDeviceName();
         if (followedName.isNotEmpty() && followedName != savedState->getStringAttribute ("audioOutputDeviceName"))
         {
-            savedState->setAttribute ("audioOutputDeviceName", followedName);
-
-            // That device's own settings, not the previous device's
-            const auto remembered = AudioResilienceManager::getRememberedDeviceSettings (followedName);
-            if (remembered.outputChannels.isZero())
-                savedState->removeAttribute ("audioDeviceOutChans");
-            else
-                savedState->setAttribute ("audioDeviceOutChans", remembered.outputChannels.toString (2));
-
-            if (remembered.sampleRate > 0.0)
-                savedState->setAttribute ("audioDeviceRate", remembered.sampleRate);
-            else
-                savedState->removeAttribute ("audioDeviceRate");
-
-            if (remembered.bufferSize > 0)
-                savedState->setAttribute ("audioDeviceBufferSize", remembered.bufferSize);
-            else
-                savedState->removeAttribute ("audioDeviceBufferSize");
+            AudioResilienceManager::applyFollowedDevice (*savedState, followedName);
 
             // Saved, so the resilience manager doesn't see a change of interface when it starts
             // (which would load that interface's default preset, even with Also load at launch off)
             getAppProperties().getUserSettings()->setValue ("audioDeviceState", savedState.get());
+        }
+
+        // An input that isn't connected (typically on the interface macOS has moved away from)
+        // would stop the output opening at all. Open without it; it stays in the saved settings,
+        // and the resilience manager adds it back when it reappears.
+        auto inputName = savedState->getStringAttribute ("audioInputDeviceName");
+        bool isInputAvailable = inputName.isEmpty();
+        for (auto* type : deviceManager.getAvailableDeviceTypes())
+        {
+            type->scanForDevices();
+            isInputAvailable = isInputAvailable || type->getDeviceNames (true).contains (inputName);
+        }
+
+        if (! isInputAvailable)
+        {
+            savedState->removeAttribute ("audioInputDeviceName");
+            savedState->removeAttribute ("audioDeviceInChans");
         }
     }
 
@@ -1009,6 +1009,22 @@ bool MainHostWindow::perform (const InvocationInfo& info)
     return true;
 }
 
+static void keepMissingInputDevice (juce::XmlElement& newState, const juce::XmlElement& previousState,
+                                    juce::AudioDeviceManager& deviceManager)
+{
+    const auto inputName = previousState.getStringAttribute ("audioInputDeviceName");
+    if (inputName.isEmpty() || newState.getStringAttribute ("audioInputDeviceName").isNotEmpty())
+        return;
+
+    for (auto* type : deviceManager.getAvailableDeviceTypes())
+        if (type->getDeviceNames (true).contains (inputName))
+            return; // connected, so the dialog left it out on purpose
+
+    newState.setAttribute ("audioInputDeviceName", inputName);
+    if (previousState.hasAttribute ("audioDeviceInChans"))
+        newState.setAttribute ("audioDeviceInChans", previousState.getStringAttribute ("audioDeviceInChans"));
+}
+
 void MainHostWindow::showAudioSettings()
 {
     // The selector needs an open device to show and edit the current configuration
@@ -1050,6 +1066,12 @@ void MainHostWindow::showAudioSettings()
                                  if (safeThis->deviceManager.getCurrentAudioDevice() != nullptr)
                                  {
                                      auto audioState = safeThis->deviceManager.createStateXml();
+
+                                     // Following macOS, Curve runs without an input that isn't
+                                     // connected but keeps it in its settings: don't lose it here
+                                     if (audioState != nullptr && AudioResilienceManager::isFollowingSystemOutput())
+                                         if (auto previous = getUserSettings()->getXmlValue ("audioDeviceState"))
+                                             keepMissingInputDevice (*audioState, *previous, safeThis->deviceManager);
 
                                      if (auto* settings = getUserSettings())
                                      {
