@@ -45,7 +45,7 @@
 |---|---|
 | Delete This Node | 노드를 제거합니다. |
 | Disconnect All Pins | 노드의 모든 연결을 제거합니다. |
-| Toggle Bypass | 바이패스를 켜거나 끕니다. |
+| Toggle Bypass | 바이패스를 켜거나 끕니다. 입출력 노드와 미터에는 표시되지 않습니다. |
 | Rename This Node | 노드에 표시되는 이름을 변경합니다. |
 | MIDI Learn | [MIDI Learn](midi-control.md)을 시작합니다. |
 | Clear MIDI Mappings | 노드의 MIDI 매핑을 제거합니다. 매핑이 있을 때만 표시됩니다. |

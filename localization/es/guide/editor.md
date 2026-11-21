@@ -45,7 +45,7 @@ Haz clic con el botón derecho en un nodo para ver estas opciones:
 |---|---|
 | Delete This Node | Elimina el nodo. |
 | Disconnect All Pins | Elimina todas las conexiones del nodo. |
-| Toggle Bypass | Activa o desactiva la omisión. |
+| Toggle Bypass | Activa o desactiva la omisión. No aparece en los nodos de E/S ni en los medidores. |
 | Rename This Node | Cambia el nombre que se muestra en el nodo. |
 | MIDI Learn | Inicia [MIDI Learn](midi-control.md). |
 | Clear MIDI Mappings | Elimina las asignaciones MIDI del nodo. Solo se muestra si tiene alguna. |

@@ -288,6 +288,60 @@ static void testConnectionToAudioDeviceIsStillAChange()
     CHECK (describeChanges (*after, *before).connectionsChanged);
 }
 
+// Opening or moving a plug-in window in one scene isn't a change to the others, which keep their own
+static void testPluginWindowsAreEachScenes()
+{
+    auto early = parse (R"(<FILTERGRAPH sceneGroup="g">
+  <FILTER uid="2" x="0.5" y="0.4" uiopen_Normal="1" uiLastX_Normal="10" uiLastY_Normal="20"><STATE>eq</STATE></FILTER>
+</FILTERGRAPH>)");
+    auto late = parse (R"(<FILTERGRAPH sceneGroup="g">
+  <FILTER uid="2" x="0.5" y="0.4" uiopen_Normal="0" uiLastX_Normal="300" uiLastY_Normal="400"><STATE>eq</STATE></FILTER>
+</FILTERGRAPH>)");
+
+    CHECK (shareGraph (*early, *late));
+
+    auto updated = createOtherScene (*early, *late);
+    CHECK (node (*updated, 2)->getStringAttribute ("uiopen_Normal") == "0");
+    CHECK (node (*updated, 2)->getStringAttribute ("uiLastX_Normal") == "300");
+
+    // Nor one that the other scene has no position for
+    auto noWindow = parse (R"(<FILTERGRAPH sceneGroup="g"><FILTER uid="2" x="0.5" y="0.4"><STATE>eq</STATE></FILTER></FILTERGRAPH>)");
+    CHECK (! createOtherScene (*early, *noWindow)->getChildByName ("FILTER")->hasAttribute ("uiLastX_Normal"));
+}
+
+// I/O nodes and meters can't be bypassed, so are added to the other scenes as they are
+static void testNewIONodeIsNotBypassed()
+{
+    auto other = parse (R"(<FILTERGRAPH sceneGroup="g"><FILTER uid="2" x="0.5" y="0.4"><STATE>eq</STATE></FILTER></FILTERGRAPH>)");
+    auto saved = parse (R"(<FILTERGRAPH sceneGroup="g">
+  <FILTER uid="2" x="0.5" y="0.4"><STATE>eq</STATE></FILTER>
+  <FILTER uid="7" x="0.1" y="0.1"><PLUGIN name="Meter" format="Internal" file="Meter"/></FILTER>
+  <FILTER uid="8" x="0.9" y="0.9"><PLUGIN name="Audio Output" format="Internal" file="Audio Output"/></FILTER>
+  <FILTER uid="9" x="0.9" y="0.1"><PLUGIN name="Crossfeed" format="Internal" file="Crossfeed"/></FILTER>
+</FILTERGRAPH>)");
+
+    auto updated = createOtherScene (*saved, *other);
+    CHECK (! bypassed (*updated, 7));
+    CHECK (! bypassed (*updated, 8));
+    CHECK (bypassed (*updated, 9));
+
+    const auto changes = describeChanges (*saved, *other);
+    CHECK (changes.addedIONodes.size() == 2);
+    CHECK (changes.addedNodes.size() == 1);
+}
+
+// MIDI mappings are shared, so a change to them is described
+static void testMidiMappingChangeIsDescribed()
+{
+    auto other = parse (R"(<FILTERGRAPH sceneGroup="g"><FILTER uid="2" x="0.5" y="0.4"><STATE>eq</STATE></FILTER></FILTERGRAPH>)");
+    auto saved = parse (R"(<FILTERGRAPH sceneGroup="g"><FILTER uid="2" x="0.5" y="0.4"><STATE>eq</STATE></FILTER>
+  <MIDIMAPPINGS><MAPPING type="cc" channel="1" number="7"/></MIDIMAPPINGS></FILTERGRAPH>)");
+
+    CHECK (describeChanges (*saved, *other).midiMappingsChanged);
+    CHECK (! describeChanges (*saved, *createOtherScene (*saved, *other)).midiMappingsChanged);
+    CHECK (! describeChanges (*saved, *other).changesSound());
+}
+
 int main()
 {
     testVaryingNodeWithoutStateKeepsNone();
@@ -309,6 +363,9 @@ int main()
     testRoundTripThroughFileText();
     testAudioDeviceChannelsAreEachScenes();
     testConnectionToAudioDeviceIsStillAChange();
+    testPluginWindowsAreEachScenes();
+    testNewIONodeIsNotBypassed();
+    testMidiMappingChangeIsDescribed();
 
     if (failures == 0)
         std::printf ("All preset scene tests passed\n");

@@ -713,6 +713,9 @@ void MainHostWindow::tryToQuitApplication()
 
     ModalComponentManager::getInstance()->cancelAllModalComponents();
 
+    // Refers to the graph, which is deleted here, and would otherwise stay open until shutdown
+    midiMappingsWindow = nullptr;
+
     if (graphHolder != nullptr)
         graphHolder->releaseGraph();
 
@@ -1084,7 +1087,7 @@ void MainHostWindow::showAudioSettings()
 
                                  if (auto* rm = getResilienceManager())
                                  {
-                                     rm->updateTargetSettings();
+                                     rm->userChangedSettings();
                                      rm->setSuspended (false);
                                  }
 

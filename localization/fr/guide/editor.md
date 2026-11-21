@@ -45,7 +45,7 @@ Cliquez avec le bouton droit sur un nœud pour accéder aux options suivantes :
 |---|---|
 | Delete This Node | Supprime le nœud. |
 | Disconnect All Pins | Supprime toutes les connexions du nœud. |
-| Toggle Bypass | Active ou désactive le contournement. |
+| Toggle Bypass | Active ou désactive le contournement. Absent pour les nœuds d’E/S et les indicateurs de niveau. |
 | Rename This Node | Modifie le nom affiché sur le nœud. |
 | MIDI Learn | Démarre [MIDI Learn](midi-control.md). |
 | Clear MIDI Mappings | Supprime les assignations MIDI du nœud. Affiché uniquement s’il en a. |

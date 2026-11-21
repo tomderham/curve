@@ -41,4 +41,5 @@ Preferences 窗口有三个标签页。使用 Curve 时它可以保持打开。
 | Program Change Selects Preset | 来自控制器的程序变更会载入预设。请参阅 [MIDI 控制](midi-control.md)。 | 关闭 |
 | Next Preset Control, Previous Preset Control | 控制器上用于依次切换预设的按钮。 | |
 | Clear Preset Controls | 移除这两个按钮分配。 | |
-| MIDI Mappings for Current Preset... | 显示当前载入预设的 MIDI 映射以及每个映射的范围。 | |
+
+当前载入预设的 MIDI 映射位于编辑器菜单中的 MIDI Mappings for Current Preset...。请参阅 [MIDI 控制](midi-control.md)。

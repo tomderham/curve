@@ -41,4 +41,5 @@ La ventana Preferences tiene tres pestañas. Puede quedarse abierta mientras usa
 | Program Change Selects Preset | Los cambios de programa de un controlador cargan presets. Consulta [Control MIDI](midi-control.md). | Desactivado |
 | Next Preset Control, Previous Preset Control | Botones de un controlador que recorren los presets. | |
 | Clear Preset Controls | Elimina las dos asignaciones de botones. | |
-| MIDI Mappings for Current Preset... | Muestra las asignaciones MIDI del preset cargado y el rango de cada una. | |
+
+Las asignaciones MIDI del preset cargado están en MIDI Mappings for Current Preset..., en el menú del editor. Consulta [Control MIDI](midi-control.md).

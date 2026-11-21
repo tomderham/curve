@@ -66,7 +66,7 @@ public:
             if (auto* rm = getResilienceManager())
             {
                 rm->setAlwaysEnforceSampleRate (isEnforced);
-                rm->updateTargetSettings();
+                rm->userChangedSettings();
             }
         };
 
@@ -240,15 +240,28 @@ private:
             return;
         }
 
+        // With Always enforce sample rate, the previous interface's rate carries over, as in switchOutputDevice()
+        double enforcedRate = 0.0;
+        if (AudioResilienceManager::isSampleRateEnforcedSetting())
+            if (auto previous = rememberedSettings.find (lastDeviceName); previous != rememberedSettings.end())
+                enforcedRate = previous->second.sampleRate;
+
         lastDeviceName = name;
         auto it = rememberedSettings.find (name);
         if (it == rememberedSettings.end() || it->second.sampleRate <= 0.0)
         {
             rememberedSettings[name] = current;
-            return;
+
+            if (enforcedRate <= 0.0)
+                return;
+
+            it = rememberedSettings.find (name);
         }
 
-        const auto wanted = it->second;
+        auto wanted = it->second;
+        if (enforcedRate > 0.0)
+            wanted.sampleRate = enforcedRate;
+
         if (std::abs (wanted.sampleRate - current.sampleRate) < 0.001
             && (wanted.bufferSize <= 0 || wanted.bufferSize == current.bufferSize)
             && (wanted.outputChannels.isZero() || wanted.outputChannels == current.outputChannels))

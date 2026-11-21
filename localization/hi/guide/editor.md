@@ -45,7 +45,7 @@
 |---|---|
 | Delete This Node | नोड को हटाता है। |
 | Disconnect All Pins | नोड के सभी कनेक्शन हटाता है। |
-| Toggle Bypass | बायपास को चालू या बंद करता है। |
+| Toggle Bypass | बायपास को चालू या बंद करता है। I/O नोड और मीटर के लिए नहीं दिखता। |
 | Rename This Node | नोड पर दिखने वाला नाम बदलता है। |
 | MIDI Learn | [MIDI Learn](midi-control.md) शुरू करता है। |
 | Clear MIDI Mappings | नोड की MIDI मैपिंग हटाता है। केवल तभी दिखता है जब कोई मैपिंग हो। |

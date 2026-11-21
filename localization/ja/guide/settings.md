@@ -41,4 +41,5 @@ Preferencesウインドウには3つのタブがあります。Curveを使って
 | Program Change Selects Preset | コントローラからのプログラムチェンジでプリセットを読み込みます。[MIDIコントロール](midi-control.md)を参照してください。 | オフ |
 | Next Preset Control, Previous Preset Control | プリセットを順に切り替えるコントローラのボタンです。 | |
 | Clear Preset Controls | これら2つのボタンの割り当てを削除します。 | |
-| MIDI Mappings for Current Preset... | 読み込まれているプリセットのMIDI割り当てと、それぞれの範囲を表示します。 | |
+
+読み込まれているプリセットのMIDI割り当ては、エディタのメニューのMIDI Mappings for Current Preset...にあります。[MIDIコントロール](midi-control.md)を参照してください。

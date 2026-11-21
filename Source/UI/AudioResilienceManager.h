@@ -361,6 +361,18 @@ public:
         return alwaysEnforceSampleRate;
     }
 
+    /** After the user changes Audio Settings: what they chose replaces a follow switch that
+        hasn't opened yet, whose rate would otherwise be applied on the next attempt to open.
+    */
+    void userChangedSettings()
+    {
+        updateTargetSettings();
+        followedRateToApply = 0.0;
+
+        if (pendingDefaultPresetDevice != targetOutputDeviceName)
+            pendingDefaultPresetDevice.clear();
+    }
+
     void updateTargetSettings()
     {
         auto* settings = getUserSettings();

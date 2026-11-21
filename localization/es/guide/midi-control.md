@@ -45,7 +45,7 @@ Las asignaciones se guardan con el preset, así que usa Save As Preset... para c
 
 - Los mandos y faders (CC) cubren todo el rango de un parámetro. Puedes acotarlo en MIDI Mappings for Current Preset... (ver abajo).
 - Las notas y los cambios de programa alternan el destino.
-- Para la omisión, Curve determina si un botón CC es momentáneo, donde cada pulsación alterna la omisión, o de enclavamiento, donde la omisión sigue el estado del botón.
+- Para la omisión, y para parámetros de encendido/apagado como Mute, Curve determina si un botón CC es momentáneo, donde cada pulsación lo alterna, o de enclavamiento, donde sigue el estado del botón.
 
 Los nodos con asignaciones muestran un pequeño icono de conector MIDI. Pasa el puntero sobre el nodo para ver sus asignaciones en la barra de estado.
 
@@ -53,7 +53,7 @@ Los mensajes MIDI asignados no se transmiten a los plug-ins a través del nodo M
 
 ## Ajustar una asignación
 
-Selecciona Settings > Preferences..., abre la pestaña MIDI y haz clic en MIDI Mappings for Current Preset... para ver las asignaciones del preset cargado. La ventana puede quedarse abierta mientras usas MIDI Learn o cambias de preset. Para cada asignación puedes configurar:
+Haz clic en el icono de menú de la parte superior izquierda de la ventana del editor y selecciona MIDI Mappings for Current Preset... para ver las asignaciones del preset cargado. La ventana puede quedarse abierta mientras usas MIDI Learn o cambias de preset. Para cada asignación puedes configurar:
 
 - **Mode:** Range, donde un mando o fader fija el valor; Toggle, donde cada pulsación alterna entre dos valores; o Follow, donde el objetivo sigue a un botón y está activado mientras se mantiene pulsado o enclavado.
 - **From y To:** los valores entre los que se mueve un mando o fader. Un rango más estrecho da pasos más finos, por ejemplo de -20 dB a +6 dB en un nodo Gain. Para Toggle y Follow, son los valores de apagado y encendido. Escribe un valor en las unidades del parámetro, o un porcentaje como 25%.
@@ -68,6 +68,8 @@ Selecciona Settings > Preferences... y abre la pestaña MIDI. Estos ajustes se a
 - **Program Change Selects Preset:** desactivado por defecto. El cambio de programa 0 carga el primer preset del menú, el 1 el segundo, y así sucesivamente, en el mismo orden que los [atajos de teclas numéricas](keyboard-shortcuts.md).
 - **Next Preset Control** y **Previous Preset Control:** haz clic en MIDI Learn... junto a uno y pulsa el botón de tu controlador que quieras usar.
 - **Clear Preset Controls:** elimina esas dos asignaciones de botones.
+
+Si el preset cargado asigna ese mismo control, se usa la asignación del preset. Los presets no cambian por MIDI mientras haya abierta una ventana como Save As Preset... o Audio Settings.
 
 ## Controles de los plug-ins de Curve
 

@@ -586,6 +586,12 @@ static juce::String describeSharedChanges (const Curve::Scenes::SharedChanges& c
     if (! changes.addedNodes.isEmpty())
         lines.add ("Also adds, bypassed: " + joinWithAnd (changes.addedNodes) + " in " + scenes);
 
+    if (! changes.addedIONodes.isEmpty())
+        lines.add ("Also adds: " + joinWithAnd (changes.addedIONodes) + " in " + scenes);
+
+    if (changes.midiMappingsChanged)
+        lines.add ("Also changes the MIDI mappings in " + scenes);
+
     return lines.joinIntoString ("\n");
 }
 
@@ -598,7 +604,8 @@ juce::String PresetSaveDialog::describeSceneUpdate (const PluginGraph::SceneSave
     {
         const auto scenes = describeScenes (plan.otherScenes);
 
-        if (plan.changes.changesSound() || ! plan.changes.addedNodes.isEmpty())
+        if (plan.changes.changesSound() || ! plan.changes.addedNodes.isEmpty() || ! plan.changes.addedIONodes.isEmpty()
+            || plan.changes.midiMappingsChanged)
             lines.add (describeSharedChanges (plan.changes, scenes));
         else
             lines.add ("Also updates " + scenes + ", without changing how "

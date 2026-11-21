@@ -127,16 +127,28 @@ private:
         target.setBounds (r);
     }
 
+    // Everything the rows show: also each node's name, and whether its parameter is found, which
+    // it isn't until a plug-in that loads asynchronously (AUv3) has loaded
     juce::String describeMappings() const
     {
-        return graph.getMidiMappings().toXml()->toString (juce::XmlElement::TextFormat().singleLine().withoutHeader())
-             + graph.getFile().getFullPathName();
+        auto text = graph.getMidiMappings().toXml()->toString (juce::XmlElement::TextFormat().singleLine().withoutHeader())
+                  + graph.getFile().getFullPathName();
+
+        for (const auto& m : graph.getMidiMappings().getMappings())
+            if (m.target.isNodeTarget())
+                text << "\n" << graph.getNodeDisplayName (m.target.nodeID) << (findParameter (m) != nullptr ? "+" : "-");
+
+        return text;
     }
 
     // Follows the loaded preset, and mappings made or removed elsewhere, but never rebuilds under
     // a value being typed
     void timerCallback() override
     {
+        // Catches up when its window is shown again
+        if (! isShowing())
+            return;
+
         const auto current = describeMappings();
         if (current == shownMappings)
             return;
@@ -173,18 +185,21 @@ private:
         auto text = param.getText (normalised, 64).trim();
         const auto label = param.getLabel().trim();
 
-        if (label.isNotEmpty() && ! text.endsWithIgnoreCase (label))
+        // Unless the text has it already, e.g. "100 % width"
+        if (label.isNotEmpty() && ! text.endsWithIgnoreCase (label)
+            && ! juce::StringArray::fromTokens (text, " ", {}).contains (label, true))
             text << " " << label;
 
         return text;
     }
 
-    // A percentage is the parameter's own 0-100%, for plug-ins that can't read their values back from text
+    // A percentage is of the parameter's range, for plug-ins that can't read their values back from
+    // text. Not for a parameter in %, such as a 0-200% width, which reads its own
     static float parseValue (juce::AudioProcessorParameter& param, const juce::String& text)
     {
         const auto trimmed = text.trim();
 
-        if (trimmed.endsWithChar ('%'))
+        if (trimmed.endsWithChar ('%') && ! param.getLabel().contains ("%"))
             return juce::jlimit (0.0f, 1.0f, trimmed.dropLastCharacters (1).trim().getFloatValue() / 100.0f);
 
         return juce::jlimit (0.0f, 1.0f, param.getValueForText (trimmed));

@@ -107,11 +107,16 @@ private:
     // Learn state (message thread), plus a flag the MIDI thread reads
     bool learnMode = false;
     std::optional<MidiMappingTarget> learnTarget;
+    uint32 learnTargetGeneration = 0;   // the graph's, when learnTarget was selected
     std::optional<MidiMapping> lastLearned;
     uint32 lastLearnedTime = 0;
     std::optional<MidiMappingTarget> presetStepTarget;
     std::function<void (const MidiTrigger&)> onPresetStepLearned;
     std::atomic<bool> capturing { false };
+
+    // CC controls mapped to next/previous preset that are held, so a knob or fader steps once
+    // per movement rather than on every value (message thread)
+    std::vector<MidiTrigger> heldPresetStepControls;
     std::vector<std::unique_ptr<ParameterWatcher>> watchers;
 
     std::shared_ptr<const Table> getTable() const;

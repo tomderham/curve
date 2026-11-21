@@ -45,7 +45,7 @@ Mappings are saved with the preset, so use Save As Preset... to keep them.
 
 - Knobs and faders (CC) cover a parameter's full range. You can narrow it in MIDI Mappings for Current Preset..., below.
 - Notes and program changes toggle the target.
-- For bypass, Curve works out whether a CC button is momentary, where each press toggles bypass, or latching, where bypass follows the button's state.
+- For bypass, and for on/off parameters such as Mute, Curve works out whether a CC button is momentary, where each press toggles it, or latching, where it follows the button's state.
 
 Nodes with mappings show a small MIDI socket icon. Hover over the node to see its mappings in the status bar.
 
@@ -68,6 +68,8 @@ Select Settings > Preferences..., then the MIDI tab. These settings apply to all
 - **Program Change Selects Preset:** off by default. Program change 0 loads the first preset in the menu, 1 the second, and so on, in the same order as the [number key shortcuts](keyboard-shortcuts.md).
 - **Next Preset Control** and **Previous Preset Control:** click MIDI Learn... next to one, then press the button on your controller that you want to use.
 - **Clear Preset Controls:** removes both of those button assignments.
+
+If the loaded preset maps the same control itself, the preset's mapping is used instead. Presets don't change from MIDI while a window such as Save As Preset... or Audio Settings is open.
 
 ## Controls on Curve's own plug-ins
 

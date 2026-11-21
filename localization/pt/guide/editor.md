@@ -45,7 +45,7 @@ Clique com o botão direito em um nó para ver estas opções:
 |---|---|
 | Delete This Node | Remove o nó. |
 | Disconnect All Pins | Remove todas as conexões do nó. |
-| Toggle Bypass | Ativa ou desativa o bypass. |
+| Toggle Bypass | Ativa ou desativa o bypass. Não aparece nos nós de E/S nem nos medidores. |
 | Rename This Node | Altera o nome mostrado no nó. |
 | MIDI Learn | Inicia o [MIDI Learn](midi-control.md). |
 | Clear MIDI Mappings | Remove os mapeamentos MIDI do nó. Só aparece se ele tiver algum. |

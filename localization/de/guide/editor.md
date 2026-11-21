@@ -45,7 +45,7 @@ Klicke mit der rechten Maustaste auf einen Node, um diese Optionen zu sehen:
 |---|---|
 | Delete This Node | Entfernt den Node. |
 | Disconnect All Pins | Entfernt alle Verbindungen des Nodes. |
-| Toggle Bypass | Schaltet den Bypass ein oder aus. |
+| Toggle Bypass | Schaltet den Bypass ein oder aus. Nicht für I/O-Nodes und Meter. |
 | Rename This Node | Ändert den auf dem Node angezeigten Namen. |
 | MIDI Learn | Startet [MIDI Learn](midi-control.md). |
 | Clear MIDI Mappings | Entfernt die MIDI-Zuweisungen des Nodes. Wird nur angezeigt, wenn es welche gibt. |

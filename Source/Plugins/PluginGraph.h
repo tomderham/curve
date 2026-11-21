@@ -100,6 +100,9 @@ public:
     // Device audio I/O and loopback nodes are configured in Audio Settings; any
     // window requested for them opens that instead.
     static bool isConfiguredByAudioSettings (AudioProcessor&);
+
+    // Not the graph's I/O nodes, or meters, which don't change the audio
+    static bool canBeBypassed (AudioProcessor&);
     bool closeAnyOpenPluginWindows();
 
     // Opens the windows of nodes set to open with the preset. Called once the preset's audio is

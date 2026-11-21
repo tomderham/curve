@@ -293,6 +293,12 @@ void PluginGraph::clear()
     changed();
 }
 
+bool PluginGraph::canBeBypassed (AudioProcessor& processor)
+{
+    return dynamic_cast<AudioProcessorGraph::AudioGraphIOProcessor*> (&processor) == nullptr
+        && dynamic_cast<MeterNode*> (&processor) == nullptr;
+}
+
 bool PluginGraph::isConfiguredByAudioSettings (AudioProcessor& processor)
 {
     using IONode = AudioProcessorGraph::AudioGraphIOProcessor;
@@ -368,7 +374,8 @@ void PluginGraph::setNodeBypassed (NodeID nodeID, bool shouldBeBypassed)
 {
     if (auto* node = graph.getNodeForId (nodeID))
     {
-        if (node->isBypassed() == shouldBeBypassed)
+        if (node->isBypassed() == shouldBeBypassed
+            || (shouldBeBypassed && ! canBeBypassed (*node->getProcessor())))
             return;
 
         node->setBypassed (shouldBeBypassed);
@@ -1080,8 +1087,9 @@ bool PluginGraph::finishNodeFromXml (std::unique_ptr<AudioPluginInstance> instan
             node->getProcessor()->setStateInformation (m.getData(), (int) m.getSize());
         }
 
-        // After STATE, so it overrides any bypass in the plugin's own state
-        if (xml.getBoolAttribute ("bypassed"))
+        // After STATE, so it overrides any bypass in the plugin's own state. Not for a node that
+        // can't be bypassed, which another scene's save once added bypassed
+        if (xml.getBoolAttribute ("bypassed") && canBeBypassed (*node->getProcessor()))
             node->setBypassed (true);
 
         const double posX = xml.hasAttribute ("x") ? xml.getDoubleAttribute ("x") : 0.5;
@@ -1381,7 +1389,7 @@ Result PluginGraph::saveScene (const SceneSave& save, bool* wasPresetSaved)
     if (wasPresetSaved != nullptr)
         *wasPresetSaved = true;
 
-    StringArray failed;
+    StringArray failed, changedElsewhere;
 
     for (const auto& other : toUpdate)
     {
@@ -1390,6 +1398,14 @@ Result PluginGraph::saveScene (const SceneSave& save, bool* wasPresetSaved)
         // One that shared what's saved when the save was prepared may not by now
         if (otherXml != nullptr && save.unchanged.contains (other) && Curve::Scenes::shareGraph (*saved, *otherXml))
             continue;
+
+        // Changed elsewhere since the save was prepared, e.g. synced from another Mac: left as it
+        // is, as prepareSceneSave() leaves out one that already differed
+        if (otherXml != nullptr && loadedXml != nullptr && ! Curve::Scenes::shareGraph (*otherXml, *loadedXml))
+        {
+            changedElsewhere.add (other.getFileNameWithoutExtension());
+            continue;
+        }
 
         if (otherXml == nullptr || ! Curve::Scenes::createOtherScene (*saved, *otherXml)->writeTo (other, {}))
             failed.add (other.getFileNameWithoutExtension());
@@ -1402,8 +1418,16 @@ Result PluginGraph::saveScene (const SceneSave& save, bool* wasPresetSaved)
     loadedXml = parseXML (saved->toString());
     setChangedFlag (false);
 
+    StringArray problems;
+
     if (! failed.isEmpty())
-        return Result::fail ("Couldn't update these scenes: " + failed.joinIntoString (", "));
+        problems.add ("Couldn't update these scenes: " + failed.joinIntoString (", "));
+
+    if (! changedElsewhere.isEmpty())
+        problems.add ("Didn't update these scenes, as they were changed elsewhere while saving: " + changedElsewhere.joinIntoString (", "));
+
+    if (! problems.isEmpty())
+        return Result::fail (problems.joinIntoString ("\n\n"));
 
     return Result::ok();
 }

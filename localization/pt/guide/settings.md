@@ -41,4 +41,5 @@ A janela Preferences tem três abas. Ela pode ficar aberta enquanto você usa o 
 | Program Change Selects Preset | Mudanças de programa de um controlador carregam presets. Consulte [Controle MIDI](midi-control.md). | Desativado |
 | Next Preset Control, Previous Preset Control | Botões de um controlador que percorrem os presets. | |
 | Clear Preset Controls | Remove essas duas atribuições de botões. | |
-| MIDI Mappings for Current Preset... | Mostra os mapeamentos MIDI do preset carregado e a faixa de cada um. | |
+
+Os mapeamentos MIDI do preset carregado ficam em MIDI Mappings for Current Preset..., no menu do editor. Consulte [Controle MIDI](midi-control.md).

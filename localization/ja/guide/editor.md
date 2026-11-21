@@ -45,7 +45,7 @@
 |---|---|
 | Delete This Node | ノードを削除します。 |
 | Disconnect All Pins | ノードの接続をすべて解除します。 |
-| Toggle Bypass | バイパスのオンとオフを切り替えます。 |
+| Toggle Bypass | バイパスのオンとオフを切り替えます。入出力ノードとメーターには表示されません。 |
 | Rename This Node | ノードに表示される名前を変更します。 |
 | MIDI Learn | [MIDI Learn](midi-control.md)を開始します。 |
 | Clear MIDI Mappings | ノードのMIDIマッピングを削除します。マッピングがある場合にのみ表示されます。 |

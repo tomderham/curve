@@ -45,7 +45,7 @@
 |---|---|
 | Delete This Node | 移除节点。 |
 | Disconnect All Pins | 移除节点的所有连接。 |
-| Toggle Bypass | 打开或关闭旁通。 |
+| Toggle Bypass | 打开或关闭旁通。I/O 节点和电平表不显示此项。 |
 | Rename This Node | 更改节点上显示的名称。 |
 | MIDI Learn | 启动 [MIDI Learn](midi-control.md)。 |
 | Clear MIDI Mappings | 移除节点的 MIDI 映射。仅在节点有映射时显示。 |

@@ -308,9 +308,7 @@ struct GraphEditorPanel::PluginComponent final : public Component,
 
                 kindColour = getKindColour (*processor);
 
-                // No bypass for the graph's I/O nodes, or for meters, which don't change the audio
-                if (dynamic_cast<AudioProcessorGraph::AudioGraphIOProcessor*> (processor) == nullptr
-                    && dynamic_cast<MeterNode*> (processor) == nullptr)
+                if (PluginGraph::canBeBypassed (*processor))
                 {
                     bypassButton = std::make_unique<NodeBypassButton> ([this] { return isNodeBypassed(); },
                                                                        [this] { return isMidiLearning(); });
@@ -699,7 +697,8 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         menu.reset (new PopupMenu);
         menu->addItem ("Delete This Node", [this] { graph.removeNode (pluginID); });
         menu->addItem ("Disconnect All Pins", [this] { graph.graph.disconnectNode (pluginID); });
-        menu->addItem ("Toggle Bypass", [this] { toggleBypass(); });
+        if (auto* proc = getProcessor(); proc != nullptr && PluginGraph::canBeBypassed (*proc))
+            menu->addItem ("Toggle Bypass", [this] { toggleBypass(); });
         menu->addItem ("Rename This Node", [this]
         {
             promptRenameNode();

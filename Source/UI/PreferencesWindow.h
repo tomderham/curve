@@ -404,7 +404,7 @@ private:
                 return;
 
             auto* alert = new juce::AlertWindow (next ? "Next Preset Control" : "Previous Preset Control",
-                                                 "Press a button or move a control on your MIDI controller.\n\n"
+                                                 "Press a button or pad on your MIDI controller.\n\n"
                                                  "Controllers must be enabled under MIDI Inputs in Audio Settings.",
                                                  juce::MessageBoxIconType::NoIcon);
             alert->addButton ("Cancel", 0, juce::KeyPress (juce::KeyPress::escapeKey));

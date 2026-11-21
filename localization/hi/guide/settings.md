@@ -41,4 +41,5 @@ Preferences विंडो में तीन टैब हैं। Curve क
 | Program Change Selects Preset | कंट्रोलर से आने वाले प्रोग्राम चेंज प्रीसेट लोड करते हैं। [MIDI कंट्रोल](midi-control.md) देखें। | बंद |
 | Next Preset Control, Previous Preset Control | कंट्रोलर के बटन जो प्रीसेट को एक-एक करके बदलते हैं। | |
 | Clear Preset Controls | इन दोनों बटन असाइनमेंट को हटाता है। | |
-| MIDI Mappings for Current Preset... | लोड किए गए प्रीसेट की MIDI मैपिंग और हर मैपिंग की रेंज दिखाता है। | |
+
+लोड किए गए प्रीसेट की अपनी MIDI मैपिंग एडिटर के मेनू में MIDI Mappings for Current Preset... में हैं। [MIDI कंट्रोल](midi-control.md) देखें।

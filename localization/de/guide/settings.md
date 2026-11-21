@@ -41,4 +41,5 @@ Das Fenster Preferences hat drei Tabs. Es kann geöffnet bleiben, während du Cu
 | Program Change Selects Preset | Program-Change-Befehle von einem Controller laden Presets. Siehe [MIDI-Steuerung](midi-control.md). | Aus |
 | Next Preset Control, Previous Preset Control | Tasten an einem Controller, mit denen du durch die Presets schaltest. | |
 | Clear Preset Controls | Entfernt beide Tastenzuordnungen. | |
-| MIDI Mappings for Current Preset... | Zeigt die MIDI-Zuordnungen des geladenen Presets und den Bereich jeder Zuordnung an. | |
+
+Die MIDI-Zuordnungen des geladenen Presets findest du unter MIDI Mappings for Current Preset... im Menü des Editors. Siehe [MIDI-Steuerung](midi-control.md).

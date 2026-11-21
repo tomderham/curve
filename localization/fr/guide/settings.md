@@ -41,4 +41,5 @@ La fenêtre Preferences comporte trois onglets. Elle peut rester ouverte pendant
 | Program Change Selects Preset | Les changements de programme d’un contrôleur chargent des presets. Voir [Contrôle MIDI](midi-control.md). | Désactivé |
 | Next Preset Control, Previous Preset Control | Boutons d’un contrôleur qui parcourent les presets. | |
 | Clear Preset Controls | Supprime ces deux assignations de boutons. | |
-| MIDI Mappings for Current Preset... | Affiche les assignations MIDI du preset chargé et la plage de chacune. | |
+
+Les assignations MIDI du preset chargé se trouvent dans MIDI Mappings for Current Preset..., dans le menu de l’éditeur. Voir [Contrôle MIDI](midi-control.md).

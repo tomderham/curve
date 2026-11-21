@@ -43,6 +43,21 @@ inline void removeDescriptionTimes (juce::XmlElement& node)
     }
 }
 
+/** Whether a node attribute is where its plug-in window is and whether it's open, which is each
+    scene's own: just opening or moving a window isn't a change to the shared graph.
+*/
+inline bool isWindowAttribute (const juce::String& name)
+{
+    return name.startsWith ("uiopen_") || name.startsWith ("uiLastX_") || name.startsWith ("uiLastY_");
+}
+
+inline void removeWindowAttributes (juce::XmlElement& node)
+{
+    for (int i = node.getNumAttributes(); --i >= 0;)
+        if (isWindowAttribute (node.getAttributeName (i)))
+            node.removeAttribute (node.getAttributeName (i));
+}
+
 /** The Audio Input and Audio Output nodes, whose channel count is the audio interface's, not
     something set in the preset: it's whatever interface was in use when the scene was saved.
     It's in their LAYOUT, and in numInputs and numOutputs on their PLUGIN description.
@@ -54,6 +69,23 @@ inline bool isAudioDeviceNode (const juce::XmlElement& node)
         return false;
 
     for (const auto* name : { "Audio Input", "Audio Output" })
+        if (plugin->getStringAttribute ("name").equalsIgnoreCase (name)
+            || plugin->getStringAttribute ("file").equalsIgnoreCase (name))
+            return true;
+
+    return false;
+}
+
+/** The graph's I/O nodes and meters, which can't be bypassed (see PluginGraph::canBeBypassed()),
+    so are added to another scene as they are.
+*/
+inline bool isNeverBypassed (const juce::XmlElement& node)
+{
+    auto* plugin = node.getChildByName ("PLUGIN");
+    if (plugin == nullptr || ! plugin->getStringAttribute ("format").equalsIgnoreCase ("Internal"))
+        return false;
+
+    for (const auto* name : { "Audio Input", "Audio Output", "MIDI Input", "MIDI Output", "Meter" })
         if (plugin->getStringAttribute ("name").equalsIgnoreCase (name)
             || plugin->getStringAttribute ("file").equalsIgnoreCase (name))
             return true;
@@ -73,6 +105,7 @@ inline std::unique_ptr<juce::XmlElement> getSharedPart (const juce::XmlElement& 
     for (auto* node : shared->getChildWithTagNameIterator ("FILTER"))
     {
         node->removeAttribute ("bypassed");
+        removeWindowAttributes (*node);
         removeDescriptionTimes (*node);
 
         if (node->getBoolAttribute (varyAttribute))
@@ -105,8 +138,9 @@ inline bool shareGraph (const juce::XmlElement& a, const juce::XmlElement& b)
 
 /** Another scene of the group once `saved` has been saved: the saved graph, with the other
     scene's own bypass for each node, its own state for each node that varies by scene, and its
-    own Audio Input and Output layout (see isAudioDeviceNode()). Nodes it doesn't have yet are
-    bypassed in it, so adding a node doesn't change how it sounds.
+    own Audio Input and Output layout (see isAudioDeviceNode()), and its own plug-in windows. Nodes
+    it doesn't have yet are bypassed in it, so adding a node doesn't change how it sounds, except
+    those that can't be bypassed (see isNeverBypassed()), which pass on nothing but what they're connected to.
 */
 inline std::unique_ptr<juce::XmlElement> createOtherScene (const juce::XmlElement& saved, const juce::XmlElement& other)
 {
@@ -123,7 +157,8 @@ inline std::unique_ptr<juce::XmlElement> createOtherScene (const juce::XmlElemen
 
         if (own == otherNodes.end())
         {
-            node->setAttribute ("bypassed", true);
+            if (! isNeverBypassed (*node))
+                node->setAttribute ("bypassed", true);
             continue;
         }
 
@@ -131,6 +166,13 @@ inline std::unique_ptr<juce::XmlElement> createOtherScene (const juce::XmlElemen
             node->setAttribute ("bypassed", true);
         else
             node->removeAttribute ("bypassed");
+
+        // Its own plug-in windows
+        removeWindowAttributes (*node);
+
+        for (int i = 0; i < own->second->getNumAttributes(); ++i)
+            if (const auto name = own->second->getAttributeName (i); isWindowAttribute (name))
+                node->setAttribute (name, own->second->getAttributeValue (i));
 
         // Its own count of the interface's channels, as saved with whichever interface it was on
         if (isAudioDeviceNode (*node))
@@ -190,8 +232,10 @@ struct SharedChanges
 {
     juce::StringArray changedNodes;   // settings or channel layout
     juce::StringArray addedNodes;     // bypassed in the other scene
+    juce::StringArray addedIONodes;   // I/O nodes and meters, which can't be bypassed (see isNeverBypassed())
     juce::StringArray removedNodes;
     bool connectionsChanged = false;
+    bool midiMappingsChanged = false;
 
     bool changesSound() const { return ! changedNodes.isEmpty() || ! removedNodes.isEmpty() || connectionsChanged; }
 
@@ -199,11 +243,14 @@ struct SharedChanges
     {
         changedNodes.addArray (other.changedNodes);
         addedNodes.addArray (other.addedNodes);
+        addedIONodes.addArray (other.addedIONodes);
         removedNodes.addArray (other.removedNodes);
         changedNodes.removeDuplicates (false);
         addedNodes.removeDuplicates (false);
+        addedIONodes.removeDuplicates (false);
         removedNodes.removeDuplicates (false);
         connectionsChanged = connectionsChanged || other.connectionsChanged;
+        midiMappingsChanged = midiMappingsChanged || other.midiMappingsChanged;
     }
 };
 
@@ -246,7 +293,7 @@ inline SharedChanges describeChanges (const juce::XmlElement& saved, const juce:
 
         if (own == otherNodes.end())
         {
-            changes.addedNodes.add (getNodeName (*node));
+            (isNeverBypassed (*node) ? changes.addedIONodes : changes.addedNodes).add (getNodeName (*node));
             continue;
         }
 
@@ -266,6 +313,12 @@ inline SharedChanges describeChanges (const juce::XmlElement& saved, const juce:
         changes.removedNodes.add (getNodeName (*node));
 
     changes.connectionsChanged = getConnections (*updated) != getConnections (other);
+
+    // Shared too, and not a change in sound until a control is used
+    const auto* mappings = updated->getChildByName ("MIDIMAPPINGS");
+    const auto* ownMappings = other.getChildByName ("MIDIMAPPINGS");
+    changes.midiMappingsChanged = (mappings == nullptr) != (ownMappings == nullptr)
+                               || (mappings != nullptr && ! mappings->isEquivalentTo (ownMappings, true));
     return changes;
 }
 } // namespace Curve::Scenes

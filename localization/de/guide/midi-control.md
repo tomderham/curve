@@ -45,7 +45,7 @@ Zuweisungen werden mit dem Preset gespeichert. Verwende also Save As Preset..., 
 
 - Regler und Fader (CC) decken den gesamten Bereich eines Parameters ab. In MIDI Mappings for Current Preset... kannst du ihn eingrenzen (siehe unten).
 - Noten und Program Changes schalten das Ziel um.
-- Beim Bypass erkennt Curve, ob ein CC-Taster als Taster arbeitet, bei dem jeder Druck den Bypass umschaltet, oder als Schalter, bei dem der Bypass dem Zustand des Tasters folgt.
+- Beim Bypass und bei Ein/Aus-Parametern wie Mute erkennt Curve, ob ein CC-Taster als Taster arbeitet, bei dem jeder Druck umschaltet, oder als Schalter, bei dem der Zustand des Tasters übernommen wird.
 
 Nodes mit Zuweisungen zeigen ein kleines MIDI-Buchsensymbol. Bewege den Mauszeiger über den Node, um seine Zuweisungen in der Statusleiste zu sehen.
 
@@ -53,7 +53,7 @@ Zugewiesene MIDI-Nachrichten werden nicht über den Node MIDI Input an Plug-ins 
 
 ## Eine Zuordnung anpassen
 
-Wähle Settings > Preferences..., öffne den Tab MIDI und klicke auf MIDI Mappings for Current Preset..., um die Zuordnungen des geladenen Presets zu sehen. Das Fenster kann geöffnet bleiben, während du MIDI Learn verwendest oder Presets wechselst. Für jede Zuordnung kannst du Folgendes einstellen:
+Klicke auf das Menüsymbol oben links im Editorfenster und wähle MIDI Mappings for Current Preset..., um die Zuordnungen des geladenen Presets zu sehen. Das Fenster kann geöffnet bleiben, während du MIDI Learn verwendest oder Presets wechselst. Für jede Zuordnung kannst du Folgendes einstellen:
 
 - **Mode:** Range, bei dem ein Regler oder Fader den Wert setzt; Toggle, bei dem jeder Druck zwischen zwei Werten wechselt; oder Follow, bei dem das Ziel einer Taste folgt und eingeschaltet ist, solange sie gedrückt oder eingerastet ist.
 - **From und To:** die Werte, zwischen denen sich ein Regler oder Fader bewegt. Ein engerer Bereich ergibt feinere Schritte, zum Beispiel -20 dB bis +6 dB bei einem Gain-Node. Bei Toggle und Follow sind es der Aus- und der Ein-Wert. Gib einen Wert in der Einheit des Parameters ein oder einen Prozentwert wie 25%.
@@ -68,6 +68,8 @@ Wähle Settings > Preferences... und öffne den Tab MIDI. Diese Einstellungen ge
 - **Program Change Selects Preset:** standardmäßig deaktiviert. Program Change 0 lädt das erste Preset im Menü, 1 das zweite und so weiter, in derselben Reihenfolge wie bei den [Zifferntasten-Kurzbefehlen](keyboard-shortcuts.md).
 - **Next Preset Control** und **Previous Preset Control:** klicke neben einer der beiden auf MIDI Learn... und drücke dann die gewünschte Taste an deinem Controller.
 - **Clear Preset Controls:** entfernt diese beiden Tastenzuweisungen.
+
+Wenn das geladene Preset dasselbe Bedienelement selbst zuweist, wird stattdessen die Zuweisung des Presets verwendet. Solange ein Fenster wie Save As Preset... oder Audio Settings geöffnet ist, wechselt MIDI keine Presets.
 
 ## Bedienelemente von Curves eigenen Plug-ins
 

@@ -146,8 +146,11 @@ void MidiControlEngine::rebuildTable()
     if (graph != nullptr)
         newTable->mappings = graph->getMidiMappings().getMappings();
 
+    // A control the preset maps does that instead, as Program Change Selects Preset yields to it
     for (auto& m : globalMappings.getMappings())
-        newTable->mappings.push_back (m);
+        if (std::none_of (newTable->mappings.begin(), newTable->mappings.end(),
+                          [&m] (const MidiMapping& own) { return own.trigger == m.trigger; }))
+            newTable->mappings.push_back (m);
 
     newTable->programChangeSelectsPreset = isProgramChangePresetSelectEnabled();
 
@@ -196,7 +199,9 @@ void MidiControlEngine::changeListenerCallback (ChangeBroadcaster*)
 
     updateWatchers();
 
-    if (learnTarget.has_value() && graph->graph.getNodeForId (learnTarget->nodeID) == nullptr)
+    // Also when another preset loaded, whose node with the same ID is a different plug-in
+    if (learnTarget.has_value()
+        && (graph->getGraphGeneration() != learnTargetGeneration || graph->graph.getNodeForId (learnTarget->nodeID) == nullptr))
     {
         learnTarget.reset();
         lastLearned.reset();
@@ -294,9 +299,16 @@ void MidiControlEngine::handleAsyncUpdate()
 
     for (auto& p : messages)
     {
-        // The rest were meant for the nodes of the previous preset
+        // The rest were meant for the nodes of the previous preset, but a preset control's
+        // release still counts, or its next press would be taken for the same one
         if (presetLoaded)
-            return;
+        {
+            if (p.message.isController() && ! MidiMapping::isPress (MidiMapping::getControlValue (p.message)))
+                heldPresetStepControls.erase (std::remove_if (heldPresetStepControls.begin(), heldPresetStepControls.end(),
+                                                              [&p] (const MidiTrigger& t) { return t.matches (p.message); }),
+                                              heldPresetStepControls.end());
+            continue;
+        }
 
         if (p.forLearning)
         {
@@ -346,9 +358,29 @@ void MidiControlEngine::applyMapping (const MidiMapping& m, int controlValue)
     {
         case MidiMappingTarget::Kind::nextPreset:
         case MidiMappingTarget::Kind::previousPreset:
+        {
+            if (m.trigger.type == MidiTrigger::Type::controller)
+            {
+                const auto held = std::find (heldPresetStepControls.begin(), heldPresetStepControls.end(), m.trigger);
+
+                if (! pressed)
+                {
+                    if (held != heldPresetStepControls.end())
+                        heldPresetStepControls.erase (held);
+                    return;
+                }
+
+                // Only the first value since it was at 0, so turning a knob doesn't step through every preset
+                if (held != heldPresetStepControls.end())
+                    return;
+
+                heldPresetStepControls.push_back (m.trigger);
+            }
+
             if (pressed)
                 stepPreset (m.target.kind == MidiMappingTarget::Kind::nextPreset ? 1 : -1);
             return;
+        }
 
         case MidiMappingTarget::Kind::bypass:
         {
@@ -390,7 +422,9 @@ void MidiControlEngine::applyMapping (const MidiMapping& m, int controlValue)
                     if (! pressed)
                         return;
 
-                    newValue = param->getValue() >= 0.5f * (m.minValue + m.maxValue) ? m.minValue : m.maxValue;
+                    // To whichever end it's furthest from, so it works with From above To
+                    newValue = std::abs (param->getValue() - m.minValue) <= std::abs (param->getValue() - m.maxValue)
+                                 ? m.maxValue : m.minValue;
                     break;
 
                 case MidiMapping::Mode::follow:
@@ -425,6 +459,11 @@ void MidiControlEngine::stepPreset (int delta)
 
 void MidiControlEngine::loadPresetAt (int index)
 {
+    // Not under an open dialog, such as Save Preset, which may be about to save the loaded preset
+    // or its scenes, or Audio Settings
+    if (Component::getNumCurrentlyModalComponents() > 0)
+        return;
+
     const auto files = PluginGraph::getPresetFiles();
 
     if (isPositiveAndBelow (index, files.size()) && onLoadPreset != nullptr)
@@ -459,6 +498,7 @@ void MidiControlEngine::selectLearnTarget (const MidiMappingTarget& target)
         return;
 
     learnTarget = target;
+    learnTargetGeneration = graph != nullptr ? graph->getGraphGeneration() : 0;
     lastLearned.reset();
     showLearnStatus();
 
@@ -553,6 +593,14 @@ void MidiControlEngine::handleLearnMessage (const MidiMessage& message)
     mapping.trigger = *trigger;
     mapping.target = *learnTarget;
     mapping.mode = MidiMapping::getDefaultMode (*trigger, *learnTarget);
+
+    // An on/off parameter, such as Mute or Record, follows a CC button like bypass does: it starts
+    // latching, and switches to toggle below if the button turns out to be momentary
+    if (mapping.mode == MidiMapping::Mode::absolute && trigger->type == MidiTrigger::Type::controller)
+        if (auto* node = graph->graph.getNodeForId (learnTarget->nodeID))
+            if (auto* processor = node->getProcessor())
+                if (auto* param = learnTarget->findParameter (*processor); param != nullptr && (param->isBoolean() || param->getNumSteps() == 2))
+                    mapping.mode = MidiMapping::Mode::follow;
 
     graph->assignMidiMapping (mapping);
     lastLearned = mapping;

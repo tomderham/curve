@@ -41,4 +41,5 @@ Preferences 창에는 탭이 세 개 있습니다. Curve를 사용하는 동안 
 | Program Change Selects Preset | 컨트롤러의 프로그램 체인지로 프리셋을 불러옵니다. [MIDI 컨트롤](midi-control.md)을 참조하십시오. | 끔 |
 | Next Preset Control, Previous Preset Control | 프리셋을 차례로 전환하는 컨트롤러 버튼입니다. | |
 | Clear Preset Controls | 이 두 버튼 할당을 제거합니다. | |
-| MIDI Mappings for Current Preset... | 불러온 프리셋의 MIDI 매핑과 각 매핑의 범위를 표시합니다. | |
+
+불러온 프리셋의 MIDI 매핑은 편집기 메뉴의 MIDI Mappings for Current Preset...에 있습니다. [MIDI 컨트롤](midi-control.md)을 참조하십시오.
