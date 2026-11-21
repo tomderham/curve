@@ -342,17 +342,7 @@ private:
             };
 
             switchingHeader.setText ("Changing Presets", juce::dontSendNotification);
-            currentHeader.setText ("Current Preset", juce::dontSendNotification);
-            for (auto* header : { &switchingHeader, &currentHeader })
-                header->setFont (juce::FontOptions (14.0f, juce::Font::bold));
-
-            mappings.setButtonText ("MIDI Mappings for Current Preset...");
-            mappings.setTooltip ("The MIDI controls saved in the loaded preset, and each one's range");
-            mappings.onClick = [this]
-            {
-                if (auto* w = window.getComponent())
-                    w->showMidiMappingsWindow();
-            };
+            switchingHeader.setFont (juce::FontOptions (14.0f, juce::Font::bold));
 
             for (const bool next : { true, false })
             {
@@ -376,8 +366,7 @@ private:
             styleNote (note);
 
             for (auto* c : std::initializer_list<juce::Component*> { &switchingHeader, &programChange, &nextLabel, &nextControl, &learnNext,
-                                                                    &previousLabel, &previousControl, &learnPrevious, &clear,
-                                                                    &currentHeader, &mappings, &note })
+                                                                    &previousLabel, &previousControl, &learnPrevious, &clear, &note })
                 addAndMakeVisible (c);
         }
 
@@ -462,19 +451,13 @@ private:
             clear.changeWidthToFitText (26);
             clear.setTopLeftPosition (r.getX(), r.getY());
             r.removeFromTop (rowHeight + 12);
-
-            // MIDI mappings are saved in each preset
-            currentHeader.setBounds (r.removeFromTop (24));
-            mappings.changeWidthToFitText (26);
-            mappings.setTopLeftPosition (r.getX(), r.getY() + 2);
-            r.removeFromTop (rowHeight + 12);
             note.setBounds (r.removeFromTop (rowHeight));
         }
 
         juce::Component::SafePointer<MainHostWindow> window;
         juce::ToggleButton programChange;
-        juce::TextButton mappings, learnNext, learnPrevious, clear;
-        juce::Label switchingHeader, currentHeader, nextLabel, nextControl, previousLabel, previousControl, note;
+        juce::TextButton learnNext, learnPrevious, clear;
+        juce::Label switchingHeader, nextLabel, nextControl, previousLabel, previousControl, note;
     };
 
     //==============================================================================

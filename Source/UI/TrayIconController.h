@@ -508,6 +508,12 @@ public:
       *outInitialSelectedId = initialId;
     menu.addSeparator();
 
+    // The mappings belong to the loaded preset, so they sit with the editor's preset items
+    if (!includeVisibilityToggle)
+      menu.addItem("MIDI Mappings for Current Preset...", [safeWindow] {
+        if (auto* w = safeWindow.getComponent())
+          w->showMidiMappingsWindow();
+      });
     menu.addSubMenu("Settings", settingsmenu, true);
 
     return menu;

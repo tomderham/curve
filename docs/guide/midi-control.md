@@ -53,7 +53,7 @@ Mapped MIDI messages aren't passed on to plug-ins through the MIDI Input node. A
 
 ## Adjust a mapping
 
-Select Settings > Preferences..., then the MIDI tab, and click MIDI Mappings for Current Preset... to see the loaded preset's mappings. The window can stay open while you use MIDI Learn or switch presets. For each mapping you can set:
+Click the menu icon at the top left of the editor window and select MIDI Mappings for Current Preset... to see the loaded preset's mappings. The window can stay open while you use MIDI Learn or switch presets. For each mapping you can set:
 
 - **Mode:** Range, where a knob or fader sets the value; Toggle, where each press switches between two values; or Follow, where the target follows a button, on while it's held or latched.
 - **From and To:** the values a knob or fader moves between. A narrower range gives finer steps, for example -20 dB to +6 dB on a Gain node. For Toggle and Follow, they're the off and on values. Type a value in the parameter's units, or a percentage such as 25%.

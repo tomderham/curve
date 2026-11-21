@@ -41,4 +41,5 @@ The Preferences window has three tabs. It can stay open while you use Curve.
 | Program Change Selects Preset | Program changes from a controller load presets. See [MIDI control](midi-control.md). | Off |
 | Next Preset Control, Previous Preset Control | Buttons on a controller that step through the presets. | |
 | Clear Preset Controls | Removes both of those button assignments. | |
-| MIDI Mappings for Current Preset... | Shows the loaded preset's MIDI mappings, and the range of each. | |
+
+The loaded preset's own MIDI mappings are in MIDI Mappings for Current Preset..., in the editor's menu. See [MIDI control](midi-control.md#adjust-a-mapping).

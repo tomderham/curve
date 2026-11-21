@@ -17,7 +17,7 @@
 #include "../Plugins/PluginGraph.h"
 
 //==============================================================================
-/** The MIDI Mappings window, from Settings > MIDI Control: the loaded preset's mappings, with each
+/** The MIDI Mappings window, from the editor menu's MIDI Mappings for Current Preset...: the loaded preset's mappings, with each
     one's mode, the range a control covers (in the parameter's own units, e.g. dB), and invert.
 
     Editing a mapping assigns it again, which marks the preset changed and updates the MIDI engine,
