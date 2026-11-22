@@ -29,7 +29,11 @@ Um den gesamten Graphen nach Signalfluss anzuordnen, klicke mit der rechten Maus
 
 ## Einen Node umgehen
 
-Klicke auf die Ein/Aus-Taste am Node. Klicke erneut darauf, um den Node wieder zu aktivieren. Du kannst auch mit der rechten Maustaste auf den Node klicken und Toggle Bypass wählen.
+Klicke auf die Ein/Aus-Taste am Node. Klicke erneut darauf, um den Node wieder zu aktivieren. Du kannst auch mit der rechten Maustaste auf den Node klicken und Bypass wählen.
+
+## Einen Node stummschalten
+
+Klicke mit der rechten Maustaste auf den Node und wähle Mute. Ein stummgeschalteter Node gibt nichts weiter und wird nicht verarbeitet. Er unterbricht so den Signalweg, auf dem er liegt, während ein umgangener Node sein Eingangssignal unverändert weitergibt. Er ist abgeblendet, mit gestricheltem Rahmen und roten Kreuzen an seinen Ausgängen. Um die Stummschaltung aufzuheben, klicke auf seine Ein/Aus-Taste oder wähle erneut Mute. In [Szenen](presets.md) hat jede Szene ihren eigenen Zustand.
 
 ## Das Fenster eines Plug-ins öffnen
 
@@ -43,9 +47,10 @@ Klicke mit der rechten Maustaste auf einen Node, um diese Optionen zu sehen:
 
 | Eintrag | Funktion |
 |---|---|
+| Bypass | Schaltet den Bypass ein oder aus. Nicht für I/O-Nodes und Meter. |
+| Mute | Schaltet den Node stumm oder hebt die Stummschaltung auf. Ein stummgeschalteter Node gibt nichts weiter. Siehe oben. |
 | Delete This Node | Entfernt den Node. |
 | Disconnect All Pins | Entfernt alle Verbindungen des Nodes. |
-| Toggle Bypass | Schaltet den Bypass ein oder aus. Nicht für I/O-Nodes und Meter. |
 | Rename This Node | Ändert den auf dem Node angezeigten Namen. |
 | MIDI Learn | Startet [MIDI Learn](midi-control.md). |
 | Clear MIDI Mappings | Entfernt die MIDI-Zuweisungen des Nodes. Wird nur angezeigt, wenn es welche gibt. |

@@ -342,6 +342,43 @@ static void testMidiMappingChangeIsDescribed()
     CHECK (! describeChanges (*saved, *other).changesSound());
 }
 
+// Mute is each scene's own, like bypass, and a node added to another scene isn't muted there
+static void testMuteIsEachScenes()
+{
+    auto early = parse (R"(<FILTERGRAPH sceneGroup="g">
+  <FILTER uid="2" x="0.5" y="0.4" muted="1"><STATE>eq</STATE></FILTER>
+  <FILTER uid="5" x="0.2" y="0.4" muted="1"><STATE>new</STATE></FILTER>
+</FILTERGRAPH>)");
+    auto late = parse (R"(<FILTERGRAPH sceneGroup="g"><FILTER uid="2" x="0.5" y="0.4"><STATE>eq</STATE></FILTER></FILTERGRAPH>)");
+
+    auto lateMuted = parse (R"(<FILTERGRAPH sceneGroup="g"><FILTER uid="2" x="0.5" y="0.4" muted="1"><STATE>eq</STATE></FILTER></FILTERGRAPH>)");
+    CHECK (shareGraph (*late, *lateMuted));
+    CHECK (! describeChanges (*lateMuted, *late).changesSound());
+
+    auto updated = createOtherScene (*early, *late);
+    CHECK (! node (*updated, 2)->getBoolAttribute ("muted"));
+    CHECK (! node (*updated, 5)->getBoolAttribute ("muted"));
+    CHECK (bypassed (*updated, 5));
+
+    CHECK (node (*createOtherScene (*late, *lateMuted), 2)->getBoolAttribute ("muted"));
+}
+
+// The nodes whose settings change are named by uid, to offer Vary by Scene for them
+static void testChangedStateIsNamedByUID()
+{
+    auto other = parse (R"(<FILTERGRAPH sceneGroup="g"><FILTER uid="2" x="0.5" y="0.4"><STATE>eq-A</STATE></FILTER>
+  <FILTER uid="3" x="0.2" y="0.4"><STATE>same</STATE></FILTER></FILTERGRAPH>)");
+    auto saved = parse (R"(<FILTERGRAPH sceneGroup="g"><FILTER uid="2" x="0.5" y="0.4"><STATE>eq-B</STATE></FILTER>
+  <FILTER uid="3" x="0.2" y="0.4"><STATE>same</STATE></FILTER></FILTERGRAPH>)");
+
+    const auto changes = describeChanges (*saved, *other);
+    CHECK (changes.changedStateUIDs.size() == 1 && changes.changedStateUIDs[0] == 2);
+
+    // Once it varies, saving doesn't change it in the other scene
+    const_cast<XmlElement*> (node (*saved, 2))->setAttribute ("varyByScene", true);
+    CHECK (describeChanges (*saved, *other).changedStateUIDs.isEmpty());
+}
+
 int main()
 {
     testVaryingNodeWithoutStateKeepsNone();
@@ -366,6 +403,8 @@ int main()
     testPluginWindowsAreEachScenes();
     testNewIONodeIsNotBypassed();
     testMidiMappingChangeIsDescribed();
+    testMuteIsEachScenes();
+    testChangedStateIsNamedByUID();
 
     if (failures == 0)
         std::printf ("All preset scene tests passed\n");

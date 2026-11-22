@@ -270,6 +270,7 @@ void PluginGraph::removeNode (NodeID nodeID)
         deactivateIfLoopback (*node);
 
     midiMappings.removeForNode (nodeID);
+    statesAsSaved.erase (nodeID.uid);
     graph.removeNode (nodeID);
 }
 
@@ -283,6 +284,7 @@ void PluginGraph::clear()
     midiMappings.clear();
     sceneGroup.clear();
     loadedXml.reset();
+    statesAsSaved.clear();
 
     closeAnyOpenPluginWindows();
 
@@ -423,6 +425,7 @@ String PluginGraph::describeMidiMappingTarget (const MidiMappingTarget& target) 
     switch (target.kind)
     {
         case MidiMappingTarget::Kind::bypass:           return "Bypass";
+        case MidiMappingTarget::Kind::mute:             return "Mute";
         case MidiMappingTarget::Kind::nextPreset:       return "Next Preset";
         case MidiMappingTarget::Kind::previousPreset:   return "Previous Preset";
         case MidiMappingTarget::Kind::parameter:        break;
@@ -784,6 +787,9 @@ static XmlElement* createNodeXml (AudioProcessorGraph::Node* const node) noexcep
         if (node->isBypassed())
             e->setAttribute ("bypassed", true);
 
+        if (node->properties[PluginGraph::mutedProp])
+            e->setAttribute (PluginGraph::mutedProp, true);
+
         if (node->properties[PluginGraph::openWithPresetProp])
             e->setAttribute (PluginGraph::openWithPresetProp, true);
 
@@ -1087,10 +1093,13 @@ bool PluginGraph::finishNodeFromXml (std::unique_ptr<AudioPluginInstance> instan
             node->getProcessor()->setStateInformation (m.getData(), (int) m.getSize());
         }
 
-        // After STATE, so it overrides any bypass in the plugin's own state. Not for a node that
-        // can't be bypassed, which another scene's save once added bypassed
-        if (xml.getBoolAttribute ("bypassed") && canBeBypassed (*node->getProcessor()))
-            node->setBypassed (true);
+        // After STATE, so it overrides any bypass in the plugin's own state, either way: a plug-in
+        // with a bypass parameter keeps it in its state, which may be another scene's. Not for a
+        // node that can't be bypassed, which another scene's save once added bypassed
+        node->setBypassed (xml.getBoolAttribute ("bypassed") && canBeBypassed (*node->getProcessor()));
+
+        if (auto* state = xml.getChildByName ("STATE"))
+            rememberStateAsSaved (*node, state->getAllSubText());
 
         const double posX = xml.hasAttribute ("x") ? xml.getDoubleAttribute ("x") : 0.5;
         const double posY = xml.hasAttribute ("y") ? xml.getDoubleAttribute ("y") : 0.5;
@@ -1106,6 +1115,12 @@ bool PluginGraph::finishNodeFromXml (std::unique_ptr<AudioPluginInstance> instan
 
         if (xml.getBoolAttribute (varyBySceneProp))
             node->properties.set (varyBySceneProp, true);
+
+        if (xml.getBoolAttribute (mutedProp))
+        {
+            node->properties.set (mutedProp, true);
+            node->getProcessor()->suspendProcessing (true);
+        }
 
         if (const auto hiddenPorts = xml.getStringAttribute (hiddenPortsProp); hiddenPorts.isNotEmpty())
             node->properties.set (hiddenPortsProp, hiddenPorts);
@@ -1157,7 +1172,21 @@ std::unique_ptr<XmlElement> PluginGraph::createXml() const
     auto xml = std::make_unique<XmlElement> ("FILTERGRAPH");
 
     for (auto* node : graph.getNodes())
-        xml->addChildElement (createNodeXml (node));
+    {
+        auto* e = createNodeXml (node);
+
+        // As in the file, while the plug-in reports what it did when that was loaded or saved
+        if (auto saved = statesAsSaved.find (node->nodeID.uid); saved != statesAsSaved.end())
+        {
+            if (auto* state = e->getChildByName ("STATE"); state != nullptr && state->getAllSubText() == saved->second.reported)
+            {
+                state->deleteAllTextElements();
+                state->addTextElement (saved->second.inFile);
+            }
+        }
+
+        xml->addChildElement (e);
+    }
 
     for (auto& connection : graph.getConnections())
     {
@@ -1242,15 +1271,161 @@ bool PluginGraph::doesNodeVaryByScene (NodeID nodeID) const
     return false;
 }
 
+bool PluginGraph::canVaryByScene (AudioProcessor& processor)
+{
+    return dynamic_cast<AudioProcessorGraph::AudioGraphIOProcessor*> (&processor) == nullptr
+        && ! isConfiguredByAudioSettings (processor);
+}
+
+void PluginGraph::setNodeMuted (NodeID nodeID, bool shouldBeMuted)
+{
+    if (auto* node = graph.getNodeForId (nodeID))
+    {
+        if ((bool) node->properties[mutedProp] == shouldBeMuted)
+            return;
+
+        if (shouldBeMuted)
+            node->properties.set (mutedProp, true);
+        else
+            node->properties.remove (mutedProp);
+
+        // The graph clears a suspended node's output and doesn't process it
+        node->getProcessor()->suspendProcessing (shouldBeMuted);
+        graph.sendChangeMessage();
+    }
+}
+
+bool PluginGraph::isNodeMuted (NodeID nodeID) const
+{
+    if (auto* node = graph.getNodeForId (nodeID))
+        return node->properties[mutedProp];
+
+    return false;
+}
+
+Colour PluginGraph::getSceneGroupColour (const String& group)
+{
+    // From its id, so it's the same each time
+    static const uint32 palette[] = { 0xff4aa3ff, 0xffff9f43, 0xff5fd38d, 0xffe066ff,
+                                      0xffffd23f, 0xff42d6d6, 0xffff6b81, 0xffa3a8ff };
+
+    return Colour (palette[(size_t) (group.hashCode64() & 0x7fffffff) % std::size (palette)]);
+}
+
+std::unique_ptr<XmlElement> PluginGraph::prepareSceneSwitch (const File& file) const
+{
+    if (sceneGroup.isEmpty() || file == getFile() || pendingAsyncRestores > 0
+        || ! pluginsMissingFromLoad.isEmpty() || ! pluginsFailedToRestore.isEmpty())
+        return nullptr;
+
+    auto scene = parseXMLIfTagMatches (file, "FILTERGRAPH");
+
+    if (scene == nullptr || scene->getStringAttribute (Curve::Scenes::groupAttribute) != sceneGroup)
+        return nullptr;
+
+    // The live graph, not as loaded: a shared setting changed since has to be lost, as loading does
+    if (! Curve::Scenes::shareGraph (*createXml(), *scene))
+        return nullptr;
+
+    return scene;
+}
+
+void PluginGraph::switchScene (const File& file, const XmlElement& scene)
+{
+    // Setting plug-ins' state changes them, which isn't an edit to this scene
+    graph.removeChangeListener (this);
+
+    for (auto* e : scene.getChildWithTagNameIterator ("FILTER"))
+    {
+        auto* node = graph.getNodeForId (NodeID ((uint32) e->getIntAttribute ("uid")));
+
+        if (node == nullptr)
+            continue;
+
+        auto* processor = node->getProcessor();
+
+        if (node->properties[varyBySceneProp])
+        {
+            if (auto* state = e->getChildByName ("STATE"))
+            {
+                MemoryBlock m;
+                m.fromBase64Encoding (state->getAllSubText());
+                processor->setStateInformation (m.getData(), (int) m.getSize());
+            }
+        }
+
+        // After the state, as when loading
+        node->setBypassed (e->getBoolAttribute ("bypassed") && canBeBypassed (*processor));
+
+        if (auto* state = e->getChildByName ("STATE"))
+            rememberStateAsSaved (*node, state->getAllSubText());
+
+        const bool isMuted = e->getBoolAttribute (mutedProp);
+        if (isMuted)
+            node->properties.set (mutedProp, true);
+        else
+            node->properties.remove (mutedProp);
+        processor->suspendProcessing (isMuted);
+
+        // Where this scene's plug-in windows were. Open ones stay where they are
+        for (int i = 0; i < (int) PluginWindow::Type::numTypes; ++i)
+        {
+            const auto type = (PluginWindow::Type) i;
+
+            for (const auto& prop : { PluginWindow::getLastXProp (type), PluginWindow::getLastYProp (type), PluginWindow::getOpenProp (type) })
+            {
+                if (e->hasAttribute (prop))
+                    node->properties.set (prop, e->getIntAttribute (prop));
+                else
+                    node->properties.remove (prop);
+            }
+        }
+    }
+
+    // Another preset is loaded, for anything planned for the previous one, e.g. a save
+    ++restoreGeneration;
+    loadedXml = std::make_unique<XmlElement> (scene);
+    setFile (file);
+    setLastDocumentOpened (file);
+
+    graph.sendChangeMessage();
+    sendChangeMessage();
+
+    // As loadDocument(): after the change messages, which would mark it as changed
+    juce::WeakReference<PluginGraph> weakSelf (this);
+    MessageManager::callAsync ([weakSelf]
+    {
+        if (auto* self = weakSelf.get())
+        {
+            self->setChangedFlag (false);
+            self->graph.addChangeListener (self);
+        }
+    });
+}
+
 String PluginGraph::readSceneGroup (const File& file)
 {
+    // Kept until the file changes, as reading it reads the whole file, and Curve's menu asks for
+    // every preset's each time it opens (message thread only)
+    JUCE_ASSERT_MESSAGE_THREAD
+    struct Read { Time modified; int64 size = 0; String group; };
+    static std::map<String, Read> cache;
+
+    const auto modified = file.getLastModificationTime();
+    const auto size = file.getSize();
+    auto& read = cache[file.getFullPathName()];
+
+    if (read.modified == modified && read.size == size && modified != Time())
+        return read.group;
+
+    read = { modified, size, {} };
     XmlDocument doc (file);
 
     if (auto outer = doc.getDocumentElement (true))
         if (outer->hasTagName ("FILTERGRAPH"))
-            return outer->getStringAttribute (Curve::Scenes::groupAttribute);
+            read.group = outer->getStringAttribute (Curve::Scenes::groupAttribute);
 
-    return {};
+    return read.group;
 }
 
 Array<File> PluginGraph::getScenesInGroup (const String& group)
@@ -1416,6 +1591,7 @@ Result PluginGraph::saveScene (const SceneSave& save, bool* wasPresetSaved)
 
     // As read back from a file, like the other scenes it's compared with on the next save
     loadedXml = parseXML (saved->toString());
+    rememberSavedStates (*saved);
     setChangedFlag (false);
 
     StringArray problems;
@@ -1432,6 +1608,30 @@ Result PluginGraph::saveScene (const SceneSave& save, bool* wasPresetSaved)
     return Result::ok();
 }
 
+void PluginGraph::rememberStateAsSaved (AudioProcessorGraph::Node& node, const String& inFile)
+{
+    MemoryBlock reported;
+    node.getProcessor()->getStateInformation (reported);
+    statesAsSaved[node.nodeID.uid] = { inFile, reported.toBase64Encoding() };
+}
+
+void PluginGraph::rememberSavedStates (const XmlElement& saved)
+{
+    // A state written as the plug-in reports it is now the file's. One written as remembered still is
+    for (auto* e : saved.getChildWithTagNameIterator ("FILTER"))
+    {
+        if (auto* state = e->getChildByName ("STATE"))
+        {
+            const auto uid = (uint32) e->getIntAttribute ("uid");
+            const auto text = state->getAllSubText();
+            auto it = statesAsSaved.find (uid);
+
+            if (it == statesAsSaved.end() || it->second.inFile != text)
+                statesAsSaved[uid] = { text, text };
+        }
+    }
+}
+
 Result PluginGraph::saveSeparatePreset (const File& file)
 {
     auto xml = createXml();
@@ -1442,6 +1642,7 @@ Result PluginGraph::saveSeparatePreset (const File& file)
     setFile (file);
     sceneGroup.clear();
     loadedXml = parseXML (xml->toString());
+    rememberSavedStates (*xml);
     setChangedFlag (false);
     return Result::ok();
 }

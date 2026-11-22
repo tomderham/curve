@@ -1,13 +1,13 @@
 # Contrôle MIDI
 
-Un contrôleur ou un clavier MIDI peut jouer des plug-ins d’instrument, modifier des paramètres de plug-ins, contourner des nœuds et changer de preset. Activez-le sous les entrées MIDI dans [Audio Settings](audio-settings.md).
+Un contrôleur ou un clavier MIDI peut jouer des plug-ins d’instrument, modifier des paramètres de plug-ins, contourner des nœuds ou en couper le son, et changer de preset. Activez-le sous les entrées MIDI dans [Audio Settings](audio-settings.md).
 
 ## Choisir comment contrôler un plug-in
 
 Il existe deux façons de contrôler un plug-in depuis votre contrôleur :
 
 - **Connecter le MIDI au plug-in.** Un nœud MIDI Input envoie le MIDI directement à la broche d’entrée ambre du plug-in, et le plug-in décide quoi en faire. Utilisez cette méthode pour jouer d’un instrument et pour profiter de toute assignation MIDI intégrée au plug-in.
-- **Utiliser MIDI Learn de Curve.** Curve lit lui-même le contrôleur, puis modifie pour vous les paramètres ou le contournement du plug-in. Cela ne nécessite ni nœud MIDI Input ni connexion. Utilisez cette méthode pour les plug-ins sans broche d’entrée ambre et pour le contournement.
+- **Utiliser MIDI Learn de Curve.** Curve lit lui-même le contrôleur, puis modifie pour vous les paramètres, le contournement ou la coupure du son du plug-in. Cela ne nécessite ni nœud MIDI Input ni connexion. Utilisez cette méthode pour les plug-ins sans broche d’entrée ambre et pour le contournement et la coupure du son.
 
 MIDI Learn n’atteint que les paramètres qu’un plug-in met à la disposition de son hôte. Certains plug-ins, surtout les gros instruments, ne rendent disponible qu’une partie de leurs commandes. Si le déplacement d’une commande dans la fenêtre du plug-in pendant MIDI Learn n’a aucun effet, Curve ne peut pas assigner cette commande.
 
@@ -31,6 +31,7 @@ Les plug-ins d’effet qui réagissent au MIDI se connectent de la même manièr
 2. Choisissez ce que vous voulez contrôler :
    - Pour un paramètre de plug-in, ouvrez la fenêtre du plug-in et déplacez la commande.
    - Pour le contournement d’un nœud, cliquez sur son bouton d’alimentation.
+   - Pour couper le son d’un nœud, cliquez dessus avec le bouton droit et sélectionnez Mute.
 3. Déplacez un bouton rotatif, un fader ou un bouton de votre contrôleur. L’assignation est faite immédiatement, et vous pouvez continuer à assigner d’autres commandes.
 4. Appuyez sur Esc, ou sélectionnez de nouveau MIDI Learn, pour terminer.
 
@@ -38,14 +39,14 @@ Les assignations sont enregistrées avec le preset : utilisez donc Save As Prese
 
 ## Supprimer une assignation
 
-- Pour supprimer l’assignation du paramètre ou du contournement sélectionné, appuyez sur Delete pendant MIDI Learn.
+- Pour supprimer l’assignation du paramètre, du contournement ou de la coupure du son sélectionné, appuyez sur Delete pendant MIDI Learn.
 - Pour supprimer toutes les assignations d’un nœud, cliquez dessus avec le bouton droit et sélectionnez Clear MIDI Mappings.
 
 ## Comportement des commandes assignées
 
 - Les boutons rotatifs et les faders (CC) couvrent toute la plage d’un paramètre. Vous pouvez la restreindre dans MIDI Mappings for Current Preset... (voir ci-dessous).
 - Les notes et les changements de programme basculent la cible.
-- Pour le contournement, et pour les paramètres marche/arrêt comme Mute, Curve détermine si un bouton CC est momentané, chaque pression basculant l’état, ou à verrouillage, l’état suivant celui du bouton.
+- Pour le contournement et la coupure du son, et pour les paramètres marche/arrêt comme Record, Curve détermine si un bouton CC est momentané, chaque pression basculant l’état, ou à verrouillage, l’état suivant celui du bouton.
 
 Les nœuds comportant des assignations affichent une petite icône de prise MIDI. Survolez le nœud pour voir ses assignations dans la barre d’état.
 
@@ -59,7 +60,7 @@ Cliquez sur l’icône de menu en haut à gauche de la fenêtre de l’éditeur 
 - **From et To :** les valeurs entre lesquelles se déplace un bouton ou un fader. Une plage plus étroite donne des pas plus fins, par exemple de -20 dB à +6 dB sur un nœud Gain. Pour Toggle et Follow, ce sont les valeurs d’arrêt et de marche. Saisissez une valeur dans l’unité du paramètre, ou un pourcentage comme 25%.
 - **Invert :** inverse la commande.
 
-Les assignations de bypass n’ont pas de From ni de To. Cliquez sur × pour supprimer une assignation. Les assignations sont enregistrées avec le preset : utilisez Save As Preset... pour conserver vos modifications.
+Les assignations de contournement et de coupure du son n’ont pas de From ni de To. Cliquez sur × pour supprimer une assignation. Les assignations sont enregistrées avec le preset : utilisez Save As Preset... pour conserver vos modifications.
 
 ## Changer de preset depuis un contrôleur
 

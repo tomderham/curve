@@ -27,19 +27,37 @@ static juce::String joinWithAnd (const juce::StringArray& items)
     return items.joinIntoString (", ", 0, items.size() - 1) + " and " + items[items.size() - 1];
 }
 
+void RadioToggle::paintButton (juce::Graphics& g, bool shouldDrawButtonAsHighlighted, bool)
+{
+    const auto fontSize = juce::jmin (15.0f, (float) getHeight() * 0.75f);
+    const auto size = juce::jmin (16.0f, (float) getHeight() - 4.0f);
+    const auto circle = juce::Rectangle<float> (4.0f, ((float) getHeight() - size) * 0.5f, size, size);
+    const auto colour = findColour (juce::ToggleButton::textColourId);
+
+    g.setColour (colour.withAlpha (shouldDrawButtonAsHighlighted ? 0.8f : 0.55f));
+    g.drawEllipse (circle.reduced (0.75f), 1.5f);
+
+    if (getToggleState())
+    {
+        g.setColour (juce::Colour (0xff0078d4));
+        g.fillEllipse (circle.reduced (size * 0.27f));
+    }
+
+    g.setColour (colour.withMultipliedAlpha (isEnabled() ? 1.0f : 0.5f));
+    g.setFont (juce::FontOptions (fontSize));
+    g.drawFittedText (getButtonText(), getLocalBounds().withTrimmedLeft (juce::roundToInt (circle.getRight()) + 6).withTrimmedRight (2),
+                      juce::Justification::centredLeft, 2);
+}
+
 // Where a row draws its SCENE badge, within the row
 static juce::Rectangle<float> getSceneBadgeBounds (int width, int height)
 {
     return { (float) width - 138.0f, ((float) height - 18.0f) * 0.5f, 60.0f, 18.0f };
 }
 
-// Each group's colour, from its id, so it's the same each time the window opens
 static juce::Colour getSceneGroupColour (const juce::String& group)
 {
-    static const juce::uint32 palette[] = { 0xff4aa3ff, 0xffff9f43, 0xff5fd38d, 0xffe066ff,
-                                            0xffffd23f, 0xff42d6d6, 0xffff6b81, 0xffa3a8ff };
-
-    return juce::Colour (palette[(size_t) (group.hashCode64() & 0x7fffffff) % std::size (palette)]);
+    return PluginGraph::getSceneGroupColour (group);
 }
 
 juce::File PresetSaveDialog::getPresetsDirectory()
@@ -99,6 +117,7 @@ PresetSaveDialog::PresetSaveDialog (PluginGraph& g)
 
     // Saving under a new name: a preset of its own, or a scene sharing the loaded preset's graph
     separateToggle.setButtonText ("Standalone preset");
+    sceneToggle.setButtonText ("Scene (shares nodes and connections)");
 
     for (auto* t : { &separateToggle, &sceneToggle })
     {
@@ -108,11 +127,19 @@ PresetSaveDialog::PresetSaveDialog (PluginGraph& g)
         addChildComponent (t);
     }
 
-    sceneHintLabel.setFont (juce::FontOptions (12.0f));
-    sceneHintLabel.setJustificationType (juce::Justification::topLeft);
-    sceneHintLabel.setBorderSize ({});
-    sceneHintLabel.setMinimumHorizontalScale (1.0f);
-    addChildComponent (sceneHintLabel);
+
+    for (auto* label : { &sharesLabel, &sceneHintLabel, &changesLabel })
+    {
+        label->setFont (juce::FontOptions (12.0f));
+        label->setJustificationType (juce::Justification::topLeft);
+        label->setBorderSize ({});
+        label->setMinimumHorizontalScale (1.0f);
+        addChildComponent (label);
+    }
+
+    sharesLabel.setColour (juce::Label::textColourId, juce::Colour (0xffffc04d));
+    changesLabel.setColour (juce::Label::textColourId, juce::Colour (0xffffc04d));
+    sceneHintLabel.setColour (juce::Label::textColourId, juce::Colours::white.withAlpha (0.6f));
 
     // A scene only when chosen, as saving one can change other presets
     separateToggle.setToggleState (true, juce::dontSendNotification);
@@ -176,26 +203,16 @@ void PresetSaveDialog::resized()
     auto bottomSection = bounds.removeFromBottom (32);
     bounds.removeFromBottom (12);
 
-    auto sceneSection = bounds.removeFromBottom (126);
+    // Below the name, lined up with its editor, as tall as what it shows
+    const auto sceneWidth = bounds.getWidth() - 90;
+    auto sceneSection = bounds.removeFromBottom (juce::jmax (126, getSceneSectionHeight (sceneWidth)));
     bounds.removeFromBottom (6);
 
     auto nameSection = bounds.removeFromBottom (28);
     bounds.removeFromBottom (12);
 
-    // Below the name, lined up with its editor
-    // One option per line, so a long name still has the full width
     sceneSection.removeFromLeft (90);
-    // The hint goes under the options, or in their place when saving over the loaded scene
-    separateToggle.setBounds (sceneSection.removeFromTop (22));
-    sceneToggle.setBounds (sceneSection.removeFromTop (22));
-    fitSceneToggleText();
-
-    if (! sceneToggle.isVisible())
-        sceneSection = separateToggle.getBounds().getUnion (sceneSection);
-    else
-        sceneSection = sceneSection.withTrimmedLeft (22).withTrimmedTop (4);
-
-    sceneHintLabel.setBounds (sceneSection);
+    layOutSceneSection (sceneSection);
 
     // Preset list fills remaining middle space
     presetListBox.setBounds (bounds);
@@ -215,6 +232,60 @@ void PresetSaveDialog::resized()
     {
         hasScrolledToActivePreset = true;
         scrollToActivePreset();
+    }
+}
+
+// The labels' heights for their text at a width, and where the options start
+static int getTextHeight (const juce::Label& label, int width)
+{
+    if (! label.isVisible() || label.getText().isEmpty())
+        return 0;
+
+    juce::AttributedString text (label.getText());
+    text.setFont (label.getFont());
+    juce::TextLayout layout;
+    layout.createLayout (text, (float) width);
+    return juce::roundToInt (std::ceil (layout.getHeight())) + 2;
+}
+
+// Options one per line, so a long name still has the full width. What saving does goes under
+// the scene option, indented, or in the options' place when saving over a scene
+static constexpr int optionHeight = 22, sceneIndent = 22, textGap = 6;
+
+int PresetSaveDialog::getSceneSectionHeight (int width) const
+{
+    int height = 0;
+
+    if (sceneToggle.isVisible())
+    {
+        height += 2 * optionHeight + 4;
+        width -= sceneIndent;
+    }
+
+    for (auto* label : { &sceneHintLabel, &sharesLabel, &changesLabel })
+        if (const auto h = getTextHeight (*label, width); h > 0)
+            height += h + textGap;
+
+    return height;
+}
+
+void PresetSaveDialog::layOutSceneSection (juce::Rectangle<int> r)
+{
+    if (sceneToggle.isVisible())
+    {
+        separateToggle.setBounds (r.removeFromTop (optionHeight));
+        sceneToggle.setBounds (r.removeFromTop (optionHeight));
+        r.removeFromTop (4);
+        r.removeFromLeft (sceneIndent);
+    }
+
+    for (auto* label : { &sceneHintLabel, &sharesLabel, &changesLabel })
+    {
+        if (const auto h = getTextHeight (*label, r.getWidth()); h > 0)
+        {
+            label->setBounds (r.removeFromTop (h));
+            r.removeFromTop (textGap);
+        }
     }
 }
 
@@ -561,38 +632,56 @@ static juce::String describeLeftOut (const juce::Array<juce::File>& leftOut)
     return "Not updated, as plug-ins or connections differ: " + describeScenes (leftOut);
 }
 
-/*  What saving does to the other scenes, said before saving rather than after, one line each.
+/*  What saving does to the other scenes, said before saving rather than after, a sentence each.
     Settings of nodes that aren't set to Vary by Scene are shared, so a setting made for this
     scene alone would also change in the others: say which nodes.
 */
-static juce::String describeSharedChanges (const Curve::Scenes::SharedChanges& changes, const juce::String& scenes)
+// Without the scenes' names, they're "the other scenes", where the names are already shown
+static juce::String describeSharedChanges (const Curve::Scenes::SharedChanges& changes, const juce::String& sceneNames)
 {
+    const auto inScenes = sceneNames.isEmpty() ? juce::String ("in the other scenes") : "in " + sceneNames;
+
+    const auto quoted = [] (const juce::StringArray& names)
+    {
+        juce::StringArray q;
+        for (const auto& n : names)
+            q.add (quotedName (n));
+        return joinWithAnd (q);
+    };
+
     juce::StringArray lines;
 
-    if (changes.changesSound())
-    {
-        juce::StringArray items;
-        items.addArray (changes.changedNodes);
+    if (! changes.changedNodes.isEmpty())
+        lines.add (juce::String (changes.changedNodes.size() == 1 ? "Settings changed on a shared node: " : "Settings changed on shared nodes: ")
+                   + quoted (changes.changedNodes) + ". Saving also changes them " + inScenes + ".");
 
-        for (const auto& removed : changes.removedNodes)
-            items.add (removed + " (removed)");
+    juce::StringArray also;
 
-        if (changes.connectionsChanged)
-            items.add ("connections");
+    if (! changes.removedNodes.isEmpty())
+        also.add ("removes " + quoted (changes.removedNodes));
 
-        lines.add ("Also changes: " + joinWithAnd (items) + " in " + scenes);
-    }
-
-    if (! changes.addedNodes.isEmpty())
-        lines.add ("Also adds, bypassed: " + joinWithAnd (changes.addedNodes) + " in " + scenes);
-
-    if (! changes.addedIONodes.isEmpty())
-        lines.add ("Also adds: " + joinWithAnd (changes.addedIONodes) + " in " + scenes);
+    if (changes.connectionsChanged)
+        also.add ("changes the connections");
 
     if (changes.midiMappingsChanged)
-        lines.add ("Also changes the MIDI mappings in " + scenes);
+        also.add ("changes the MIDI mappings");
+
+    if (! changes.addedNodes.isEmpty())
+        also.add ("adds " + quoted (changes.addedNodes) + ", bypassed");
+
+    if (! changes.addedIONodes.isEmpty())
+        also.add ("adds " + quoted (changes.addedIONodes));
+
+    if (! also.isEmpty())
+        lines.add ("Saving also " + joinWithAnd (also) + " " + inScenes + ".");
 
     return lines.joinIntoString ("\n");
+}
+
+static bool hasSharedChanges (const Curve::Scenes::SharedChanges& changes)
+{
+    return changes.changesSound() || ! changes.addedNodes.isEmpty() || ! changes.addedIONodes.isEmpty()
+        || changes.midiMappingsChanged;
 }
 
 juce::String PresetSaveDialog::describeSceneUpdate (const PluginGraph::SceneSave& plan)
@@ -604,12 +693,11 @@ juce::String PresetSaveDialog::describeSceneUpdate (const PluginGraph::SceneSave
     {
         const auto scenes = describeScenes (plan.otherScenes);
 
-        if (plan.changes.changesSound() || ! plan.changes.addedNodes.isEmpty() || ! plan.changes.addedIONodes.isEmpty()
-            || plan.changes.midiMappingsChanged)
+        if (hasSharedChanges (plan.changes))
             lines.add (describeSharedChanges (plan.changes, scenes));
         else
             lines.add ("Also updates " + scenes + ", without changing how "
-                       + (plan.otherScenes.size() == 1 ? "it sounds" : "they sound"));
+                       + (plan.otherScenes.size() == 1 ? "it sounds." : "they sound."));
     }
 
     lines.add (describeLeftOut (plan.leftOut));
@@ -661,31 +749,9 @@ bool PresetSaveDialog::isSceneOfLoadedGroup (const juce::File& target)
 
 void PresetSaveDialog::updateSceneNames()
 {
-    // As the list is now: the loaded preset may have been renamed or trashed, and another scene
-    // renamed, trashed or made standalone
+    // As the list is now: the loaded preset may have been renamed or trashed
     const auto current = graph.getFile();
     canSaveAsScene = current.existsAsFile() && current.getParentDirectory() == getPresetsDirectory();
-
-    sceneNames.clear();
-
-    if (! canSaveAsScene)
-        return;
-
-    sceneNames.add (current.getFileNameWithoutExtension());
-
-    // Only the scenes still sharing its graph, so not one that would be left out
-    if (graph.getSceneGroup().isNotEmpty())
-    {
-        const auto& plan = getScenePlan (true);
-        auto sharing = plan.otherScenes;
-        sharing.addArray (plan.unchanged);
-
-        for (const auto& f : sharing)
-            if (f != current)
-                sceneNames.add (f.getFileNameWithoutExtension());
-    }
-
-    fitSceneToggleText();
 }
 
 void PresetSaveDialog::updateSceneChoice()
@@ -697,123 +763,84 @@ void PresetSaveDialog::updateSceneChoice()
     separateToggle.setVisible (isNewName);
     sceneToggle.setVisible (isNewName);
 
-    juce::String hint, saveText ("Save");
-    bool isWarning = false;
+    juce::String shares, hint, changes, saveText ("Save");
+
+    const PluginGraph::SceneSave* plan = nullptr;
 
     if (isNewName && sceneToggle.getToggleState())
+        plan = &getScenePlan (true);
+    else if (isGroupScene)
+        plan = &getScenePlan (false, target);
+
+    if (plan != nullptr)
     {
-        const auto& plan = getScenePlan (true);
-
-        auto sharing = plan.otherScenes;
-        sharing.addArray (plan.unchanged);
-
-        juce::StringArray lines;
+        auto sharing = plan->otherScenes;
+        sharing.addArray (plan->unchanged);
 
         if (! sharing.isEmpty())
+            shares = "Shares nodes and connections with " + describeScenes (sharing) + ".";
+
+        juce::StringArray hints;
+
+        if (isGroupScene && target != graph.getFile())
+            hints.add ("Replaces " + quotedName (target.getFileNameWithoutExtension())
+                       + ", including its own bypass and mute. It stays a scene.");
+        else if (! sharing.isEmpty())
+            hints.add ("Each scene keeps its own bypass and mute, and all settings of nodes set to Vary by Scene.");
+
+        hints.add (describeLeftOut (plan->leftOut));
+        hints.removeEmptyStrings();
+        hint = hints.joinIntoString ("\n");
+
+        if (! plan->otherScenes.isEmpty())
         {
-            lines.add ("Specific to this scene: Bypass on all nodes, all settings on nodes with Vary by Scene enabled");
-            lines.add ("Shared with " + describeScenes (sharing) + ": All other settings");
+            const auto scenes = describeScenes (plan->otherScenes);
+
+            // Nothing to say when they're only rewritten as they are
+            if (hasSharedChanges (plan->changes))
+                changes = describeSharedChanges (plan->changes, sharing.size() == plan->otherScenes.size() ? juce::String() : scenes);
+
+            // How to keep a change for this scene only, for nodes that can vary
+            if (std::any_of (plan->changes.changedStateUIDs.begin(), plan->changes.changedStateUIDs.end(), [this] (int uid)
+                {
+                    auto* node = graph.graph.getNodeForId (PluginGraph::NodeID ((juce::uint32) uid));
+                    return node != nullptr && PluginGraph::canVaryByScene (*node->getProcessor());
+                }))
+            {
+                // After the sentence naming them, which is first
+                auto lines = juce::StringArray::fromLines (changes);
+                lines.set (0, lines[0] + " To keep them for this scene only, cancel, then right-click "
+                                 + (plan->changes.changedNodes.size() == 1 ? "the node" : "each node") + " and select Vary by Scene.");
+                changes = lines.joinIntoString ("\n");
+            }
+
+            if (isGroupScene)
+                saveText = getSceneUpdateButtonText (*plan, target != graph.getFile());
         }
-
-        lines.add (describeSharedChanges (plan.changes, describeScenes (plan.otherScenes)));
-        lines.add (describeLeftOut (plan.leftOut));
-        lines.removeEmptyStrings();
-        hint = lines.joinIntoString ("\n");
-
-        isWarning = plan.changes.changesSound();
-    }
-    else if (isGroupScene)
-    {
-        const auto& plan = getScenePlan (false, target);
-        const bool replaces = target != graph.getFile();
-
-        if (replaces)
-            hint << "Replaces " << quotedName (target.getFileNameWithoutExtension())
-                 << ", including its bypass settings. It stays a scene.\n";
-
-        hint << describeSceneUpdate (plan);
-        isWarning = plan.changes.changesSound();
-
-        if (! plan.otherScenes.isEmpty())
-            saveText = getSceneUpdateButtonText (plan, replaces);
-        else if (replaces)
+        else if (isGroupScene && target != graph.getFile())
+        {
             saveText = "Replace";
+        }
     }
 
-    sceneHintLabel.setText (hint.trim(), juce::dontSendNotification);
-    sceneHintLabel.setColour (juce::Label::textColourId, isWarning ? juce::Colour (0xffffc04d)
-                                                                   : juce::Colours::white.withAlpha (0.6f));
-    sceneHintLabel.setVisible (hint.isNotEmpty());
+    const auto setText = [] (juce::Label& label, const juce::String& text)
+    {
+        label.setText (text, juce::dontSendNotification);
+        label.setVisible (text.isNotEmpty());
+    };
+
+    setText (sharesLabel, shares);
+    setText (sceneHintLabel, hint);
+    setText (changesLabel, changes);
+
+    // Only amber when it changes how they sound
+    changesLabel.setColour (juce::Label::textColourId, plan != nullptr && plan->changes.changesSound()
+                                                         ? juce::Colour (0xffffc04d) : juce::Colours::white.withAlpha (0.6f));
 
     if (saveButton.getButtonText() != saveText)
         saveButton.setButtonText (saveText);
 
     resized();
-}
-
-// e.g. Scene sharing with "Studio", or with "Studio", "Late" and 2 more. Not "Scene of", as the
-// scenes are equals: none is the original
-static juce::String describeSceneOption (const juce::StringArray& names, int numShown)
-{
-    if (names.size() == 1)
-        return "Scene sharing with " + quotedName (names[0]);
-
-    juce::StringArray shown;
-
-    for (int i = 0; i < numShown; ++i)
-        shown.add (quotedName (names[i]));
-
-    const auto numMore = names.size() - numShown;
-
-    if (numMore > 0)
-        shown.add (juce::String (numMore) + " more");
-
-    const auto last = shown[shown.size() - 1];
-    shown.remove (shown.size() - 1);
-
-    return "Scene sharing with " + (shown.isEmpty() ? last : shown.joinIntoString (", ") + " and " + last);
-}
-
-void PresetSaveDialog::fitSceneToggleText()
-{
-    if (sceneNames.isEmpty() || sceneToggle.getWidth() <= 0)
-        return;
-
-    // As LookAndFeel_V4::drawToggleButton lays out its text, after the tick box
-    const auto fontSize = juce::jmin (15.0f, (float) sceneToggle.getHeight() * 0.75f);
-    const juce::Font font (juce::FontOptions { fontSize });
-    const auto available = (float) (sceneToggle.getWidth() - juce::roundToInt (fontSize * 1.1f) - 12);
-
-    const auto fits = [&] (const juce::String& text)
-    {
-        return juce::GlyphArrangement::getStringWidth (font, text) <= available;
-    };
-
-    // Fewer names, then the first one shortened
-    for (int numShown = juce::jmin (3, sceneNames.size()); numShown >= 1; --numShown)
-    {
-        const auto text = describeSceneOption (sceneNames, numShown);
-
-        if (fits (text))
-        {
-            sceneToggle.setButtonText (text);
-            return;
-        }
-    }
-
-    auto names = sceneNames;
-    auto first = names[0];
-
-    while (first.length() > 1)
-    {
-        first = first.dropLastCharacters (1).trimEnd();
-        names.set (0, first + juce::String::fromUTF8 ("\xe2\x80\xa6"));
-
-        if (fits (describeSceneOption (names, 1)))
-            break;
-    }
-
-    sceneToggle.setButtonText (describeSceneOption (names, 1));
 }
 
 void PresetSaveDialog::textEditorTextChanged (juce::TextEditor&)
@@ -1007,7 +1034,7 @@ void PresetSaveDialog::doSave (const juce::File& file)
     if (res.wasOk())
     {
         graph.setLastDocumentOpened (file);
-        closeDialog();
+            closeDialog();
     }
     else
     {

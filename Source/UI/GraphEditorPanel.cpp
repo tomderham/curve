@@ -117,6 +117,21 @@ struct GraphEditorPanel::PinComponent final : public Component,
         g.setColour (findColour (TextEditor::backgroundColourId));
         g.fillEllipse (dot.expanded (1.5f));
 
+        // A muted node's outputs pass on nothing
+        if (! isInput && graph.isNodeMuted (pin.nodeID))
+        {
+            const auto x = dot.reduced (1.0f);
+            Path cross;
+            cross.startNewSubPath (x.getTopLeft());
+            cross.lineTo (x.getBottomRight());
+            cross.startNewSubPath (x.getTopRight());
+            cross.lineTo (x.getBottomLeft());
+
+            g.setColour (Colour (0xffff5a52));
+            g.strokePath (cross, PathStrokeType (2.0f, PathStrokeType::curved, PathStrokeType::rounded));
+            return;
+        }
+
         g.setColour (colour.withRotatedHue ((float) busIdx / 5.0f));
         g.fillEllipse (dot);
     }
@@ -233,8 +248,9 @@ static String getTooltipForProcessor (const AudioProcessor& processor)
 class NodeBypassButton final : public Button
 {
 public:
-    NodeBypassButton (std::function<bool()> isBypassedFn, std::function<bool()> isMidiLearningFn)
-        : Button ("Bypass"), isBypassed (std::move (isBypassedFn)), isMidiLearning (std::move (isMidiLearningFn))
+    NodeBypassButton (std::function<bool()> isBypassedFn, std::function<bool()> isMutedFn, std::function<bool()> isMidiLearningFn)
+        : Button ("Bypass"), isBypassed (std::move (isBypassedFn)), isMuted (std::move (isMutedFn)),
+          isMidiLearning (std::move (isMidiLearningFn))
     {
         setClickingTogglesState (false);
         setWantsKeyboardFocus (false);
@@ -257,7 +273,8 @@ public:
     void paintButton (Graphics& g, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override
     {
         const auto textColour = findColour (TextEditor::textColourId);
-        const bool bypassed = isBypassed != nullptr && isBypassed();
+        // Muted, nothing passes either, so it's dimmed as when bypassed
+        const bool bypassed = (isBypassed != nullptr && isBypassed()) || (isMuted != nullptr && isMuted());
 
         if (shouldDrawButtonAsHighlighted || shouldDrawButtonAsDown)
         {
@@ -274,13 +291,16 @@ public:
         if (isMidiLearning != nullptr && isMidiLearning())
             return "Click to MIDI learn this node's bypass";
 
+        if (isMuted != nullptr && isMuted())
+            return "Muted - click to unmute";
+
         return (isBypassed != nullptr && isBypassed()) ? "Bypassed - click to enable"
                                                        : "Bypass (click to toggle)";
     }
 
 private:
     static constexpr float glyphSize = 14.0f;
-    std::function<bool()> isBypassed;
+    std::function<bool()> isBypassed, isMuted;
     std::function<bool()> isMidiLearning;
     Path glyphPath;
 };
@@ -311,6 +331,7 @@ struct GraphEditorPanel::PluginComponent final : public Component,
                 if (PluginGraph::canBeBypassed (*processor))
                 {
                     bypassButton = std::make_unique<NodeBypassButton> ([this] { return isNodeBypassed(); },
+                                                                       [this] { return graph.isNodeMuted (pluginID); },
                                                                        [this] { return isMidiLearning(); });
                     bypassButton->onClick = [this] { bypassButtonClicked(); };
                     addAndMakeVisible (bypassButton.get());
@@ -424,13 +445,14 @@ struct GraphEditorPanel::PluginComponent final : public Component,
     void paint (Graphics& g) override
     {
         auto boxArea = getLocalBounds().reduced (4, pinSize);
-        const bool isBypassed = isNodeBypassed();
+        const bool isMuted = graph.isNodeMuted (pluginID);
+        const bool isBypassed = isNodeBypassed() || isMuted;
 
         // Stays opaque when bypassed, since wires pass behind the node
         auto boxColour = findColour (TextEditor::backgroundColourId);
 
         if (isBypassed)
-            boxColour = boxColour.interpolatedWith (findColour (ResizableWindow::backgroundColourId), 0.6f);
+            boxColour = boxColour.interpolatedWith (findColour (ResizableWindow::backgroundColourId), isMuted ? 0.8f : 0.6f);
 
         const auto box = boxArea.toFloat();
 
@@ -452,6 +474,17 @@ struct GraphEditorPanel::PluginComponent final : public Component,
             g.setColour (Curve::Colours::accent);
             g.drawRoundedRectangle (box, cornerSize, 2.0f);
         }
+        else if (isMuted)
+        {
+            // Dashed: nothing passes through it
+            Path outline, dashed;
+            outline.addRoundedRectangle (box, cornerSize);
+            const float dashes[] = { 4.0f, 3.0f };
+            PathStrokeType (1.0f).createDashedStroke (dashed, outline, dashes, 2);
+
+            g.setColour (findColour (TextEditor::outlineColourId).withAlpha (0.6f));
+            g.fillPath (dashed);
+        }
         else
         {
             g.setColour (findColour (TextEditor::outlineColourId).withAlpha (isBypassed ? 0.3f : 0.6f));
@@ -469,7 +502,7 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         if (graph.doesNodeVaryByScene (pluginID))
             drawSceneBadge (g, box);
 
-        g.setColour (findColour (TextEditor::textColourId).withMultipliedAlpha (isBypassed ? 0.5f : 1.0f));
+        g.setColour (findColour (TextEditor::textColourId).withMultipliedAlpha (isMuted ? 0.35f : isBypassed ? 0.5f : 1.0f));
         g.setFont (font);
         g.drawFittedText (getName(), textArea, Justification::centred, 2);
     }
@@ -695,10 +728,22 @@ struct GraphEditorPanel::PluginComponent final : public Component,
     void showPopupMenu (Point<int> localPos)
     {
         menu.reset (new PopupMenu);
+
+        // Bypass passes the input straight through; mute passes on nothing
+        if (auto* proc = getProcessor(); proc != nullptr && PluginGraph::canBeBypassed (*proc))
+            menu->addItem ("Bypass", true, isNodeBypassed(), [this] { toggleBypass(); });
+        // In MIDI Learn, it picks mute as the target, as the bypass button does bypass
+        menu->addItem ("Mute", true, graph.isNodeMuted (pluginID), [this]
+        {
+            if (isMidiLearning())
+                panel.midiEngine->selectLearnTarget (MidiMappingTarget::forMute (pluginID));
+            else
+                toggleMute();
+        });
+
+        menu->addSeparator();
         menu->addItem ("Delete This Node", [this] { graph.removeNode (pluginID); });
         menu->addItem ("Disconnect All Pins", [this] { graph.graph.disconnectNode (pluginID); });
-        if (auto* proc = getProcessor(); proc != nullptr && PluginGraph::canBeBypassed (*proc))
-            menu->addItem ("Toggle Bypass", [this] { toggleBypass(); });
         menu->addItem ("Rename This Node", [this]
         {
             promptRenameNode();
@@ -713,7 +758,7 @@ struct GraphEditorPanel::PluginComponent final : public Component,
                 menu->addItem ("Clear MIDI Mappings", [this] { graph.removeMidiMappingsForNode (pluginID); });
         }
 
-        if (auto* proc = getProcessor(); proc != nullptr && canVaryByScene (*proc))
+        if (auto* proc = getProcessor(); proc != nullptr && PluginGraph::canVaryByScene (*proc))
         {
             menu->addSeparator();
             menu->addItem ("Vary by Scene", true, graph.doesNodeVaryByScene (pluginID), [this] { toggleVaryByScene(); });
@@ -772,12 +817,6 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         menu->showMenuAsync (PopupMenu::Options{}.withTargetScreenArea (Rectangle<int>{}.withPosition (localPointToGlobal (localPos))));
     }
 
-    static bool canVaryByScene (AudioProcessor& processor)
-    {
-        return dynamic_cast<AudioProcessorGraph::AudioGraphIOProcessor*> (&processor) == nullptr
-            && ! PluginGraph::isConfiguredByAudioSettings (processor);
-    }
-
     void toggleVaryByScene()
     {
         const bool varies = graph.doesNodeVaryByScene (pluginID);
@@ -823,6 +862,12 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         return false;
     }
 
+    void toggleMute()
+    {
+        graph.setNodeMuted (pluginID, ! graph.isNodeMuted (pluginID));
+        repaint();
+    }
+
     void toggleBypass()
     {
         graph.setNodeBypassed (pluginID, ! isNodeBypassed());
@@ -834,6 +879,8 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         // In MIDI learn, the button picks bypass as the target instead of toggling it
         if (isMidiLearning())
             panel.midiEngine->selectLearnTarget (MidiMappingTarget::forBypass (pluginID));
+        else if (graph.isNodeMuted (pluginID))
+            toggleMute();
         else
             toggleBypass();
     }
@@ -2318,7 +2365,7 @@ void GraphDocumentComponent::propagateDeviceSettingsToNodes()
             {
                 if (auto* captureNode = dynamic_cast<OutputInterfaceLoopbackNode*> (node->getProcessor()))
                 {
-                    bool isBypassed = node->isBypassed();
+                    bool isBypassed = node->isBypassed() || node->properties[PluginGraph::mutedProp];
                     bool hasOutputConnection = false;
                     for (const auto& conn : graph->graph.getConnections())
                     {

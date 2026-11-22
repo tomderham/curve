@@ -309,6 +309,17 @@ public:
     juce::Component::SafePointer<MainHostWindow> safeWindow (&mainWindow);
     int activePresetItemId = 0;
 
+    // Scenes of a group are marked in its colour, as in the Save Preset window, so it's clear
+    // which presets share their plug-ins before saving one changes the others. The item colour
+    // is drawn as a stripe (see CurveLookAndFeel::drawPopupMenuItem())
+    juce::StringArray groups;
+    std::map<juce::String, int> groupSizes;
+    for (const auto &file : files) {
+      groups.add(PluginGraph::readSceneGroup(file));
+      if (groups.strings.getLast().isNotEmpty())
+        ++groupSizes[groups.strings.getLast()];
+    }
+
     for (int i = 0; i < files.size(); ++i) {
       const auto &file = files[i];
       juce::String name = file.getFileNameWithoutExtension();
@@ -319,6 +330,9 @@ public:
       item.setID(itemId);
       item.setEnabled(true);
       item.setTicked(isCurrent);
+
+      if (groups[i].isNotEmpty() && groupSizes[groups[i]] > 1)
+        item.setColour(PluginGraph::getSceneGroupColour(groups[i]));
 
       if (isCurrent)
         activePresetItemId = itemId;

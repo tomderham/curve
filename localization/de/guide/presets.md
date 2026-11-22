@@ -29,11 +29,15 @@ Sofern der Graph nicht nur diese Nodes enthält, fragt Curve vorher nach, denn i
 
 ## Szenen
 
-Wenn sich mehrere Presets nur in wenigen Einstellungen unterscheiden, etwa durch einen umgangenen Node oder ein anders eingestelltes Plug-in, kannst du sie zu Szenen machen. Szenen teilen sich ihre Plug-ins und Verbindungen, sodass du eine Änderung nur einmal vornehmen musst, um alle zu aktualisieren. Jede Szene steht wie jedes andere Preset in Curves Menü, und du wechselst auf dieselbe Weise zu ihr. Im Fenster Save Preset haben Szenen, die miteinander teilen, dieselbe Farbe, und wenn du eine auswählst, werden die anderen hervorgehoben.
+Wenn mehrere Presets Teile gemeinsam haben, kannst du sie zu Szenen machen. Szenen können zum Beispiel dieselbe Lautsprecherkorrektur nutzen, aber unterschiedliche Instrumente oder Signalwege, oder dieselben Instrumente mit unterschiedlicher Lautsprecherkorrektur. Szenen teilen sich ihre Plug-ins und Verbindungen, sodass du eine Änderung nur einmal vornehmen musst, um alle zu aktualisieren. Jede Szene steht wie jedes andere Preset in Curves Menü, und du wechselst auf dieselbe Weise zu ihr.
+
+Szenen, die miteinander teilen, sind in Curves Menü und im Fenster Save Preset mit derselben Farbe markiert.
+
+Der Wechsel zu einer anderen Szene geht schnell: Curve ändert nur, was diese Szene für sich hat, ohne ihre Plug-ins neu zu laden. Hast du seit dem Laden eine geteilte Einstellung geändert oder fehlt ein Plug-in, wird die Szene stattdessen vollständig geladen, und die Änderung geht verloren, wie beim Wechsel zu einem anderen Preset.
 
 Was jede Szene für sich behält:
 
-- Ob jeder Node umgangen ist.
+- Ob jeder Node umgangen oder stummgeschaltet ist. Ein umgangener Node gibt sein Eingangssignal unverändert weiter. Ein stummgeschalteter Node gibt nichts weiter und unterbricht so den Signalweg, auf dem er liegt. Siehe [Einen Node stummschalten](editor.md).
 - Die Einstellungen von Nodes, die auf Vary by Scene gesetzt sind. Klicke mit der rechten Maustaste auf einen Node und wähle Vary by Scene; er zeigt dann ein kleines Symbol aus gestapelten Karten.
 
 Alles andere wird geteilt: die übrigen Nodes und ihre Einstellungen, Verbindungen, Kanal-Routing und MIDI-Zuordnungen. Änderst du einen geteilten Node in einer beliebigen Szene und speicherst sie, erhalten alle Szenen die Änderung. Ein auf Vary by Scene gesetzter Node teilt trotzdem seine Kanäle und Verbindungen.
@@ -42,12 +46,12 @@ So erstellst du eine Szene:
 
 1. Lade das Preset, von dem die neue Szene ausgehen soll.
 2. Klicke mit der rechten Maustaste auf jedes Plug-in, das in der neuen Szene anders eingestellt sein soll, und wähle Vary by Scene.
-3. Nimm die Änderungen für die neue Szene vor.
+3. Nimm die Änderungen für die neue Szene vor. Um einen Signalweg wegzulassen, schalte einen Node darauf stumm.
 4. Wähle Save As Preset..., gib einen neuen Namen ein, wähle die Option für eine Szene und klicke auf Save.
 
-Vor dem Speichern zeigt das Fenster Save Preset, welche anderen Szenen aktualisiert werden, und nennt geteilte Nodes, deren Einstellungen sich darin ändern. Ist eine Einstellung nur für diese Szene gedacht, brich ab, setze diesen Node auf Vary by Scene und speichere erneut.
+Vor dem Speichern zeigt das Fenster Save Preset, welche anderen Szenen aktualisiert werden, und nennt geteilte Nodes, deren Einstellungen sich darin ändern. Ist eine Änderung nur für diese Szene gedacht, brich ab, klicke mit der rechten Maustaste auf den Node, wähle Vary by Scene und speichere erneut. Jede Szene behält dann ihre eigenen Einstellungen für diesen Node. Sie bleibt eine Szene, und die Szenen teilen weiterhin alles andere.
 
-Um eine Szene zu ändern, lade sie, nimm deine Änderungen vor und speichere sie unter demselben Namen. Speicherst du über eine andere Szene, mit der sie teilt, ersetzt du diese Szene, und sie bleibt eine Szene. Ein hinzugefügter Node erscheint auch in den anderen Szenen, dort umgangen, sodass sie gleich klingen, bis du ihn dort einschaltest.
+Um eine Szene zu ändern, lade sie, nimm deine Änderungen vor und speichere sie unter demselben Namen. Speicherst du über eine andere Szene, mit der sie teilt, ersetzt das diese Szene, und sie bleibt eine Szene. Ein hinzugefügter Node erscheint auch in den anderen Szenen, dort umgangen, sodass sie gleich klingen, bis du ihn dort einschaltest. Ein umgangener Node gibt sein Eingangssignal trotzdem weiter. Damit ein neuer Signalweg in den anderen Szenen still bleibt, schalte dort einen seiner Nodes stumm.
 
 Damit eine Szene nicht mehr mit den anderen teilt, klicke im Fenster Save Preset mit der rechten Maustaste darauf und wähle Convert to Standalone Preset. Sie behält ihre aktuellen Einstellungen.
 

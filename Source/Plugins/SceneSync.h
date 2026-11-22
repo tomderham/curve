@@ -30,6 +30,7 @@ namespace Curve::Scenes
 {
 inline constexpr const char* groupAttribute = "sceneGroup";
 inline constexpr const char* varyAttribute  = "varyByScene";
+inline constexpr const char* mutedAttribute = "muted";
 
 /** Removes what a plug-in's description records about when it was read, which is new each
     time the plug-in is created, so a preset just loaded and saved has the same description.
@@ -93,7 +94,7 @@ inline bool isNeverBypassed (const juce::XmlElement& node)
     return false;
 }
 
-/** The part of a scene's graph that every scene of its group has: without its bypass flags,
+/** The part of a scene's graph that every scene of its group has: without its bypass and mute flags,
     the state of nodes that vary by scene, or the Audio Input and Output nodes' channel layout.
     Connections, including those to those nodes, are shared.
 */
@@ -105,6 +106,7 @@ inline std::unique_ptr<juce::XmlElement> getSharedPart (const juce::XmlElement& 
     for (auto* node : shared->getChildWithTagNameIterator ("FILTER"))
     {
         node->removeAttribute ("bypassed");
+        node->removeAttribute (mutedAttribute);
         removeWindowAttributes (*node);
         removeDescriptionTimes (*node);
 
@@ -137,7 +139,7 @@ inline bool shareGraph (const juce::XmlElement& a, const juce::XmlElement& b)
 }
 
 /** Another scene of the group once `saved` has been saved: the saved graph, with the other
-    scene's own bypass for each node, its own state for each node that varies by scene, and its
+    scene's own bypass and mute for each node, its own state for each node that varies by scene, and its
     own Audio Input and Output layout (see isAudioDeviceNode()), and its own plug-in windows. Nodes
     it doesn't have yet are bypassed in it, so adding a node doesn't change how it sounds, except
     those that can't be bypassed (see isNeverBypassed()), which pass on nothing but what they're connected to.
@@ -157,6 +159,8 @@ inline std::unique_ptr<juce::XmlElement> createOtherScene (const juce::XmlElemen
 
         if (own == otherNodes.end())
         {
+            node->removeAttribute (mutedAttribute);
+
             if (! isNeverBypassed (*node))
                 node->setAttribute ("bypassed", true);
             continue;
@@ -166,6 +170,11 @@ inline std::unique_ptr<juce::XmlElement> createOtherScene (const juce::XmlElemen
             node->setAttribute ("bypassed", true);
         else
             node->removeAttribute ("bypassed");
+
+        if (own->second->getBoolAttribute (mutedAttribute))
+            node->setAttribute (mutedAttribute, true);
+        else
+            node->removeAttribute (mutedAttribute);
 
         // Its own plug-in windows
         removeWindowAttributes (*node);
@@ -226,11 +235,12 @@ inline juce::String getNodeName (const juce::XmlElement& node)
 }
 
 /** How saving a scene changes how another scene of its group sounds, so it can be said first.
-    Bypass is each scene's own, and nodes are added bypassed, so neither is a change in sound.
+    Bypass and mute are each scene's own, and nodes are added bypassed, so neither is a change in sound.
 */
 struct SharedChanges
 {
     juce::StringArray changedNodes;   // settings or channel layout
+    juce::Array<int> changedStateUIDs; // of those, the nodes whose settings change, which Vary by Scene would keep
     juce::StringArray addedNodes;     // bypassed in the other scene
     juce::StringArray addedIONodes;   // I/O nodes and meters, which can't be bypassed (see isNeverBypassed())
     juce::StringArray removedNodes;
@@ -242,6 +252,8 @@ struct SharedChanges
     void add (const SharedChanges& other)
     {
         changedNodes.addArray (other.changedNodes);
+        for (auto uid : other.changedStateUIDs)
+            changedStateUIDs.addIfNotAlreadyThere (uid);
         addedNodes.addArray (other.addedNodes);
         addedIONodes.addArray (other.addedIONodes);
         removedNodes.addArray (other.removedNodes);
@@ -301,10 +313,15 @@ inline SharedChanges describeChanges (const juce::XmlElement& saved, const juce:
         removeDescriptionTimes (nodeWithoutTimes);
         removeDescriptionTimes (ownWithoutTimes);
 
+        const bool stateDiffers = childDiffers (*node, *own->second, "STATE");
+
         if (childDiffers (nodeWithoutTimes, ownWithoutTimes, "PLUGIN")
-            || childDiffers (*node, *own->second, "STATE")
+            || stateDiffers
             || childDiffers (*node, *own->second, "LAYOUT"))
             changes.changedNodes.add (getNodeName (*node));
+
+        if (stateDiffers)
+            changes.changedStateUIDs.addIfNotAlreadyThere (node->getIntAttribute ("uid"));
 
         otherNodes.erase (own);
     }

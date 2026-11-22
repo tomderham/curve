@@ -29,7 +29,11 @@ Pour organiser tout le graphe selon le flux du signal, faites un clic droit sur 
 
 ## Contourner un nœud
 
-Cliquez sur le bouton d’alimentation du nœud. Cliquez de nouveau pour le réactiver. Vous pouvez aussi cliquer avec le bouton droit sur le nœud et sélectionner Toggle Bypass.
+Cliquez sur le bouton d’alimentation du nœud. Cliquez de nouveau pour le réactiver. Vous pouvez aussi cliquer avec le bouton droit sur le nœud et sélectionner Bypass.
+
+## Couper le son d’un nœud
+
+Cliquez sur le nœud avec le bouton droit et sélectionnez Mute. Un nœud coupé ne laisse rien passer et n’est pas traité : il coupe le chemin sur lequel il se trouve, alors qu’un nœud contourné laisse passer son entrée telle quelle. Il est grisé, avec un contour en pointillés et des croix rouges sur ses sorties. Pour rétablir le son, cliquez sur son bouton d’alimentation ou sélectionnez de nouveau Mute. Dans les [scènes](presets.md), chaque scène a son propre état.
 
 ## Ouvrir la fenêtre d’un plug-in
 
@@ -43,9 +47,10 @@ Cliquez avec le bouton droit sur un nœud pour accéder aux options suivantes :
 
 | Élément | Fonction |
 |---|---|
+| Bypass | Active ou désactive le contournement. Absent pour les nœuds d’E/S et les indicateurs de niveau. |
+| Mute | Coupe ou rétablit le son du nœud. Un nœud coupé ne laisse rien passer. Voir ci-dessus. |
 | Delete This Node | Supprime le nœud. |
 | Disconnect All Pins | Supprime toutes les connexions du nœud. |
-| Toggle Bypass | Active ou désactive le contournement. Absent pour les nœuds d’E/S et les indicateurs de niveau. |
 | Rename This Node | Modifie le nom affiché sur le nœud. |
 | MIDI Learn | Démarre [MIDI Learn](midi-control.md). |
 | Clear MIDI Mappings | Supprime les assignations MIDI du nœud. Affiché uniquement s’il en a. |

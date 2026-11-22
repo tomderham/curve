@@ -355,8 +355,17 @@ public:
             return;
         }
 
+        // An item's colour marks the scenes of a group (see TrayIconController::addPresetsToMenu()),
+        // as a stripe down its left edge like the Save Preset window's, rather than as its text colour
         juce::LookAndFeel_V4::drawPopupMenuItem (g, area, isSeparator, isActive, isHighlighted, isTicked,
-                                                hasSubMenu, text, shortcutKeyText, icon, textColourToUse);
+                                                hasSubMenu, text, shortcutKeyText, icon, nullptr);
+
+        // After the highlight, which would cover it
+        if (textColourToUse != nullptr)
+        {
+            g.setColour (*textColourToUse);
+            g.fillRoundedRectangle ((float) area.getX() + 1.0f, (float) area.getY() + 4.0f, 2.5f, (float) area.getHeight() - 8.0f, 1.25f);
+        }
     }
 };
 

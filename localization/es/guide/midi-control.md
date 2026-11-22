@@ -1,13 +1,13 @@
 # Control MIDI
 
-Un controlador o teclado MIDI puede tocar plug-ins de instrumento, cambiar parámetros de plug-ins, omitir nodos y cambiar de preset. Actívalo en las entradas MIDI de [Audio Settings](audio-settings.md).
+Un controlador o teclado MIDI puede tocar plug-ins de instrumento, cambiar parámetros de plug-ins, omitir o silenciar nodos y cambiar de preset. Actívalo en las entradas MIDI de [Audio Settings](audio-settings.md).
 
 ## Elegir cómo controlar un plug-in
 
 Hay dos formas de controlar un plug-in desde tu controlador:
 
 - **Conectar MIDI al plug-in.** Un nodo MIDI Input envía MIDI directamente al pin de entrada ámbar del plug-in, y el plug-in decide qué hacer con él. Úsala para tocar un instrumento y para aprovechar cualquier asignación MIDI integrada en el plug-in.
-- **Usar MIDI Learn de Curve.** Curve lee el controlador directamente y cambia por ti los parámetros o la omisión del plug-in. No requiere un nodo MIDI Input ni conexiones. Úsala para plug-ins sin pin de entrada ámbar y para la omisión.
+- **Usar MIDI Learn de Curve.** Curve lee el controlador directamente y cambia por ti los parámetros, la omisión o el silencio del plug-in. No requiere un nodo MIDI Input ni conexiones. Úsala para plug-ins sin pin de entrada ámbar y para la omisión y el silencio.
 
 MIDI Learn solo llega a los parámetros que un plug-in pone a disposición de su host. Algunos plug-ins, sobre todo los instrumentos grandes, solo ponen a disposición parte de sus controles. Si mover un control en la ventana del plug-in durante MIDI Learn no tiene efecto, Curve no puede asignar ese control.
 
@@ -31,6 +31,7 @@ Los plug-ins de efecto que responden a MIDI se conectan de la misma forma. Para 
 2. Elige qué quieres controlar:
    - Para un parámetro de plug-in, abre la ventana del plug-in y mueve el control.
    - Para la omisión de un nodo, haz clic en su botón de encendido.
+   - Para silenciar un nodo, haz clic con el botón derecho en él y selecciona Mute.
 3. Mueve un mando, fader o botón de tu controlador. La asignación se hace de inmediato y puedes seguir asignando otros controles.
 4. Pulsa Esc, o selecciona MIDI Learn de nuevo, para terminar.
 
@@ -38,14 +39,14 @@ Las asignaciones se guardan con el preset, así que usa Save As Preset... para c
 
 ## Eliminar una asignación
 
-- Para eliminar la asignación del parámetro u omisión seleccionados, pulsa Delete durante MIDI Learn.
+- Para eliminar la asignación del parámetro, la omisión o el silencio seleccionados, pulsa Delete durante MIDI Learn.
 - Para eliminar todas las asignaciones de un nodo, haz clic con el botón derecho en él y selecciona Clear MIDI Mappings.
 
 ## Cómo se comportan los controles asignados
 
 - Los mandos y faders (CC) cubren todo el rango de un parámetro. Puedes acotarlo en MIDI Mappings for Current Preset... (ver abajo).
 - Las notas y los cambios de programa alternan el destino.
-- Para la omisión, y para parámetros de encendido/apagado como Mute, Curve determina si un botón CC es momentáneo, donde cada pulsación lo alterna, o de enclavamiento, donde sigue el estado del botón.
+- Para la omisión y el silencio, y para parámetros de encendido/apagado como Record, Curve determina si un botón CC es momentáneo, donde cada pulsación lo alterna, o de enclavamiento, donde sigue el estado del botón.
 
 Los nodos con asignaciones muestran un pequeño icono de conector MIDI. Pasa el puntero sobre el nodo para ver sus asignaciones en la barra de estado.
 
@@ -59,7 +60,7 @@ Haz clic en el icono de menú de la parte superior izquierda de la ventana del e
 - **From y To:** los valores entre los que se mueve un mando o fader. Un rango más estrecho da pasos más finos, por ejemplo de -20 dB a +6 dB en un nodo Gain. Para Toggle y Follow, son los valores de apagado y encendido. Escribe un valor en las unidades del parámetro, o un porcentaje como 25%.
 - **Invert:** invierte el control.
 
-Las asignaciones de bypass no tienen From ni To. Haz clic en × para eliminar una asignación. Las asignaciones se guardan con el preset, así que usa Save As Preset... para conservar tus cambios.
+Las asignaciones de omisión y de silencio no tienen From ni To. Haz clic en × para eliminar una asignación. Las asignaciones se guardan con el preset, así que usa Save As Preset... para conservar tus cambios.
 
 ## Cambiar de preset desde un controlador
 

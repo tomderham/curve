@@ -91,6 +91,14 @@ MidiMappingTarget MidiMappingTarget::forBypass (AudioProcessorGraph::NodeID node
     return t;
 }
 
+MidiMappingTarget MidiMappingTarget::forMute (AudioProcessorGraph::NodeID nodeID)
+{
+    MidiMappingTarget t;
+    t.kind = Kind::mute;
+    t.nodeID = nodeID;
+    return t;
+}
+
 MidiMappingTarget MidiMappingTarget::forPresetStep (bool next)
 {
     MidiMappingTarget t;
@@ -130,9 +138,9 @@ MidiMapping::Mode MidiMapping::getDefaultMode (const MidiTrigger& trigger, const
     if (target.kind == MidiMappingTarget::Kind::parameter && trigger.type == MidiTrigger::Type::controller)
         return Mode::absolute;
 
-    // A CC driving bypass starts as a latching switch; learning switches it to
+    // A CC driving bypass or mute starts as a latching switch; learning switches it to
     // toggle if the button turns out to be momentary.
-    if (target.kind == MidiMappingTarget::Kind::bypass && trigger.type == MidiTrigger::Type::controller)
+    if (target.isSwitch() && trigger.type == MidiTrigger::Type::controller)
         return Mode::follow;
 
     return Mode::toggle;
@@ -181,6 +189,7 @@ static const char* toString (MidiMappingTarget::Kind k)
     {
         case MidiMappingTarget::Kind::parameter:        return "parameter";
         case MidiMappingTarget::Kind::bypass:           return "bypass";
+        case MidiMappingTarget::Kind::mute:             return "mute";
         case MidiMappingTarget::Kind::nextPreset:       return "nextPreset";
         case MidiMappingTarget::Kind::previousPreset:   return "previousPreset";
     }
@@ -243,7 +252,8 @@ std::optional<MidiMapping> MidiMapping::fromXml (const XmlElement& e)
                                   { MidiTrigger::Type::controller, MidiTrigger::Type::note, MidiTrigger::Type::programChange });
     const auto kind = fromString (e.getStringAttribute ("target"),
                                   { MidiMappingTarget::Kind::parameter, MidiMappingTarget::Kind::bypass,
-                                    MidiMappingTarget::Kind::nextPreset, MidiMappingTarget::Kind::previousPreset });
+                                    MidiMappingTarget::Kind::nextPreset, MidiMappingTarget::Kind::previousPreset,
+                                    MidiMappingTarget::Kind::mute });
 
     if (! type.has_value() || ! kind.has_value())
         return std::nullopt;

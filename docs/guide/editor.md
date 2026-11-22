@@ -29,7 +29,11 @@ To arrange the whole graph by signal flow, right-click the background and select
 
 ## Bypass a node
 
-Click the power button on the node. Click it again to re-enable the node. You can also right-click the node and select Toggle Bypass.
+Click the power button on the node. Click it again to re-enable the node. You can also right-click the node and select Bypass.
+
+## Mute a node
+
+Right-click the node and select Mute. A muted node passes on nothing and isn't processed, so it cuts the path it's on, where a bypassed node passes its input straight through. It's dimmed, with a dashed outline and red crosses on its outputs. To unmute it, click its power button, or select Mute again. In [scenes](presets.md), each scene has its own.
 
 ## Open a plug-in's window
 
@@ -43,9 +47,10 @@ Right-click a node for these options:
 
 | Item | What it does |
 |---|---|
+| Bypass | Turns bypass on or off. Not shown for I/O nodes and meters. |
+| Mute | Mutes or unmutes the node. A muted node passes on nothing. See above. |
 | Delete This Node | Removes the node. |
 | Disconnect All Pins | Removes all of the node's connections. |
-| Toggle Bypass | Turns bypass on or off. Not shown for I/O nodes and meters. |
 | Rename This Node | Changes the name shown on the node. |
 | MIDI Learn | Starts [MIDI Learn](midi-control.md). |
 | Clear MIDI Mappings | Removes the node's MIDI mappings. Shown only if it has some. |

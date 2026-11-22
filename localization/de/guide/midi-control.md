@@ -1,13 +1,13 @@
 # MIDI-Steuerung
 
-Ein MIDI-Controller oder -Keyboard kann Instrument-Plug-ins spielen, Plug-in-Parameter ändern, Nodes umgehen und Presets wechseln. Aktiviere ihn unter den MIDI-Eingängen in [Audio Settings](audio-settings.md).
+Ein MIDI-Controller oder -Keyboard kann Instrument-Plug-ins spielen, Plug-in-Parameter ändern, Nodes umgehen oder stummschalten und Presets wechseln. Aktiviere ihn unter den MIDI-Eingängen in [Audio Settings](audio-settings.md).
 
 ## Wählen, wie du ein Plug-in steuerst
 
 Es gibt zwei Wege, ein Plug-in mit deinem Controller zu steuern:
 
 - **MIDI mit dem Plug-in verbinden.** Ein Node MIDI Input sendet MIDI direkt an den bernsteinfarbenen Eingangs-Pin des Plug-ins, und das Plug-in entscheidet, was damit geschieht. Nutze das, um ein Instrument zu spielen und um eine im Plug-in eingebaute MIDI-Zuweisung zu verwenden.
-- **Curves MIDI Learn verwenden.** Curve liest den Controller selbst und ändert dann für dich die Parameter oder den Bypass des Plug-ins. Dafür sind weder ein Node MIDI Input noch Verbindungen nötig. Nutze das für Plug-ins ohne bernsteinfarbenen Eingangs-Pin und für den Bypass.
+- **Curves MIDI Learn verwenden.** Curve liest den Controller selbst und ändert dann für dich die Parameter, den Bypass oder die Stummschaltung des Plug-ins. Dafür sind weder ein Node MIDI Input noch Verbindungen nötig. Nutze das für Plug-ins ohne bernsteinfarbenen Eingangs-Pin und für Bypass und Stummschaltung.
 
 MIDI Learn erreicht nur die Parameter, die ein Plug-in seinem Host zur Verfügung stellt. Manche Plug-ins, vor allem große Instrumente, stellen nur einen Teil ihrer Regler bereit. Wenn das Bewegen eines Reglers im Plug-in-Fenster während MIDI Learn nichts bewirkt, kann Curve diesen Regler nicht zuweisen.
 
@@ -31,6 +31,7 @@ Effekt-Plug-ins, die auf MIDI reagieren, werden genauso verbunden. Um MIDI von e
 2. Wähle aus, was gesteuert werden soll:
    - Für einen Plug-in-Parameter öffne das Fenster des Plug-ins und bewege das Bedienelement.
    - Für den Bypass eines Nodes klicke auf dessen Ein/Aus-Taste.
+   - Zum Stummschalten eines Nodes klicke mit der rechten Maustaste darauf und wähle Mute.
 3. Bewege einen Regler, Fader oder Taster an deinem Controller. Die Zuweisung erfolgt sofort, und du kannst weitere Bedienelemente zuweisen.
 4. Drücke Esc oder wähle erneut MIDI Learn, um den Vorgang zu beenden.
 
@@ -38,14 +39,14 @@ Zuweisungen werden mit dem Preset gespeichert. Verwende also Save As Preset..., 
 
 ## Eine Zuweisung entfernen
 
-- Um die Zuweisung für den ausgewählten Parameter oder Bypass zu entfernen, drücke während MIDI Learn die Taste Delete.
+- Um die Zuweisung für den ausgewählten Parameter, Bypass oder die Stummschaltung zu entfernen, drücke während MIDI Learn die Taste Delete.
 - Um alle Zuweisungen eines Nodes zu entfernen, klicke mit der rechten Maustaste darauf und wähle Clear MIDI Mappings.
 
 ## So verhalten sich zugewiesene Bedienelemente
 
 - Regler und Fader (CC) decken den gesamten Bereich eines Parameters ab. In MIDI Mappings for Current Preset... kannst du ihn eingrenzen (siehe unten).
 - Noten und Program Changes schalten das Ziel um.
-- Beim Bypass und bei Ein/Aus-Parametern wie Mute erkennt Curve, ob ein CC-Taster als Taster arbeitet, bei dem jeder Druck umschaltet, oder als Schalter, bei dem der Zustand des Tasters übernommen wird.
+- Bei Bypass und Stummschaltung und bei Ein/Aus-Parametern wie Record erkennt Curve, ob ein CC-Taster als Taster arbeitet, bei dem jeder Druck umschaltet, oder als Schalter, bei dem der Zustand des Tasters übernommen wird.
 
 Nodes mit Zuweisungen zeigen ein kleines MIDI-Buchsensymbol. Bewege den Mauszeiger über den Node, um seine Zuweisungen in der Statusleiste zu sehen.
 
@@ -59,7 +60,7 @@ Klicke auf das Menüsymbol oben links im Editorfenster und wähle MIDI Mappings 
 - **From und To:** die Werte, zwischen denen sich ein Regler oder Fader bewegt. Ein engerer Bereich ergibt feinere Schritte, zum Beispiel -20 dB bis +6 dB bei einem Gain-Node. Bei Toggle und Follow sind es der Aus- und der Ein-Wert. Gib einen Wert in der Einheit des Parameters ein oder einen Prozentwert wie 25%.
 - **Invert:** kehrt die Steuerung um.
 
-Zuordnungen für Bypass haben kein From und To. Klicke auf ×, um eine Zuordnung zu entfernen. Zuordnungen werden mit dem Preset gespeichert, verwende also Save As Preset..., um deine Änderungen zu behalten.
+Zuordnungen für Bypass und Stummschaltung haben kein From und To. Klicke auf ×, um eine Zuordnung zu entfernen. Zuordnungen werden mit dem Preset gespeichert, verwende also Save As Preset..., um deine Änderungen zu behalten.
 
 ## Presets über einen Controller wechseln
 

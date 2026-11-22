@@ -45,7 +45,7 @@ struct MidiTrigger
 /** What a mapping controls. */
 struct MidiMappingTarget
 {
-    enum class Kind { parameter, bypass, nextPreset, previousPreset };
+    enum class Kind { parameter, bypass, nextPreset, previousPreset, mute };
 
     Kind kind = Kind::parameter;
     AudioProcessorGraph::NodeID nodeID;
@@ -54,9 +54,13 @@ struct MidiMappingTarget
 
     static MidiMappingTarget forParameter (AudioProcessorGraph::NodeID, const AudioProcessor&, int paramIndex);
     static MidiMappingTarget forBypass (AudioProcessorGraph::NodeID);
+    static MidiMappingTarget forMute (AudioProcessorGraph::NodeID);
     static MidiMappingTarget forPresetStep (bool next);
 
-    bool isNodeTarget() const { return kind == Kind::parameter || kind == Kind::bypass; }
+    bool isNodeTarget() const { return kind == Kind::parameter || kind == Kind::bypass || kind == Kind::mute; }
+
+    // Bypass and mute: on or off, with no range
+    bool isSwitch() const { return kind == Kind::bypass || kind == Kind::mute; }
 
     /** Finds the target parameter on the given processor, by ID then by index. */
     AudioProcessorParameter* findParameter (AudioProcessor&) const;

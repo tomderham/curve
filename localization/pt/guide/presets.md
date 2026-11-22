@@ -29,27 +29,31 @@ A menos que o grafo tenha só esses nós, o Curve pergunta antes, porque as conf
 
 ## Cenas
 
-Se vários presets forem iguais exceto por algumas configurações, como um nó em bypass ou um plug-in configurado de outro jeito, você pode transformá-los em cenas. As cenas compartilham seus plug-ins e conexões, então basta fazer uma alteração uma vez para atualizar todas. Cada cena fica no menu do Curve como qualquer outro preset, e você muda para ela do mesmo jeito. Na janela Save Preset, cenas que compartilham entre si têm a mesma cor, e selecionar uma destaca as outras.
+Se vários presets têm partes em comum, você pode transformá-los em cenas. Por exemplo, as cenas podem compartilhar a mesma correção de alto-falantes mas usar instrumentos ou caminhos de sinal diferentes, ou usar os mesmos instrumentos com correções de alto-falantes diferentes. As cenas compartilham seus plug-ins e conexões, então você só precisa fazer uma alteração uma vez para atualizar todas. Cada cena continua no menu do Curve como qualquer outro preset, e você troca para ela da mesma forma.
+
+As cenas que compartilham entre si são marcadas com a mesma cor no menu do Curve e na janela Save Preset.
+
+Trocar para outra cena é rápido: o Curve muda só o que essa cena tem de próprio, sem carregar seus plug-ins de novo. Se você mudou um ajuste compartilhado desde que carregou, ou se falta um plug-in, a cena é carregada por completo, e a alteração se perde, como acontece ao trocar de preset.
 
 O que cada cena guarda para si:
 
-- Se cada nó está em bypass.
-- As configurações dos nós definidos como Vary by Scene. Clique com o botão direito em um nó e selecione Vary by Scene; ele mostra um pequeno selo de cartões empilhados.
+- Se cada nó está em bypass ou mudo. Um nó em bypass deixa sua entrada passar sem alteração. Um nó mudo não deixa passar nada, então corta o caminho em que está. Consulte [Silenciar um nó](editor.md).
+- Os ajustes dos nós definidos como Vary by Scene. Clique com o botão direito em um nó e selecione Vary by Scene; ele mostra um pequeno selo de cartões empilhados.
 
-Todo o resto é compartilhado: os outros nós e suas configurações, as conexões, o roteamento de canais e os mapeamentos MIDI. Altere um nó compartilhado em qualquer cena, salve, e todas as cenas recebem a alteração. Um nó definido como Vary by Scene continua compartilhando seus canais e conexões.
+Todo o resto é compartilhado: os outros nós e seus ajustes, as conexões, o roteamento de canais e os mapeamentos MIDI. Altere um nó compartilhado em qualquer cena, salve, e todas as cenas recebem a alteração. Um nó definido como Vary by Scene continua compartilhando seus canais e conexões.
 
 Para criar uma cena:
 
 1. Carregue o preset do qual a nova cena deve partir.
-2. Para cada plug-in que deve ser configurado de outro jeito na nova cena, clique com o botão direito nele e selecione Vary by Scene.
-3. Faça as alterações para a nova cena.
+2. Para cada plug-in que deve ser ajustado de outra forma na nova cena, clique nele com o botão direito e selecione Vary by Scene.
+3. Faça as alterações para a nova cena. Para deixar um caminho de fora, silencie um nó dele.
 4. Selecione Save As Preset..., digite um novo nome, escolha a opção de cena e clique em Save.
 
-Antes de salvar, a janela Save Preset informa quais outras cenas o salvamento atualiza e cita os nós compartilhados cujas configurações vão mudar nelas. Se uma configuração for só para esta cena, cancele, defina esse nó como Vary by Scene e salve de novo.
+Antes de salvar, a janela Save Preset mostra quais outras cenas serão atualizadas e cita os nós compartilhados cujos ajustes mudarão nelas. Se uma alteração é só para esta cena, cancele, clique com o botão direito no nó, selecione Vary by Scene e salve de novo. Assim, cada cena mantém seus próprios ajustes para esse nó. Ela continua sendo uma cena, e as cenas continuam compartilhando todo o resto.
 
-Para alterar uma cena, carregue-a, faça as alterações e salve com o mesmo nome. Salvar por cima de outra cena com a qual ela compartilha substitui essa cena, que continua sendo uma cena. Um nó que você adiciona aparece também nas outras cenas, em bypass, para que soem iguais até você ativá-lo nelas.
+Para alterar uma cena, carregue-a, faça as alterações e salve-a com o mesmo nome. Salvar por cima de outra cena com a qual ela compartilha substitui essa cena, que continua sendo uma cena. Um nó que você adiciona também aparece nas outras cenas, em bypass, para que soem igual até você ativá-lo nelas. Um nó em bypass ainda deixa sua entrada passar, então, para que um caminho novo fique em silêncio nas outras cenas, silencie nelas um dos nós dele.
 
-Para uma cena deixar de compartilhar com as outras, clique com o botão direito nela na janela Save Preset e selecione Convert to Standalone Preset. Ela mantém as configurações atuais.
+Para que uma cena deixe de compartilhar com as outras, clique nela com o botão direito na janela Save Preset e selecione Convert to Standalone Preset. Ela mantém seus ajustes atuais.
 
 ## Renomear ou apagar um preset
 

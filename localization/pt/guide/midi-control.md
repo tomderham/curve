@@ -1,13 +1,13 @@
 # Controle MIDI
 
-Um controlador ou teclado MIDI pode tocar plug-ins de instrumento, alterar parâmetros de plug-ins, ignorar nós e alternar presets. Ative-o nas entradas MIDI em [Audio Settings](audio-settings.md).
+Um controlador ou teclado MIDI pode tocar plug-ins de instrumento, alterar parâmetros de plug-ins, colocar nós em bypass ou silenciá-los e alternar presets. Ative-o nas entradas MIDI em [Audio Settings](audio-settings.md).
 
 ## Escolher como controlar um plug-in
 
 Há duas formas de controlar um plug-in pelo seu controlador:
 
 - **Conectar MIDI ao plug-in.** Um nó MIDI Input envia MIDI diretamente ao pino de entrada âmbar do plug-in, e o plug-in decide o que fazer com ele. Use esta forma para tocar um instrumento e para aproveitar qualquer mapeamento MIDI integrado ao plug-in.
-- **Usar o MIDI Learn do Curve.** O próprio Curve lê o controlador e altera para você os parâmetros ou o bypass do plug-in. Isso não exige um nó MIDI Input nem conexões. Use esta forma para plug-ins sem pino de entrada âmbar e para o bypass.
+- **Usar o MIDI Learn do Curve.** O próprio Curve lê o controlador e altera para você os parâmetros, o bypass ou o mudo do plug-in. Isso não exige um nó MIDI Input nem conexões. Use esta forma para plug-ins sem pino de entrada âmbar e para o bypass e o mudo.
 
 O MIDI Learn só alcança os parâmetros que um plug-in disponibiliza ao host. Alguns plug-ins, principalmente instrumentos grandes, disponibilizam apenas parte dos controles. Se mover um controle na janela do plug-in durante o MIDI Learn não tiver efeito, o Curve não poderá mapear esse controle.
 
@@ -31,6 +31,7 @@ Plug-ins de efeito que respondem a MIDI são conectados da mesma forma. Para env
 2. Escolha o que controlar:
    - Para um parâmetro de plug-in, abra a janela do plug-in e mova o controle.
    - Para o bypass de um nó, clique no botão liga/desliga dele.
+   - Para silenciar um nó, clique nele com o botão direito e selecione Mute.
 3. Mova um knob, fader ou botão do seu controlador. O mapeamento é feito na hora, e você pode continuar mapeando outros controles.
 4. Pressione Esc, ou selecione MIDI Learn novamente, para concluir.
 
@@ -38,14 +39,14 @@ Os mapeamentos são salvos com o preset, portanto use Save As Preset... para man
 
 ## Remover um mapeamento
 
-- Para remover o mapeamento do parâmetro ou bypass selecionado, pressione Delete durante o MIDI Learn.
+- Para remover o mapeamento do parâmetro, bypass ou mudo selecionado, pressione Delete durante o MIDI Learn.
 - Para remover todos os mapeamentos de um nó, clique nele com o botão direito e selecione Clear MIDI Mappings.
 
 ## Como os controles mapeados se comportam
 
 - Knobs e faders (CC) cobrem toda a faixa de um parâmetro. Você pode restringi-la em MIDI Mappings for Current Preset... (veja abaixo).
 - Notas e mudanças de programa alternam o destino.
-- Para o bypass, e para parâmetros liga/desliga como Mute, o Curve identifica se um botão CC é momentâneo, em que cada toque alterna o estado, ou com trava, em que o estado acompanha o do botão.
+- Para o bypass e o mudo, e para parâmetros liga/desliga como Record, o Curve identifica se um botão CC é momentâneo, em que cada toque alterna o estado, ou com trava, em que o estado acompanha o do botão.
 
 Os nós com mapeamentos mostram um pequeno ícone de conector MIDI. Passe o ponteiro sobre o nó para ver os mapeamentos dele na barra de status.
 
@@ -59,7 +60,7 @@ Clique no ícone de menu no canto superior esquerdo da janela do editor e seleci
 - **From e To:** os valores entre os quais um botão ou fader se move. Uma faixa mais estreita dá passos mais finos, por exemplo -20 dB a +6 dB em um nó Gain. Para Toggle e Follow, são os valores de desligado e ligado. Digite um valor na unidade do parâmetro ou uma porcentagem como 25%.
 - **Invert:** inverte o controle.
 
-Mapeamentos de bypass não têm From nem To. Clique em × para remover um mapeamento. Os mapeamentos são salvos com o preset, então use Save As Preset... para manter suas alterações.
+Mapeamentos de bypass e de mudo não têm From nem To. Clique em × para remover um mapeamento. Os mapeamentos são salvos com o preset, então use Save As Preset... para manter suas alterações.
 
 ## Alternar presets a partir de um controlador
 

@@ -1219,6 +1219,17 @@ void MainHostWindow::filesDropped (const StringArray& files, int x, int y)
 
 void MainHostWindow::loadPreset(juce::File file)
 {
+    // Another scene sharing the live graph: only what differs is set, without loading plug-ins
+    if (graphHolder != nullptr && graphHolder->graph != nullptr)
+    {
+        if (auto scene = graphHolder->graph->prepareSceneSwitch (file))
+        {
+            replaceGraph ([this, file, &scene] { graphHolder->graph->switchScene (file, *scene); });
+            graphHolder->graph->openPresetPluginWindows();
+            return;
+        }
+    }
+
     replaceGraph ([this, file]
     {
         graphHolder->graph->setRestorePluginWindowsOnLoad (false);

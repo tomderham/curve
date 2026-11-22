@@ -29,7 +29,11 @@ Para organizar todo el grafo según el flujo de la señal, haz clic derecho en e
 
 ## Omitir un nodo
 
-Haz clic en el botón de encendido del nodo. Vuelve a hacer clic para reactivarlo. También puedes hacer clic con el botón derecho en el nodo y seleccionar Toggle Bypass.
+Haz clic en el botón de encendido del nodo. Vuelve a hacer clic para reactivarlo. También puedes hacer clic con el botón derecho en el nodo y seleccionar Bypass.
+
+## Silenciar un nodo
+
+Haz clic con el botón derecho en el nodo y selecciona Mute. Un nodo silenciado no deja pasar nada y no se procesa, así que corta la ruta en la que está, mientras que un nodo omitido deja pasar su entrada sin cambios. Se muestra atenuado, con el contorno discontinuo y cruces rojas en sus salidas. Para quitar el silencio, haz clic en su botón de encendido o vuelve a seleccionar Mute. En las [escenas](presets.md), cada escena tiene su propio estado.
 
 ## Abrir la ventana de un plug-in
 
@@ -43,9 +47,10 @@ Haz clic con el botón derecho en un nodo para ver estas opciones:
 
 | Elemento | Función |
 |---|---|
+| Bypass | Activa o desactiva la omisión. No aparece en los nodos de E/S ni en los medidores. |
+| Mute | Silencia el nodo o le quita el silencio. Un nodo silenciado no deja pasar nada. Consulta más arriba. |
 | Delete This Node | Elimina el nodo. |
 | Disconnect All Pins | Elimina todas las conexiones del nodo. |
-| Toggle Bypass | Activa o desactiva la omisión. No aparece en los nodos de E/S ni en los medidores. |
 | Rename This Node | Cambia el nombre que se muestra en el nodo. |
 | MIDI Learn | Inicia [MIDI Learn](midi-control.md). |
 | Clear MIDI Mappings | Elimina las asignaciones MIDI del nodo. Solo se muestra si tiene alguna. |

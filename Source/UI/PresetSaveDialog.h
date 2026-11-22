@@ -3,6 +3,13 @@
 #include <JuceHeader.h>
 #include "../Plugins/PluginGraph.h"
 
+/** A toggle drawn as a radio button, for a choice of one of several. */
+struct RadioToggle final : public juce::ToggleButton
+{
+    using juce::ToggleButton::ToggleButton;
+    void paintButton (juce::Graphics&, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override;
+};
+
 class PresetSaveDialog final : public juce::Component,
                                public juce::ListBoxModel,
                                public juce::TextEditor::Listener,
@@ -55,7 +62,6 @@ private:
     juce::File getTargetFile() const;
     void updateSceneChoice();
     void layOutSaveButton();
-    void fitSceneToggleText();
     bool isSceneWithOthers (const juce::File& file) const;
     void timerCallback() override;
     juce::String getSceneGroupOf (const juce::File& file) const;
@@ -76,7 +82,6 @@ private:
     bool hasScrolledToActivePreset = false;
 
     // The loaded preset, then the others sharing its graph, for the scene option's label
-    juce::StringArray sceneNames;
 
     // What saving as a new scene, or over a scene of the loaded group, does to the other scenes.
     // Made once each, as it reads every plug-in's state, and edits can't be made while this is
@@ -92,8 +97,13 @@ private:
     juce::ListBox presetListBox;
     juce::Label namePromptLabel;
     juce::TextEditor nameEditor;
-    juce::ToggleButton separateToggle, sceneToggle;
-    juce::Label sceneHintLabel;   // what saving does to the other scenes
+    RadioToggle separateToggle, sceneToggle;
+    juce::Label sharesLabel;      // the scenes it shares with
+    juce::Label sceneHintLabel;   // what each scene keeps of its own, and scenes left out
+    juce::Label changesLabel;     // what saving changes in the other scenes
+
+    void layOutSceneSection (juce::Rectangle<int>);
+    int getSceneSectionHeight (int width) const;
     juce::TextButton openFolderButton;
     juce::TextButton cancelButton;
     juce::TextButton saveButton;

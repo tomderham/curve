@@ -398,6 +398,19 @@ void MidiControlEngine::applyMapping (const MidiMapping& m, int controlValue)
             return;
         }
 
+        case MidiMappingTarget::Kind::mute:
+        {
+            if (graph == nullptr || graph->graph.getNodeForId (m.target.nodeID) == nullptr)
+                return;
+
+            if (m.mode == MidiMapping::Mode::follow)
+                graph->setNodeMuted (m.target.nodeID, pressed != m.invert);
+            else if (pressed)
+                graph->setNodeMuted (m.target.nodeID, ! graph->isNodeMuted (m.target.nodeID));
+
+            return;
+        }
+
         case MidiMappingTarget::Kind::parameter:
         {
             if (graph == nullptr)
@@ -567,7 +580,7 @@ void MidiControlEngine::handleLearnMessage (const MidiMessage& message)
 
     if (! learnTarget.has_value())
     {
-        showLearnStatus ("MIDI Learn: first move a control in a plugin window, or click a bypass button");
+        showLearnStatus ("MIDI Learn: first move a control in a plugin window, click a bypass button, or right-click a node and select Mute");
         return;
     }
 
@@ -656,7 +669,7 @@ void MidiControlEngine::showLearnStatus (const String& detail)
 
     if (! learnTarget.has_value())
     {
-        onStatusMessage ("MIDI Learn: move a control in a plugin window, or click a bypass button  "
+        onStatusMessage ("MIDI Learn: move a control in a plugin window, click a bypass button, or right-click a node and select Mute  "
                          + String::fromUTF8 ("\xe2\x80\xa2") + "  Esc to finish");
         return;
     }

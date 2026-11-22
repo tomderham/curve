@@ -29,27 +29,31 @@ Sauf si le graphe ne contient que ces nœuds, Curve demande d’abord confirmati
 
 ## Scènes
 
-Si plusieurs presets sont identiques à quelques réglages près, comme un nœud contourné ou un plug-in réglé autrement, vous pouvez en faire des scènes. Les scènes partagent leurs plug-ins et leurs connexions : il suffit d’apporter une modification une fois pour les mettre toutes à jour. Chaque scène figure dans le menu de Curve comme n’importe quel autre preset, et vous y passez de la même façon. Dans la fenêtre Save Preset, les scènes qui partagent entre elles ont la même couleur, et en sélectionner une met les autres en évidence.
+Si plusieurs presets ont des parties en commun, vous pouvez en faire des scènes. Par exemple, des scènes peuvent partager la même correction d’enceintes mais utiliser des instruments ou des chemins de signal différents, ou utiliser les mêmes instruments avec une correction d’enceintes différente. Les scènes partagent leurs plug-ins et leurs connexions : il suffit de faire une modification une fois pour toutes les mettre à jour. Chaque scène reste dans le menu de Curve comme n’importe quel autre preset, et vous y passez de la même façon.
 
-Ce que chaque scène garde pour elle :
+Les scènes qui partagent entre elles sont marquées de la même couleur dans le menu de Curve et dans la fenêtre Save Preset.
 
-- Si chaque nœud est contourné.
-- Les réglages des nœuds réglés sur Vary by Scene. Faites un clic droit sur un nœud et sélectionnez Vary by Scene : il affiche un petit badge de cartes empilées.
+Passer à une autre scène est rapide : Curve ne change que ce que cette scène a en propre, sans recharger ses plug-ins. Si vous avez modifié un réglage partagé depuis le chargement, ou si un plug-in manque, la scène est chargée entièrement, et la modification est perdue, comme lorsque vous changez de preset.
 
-Tout le reste est partagé : les autres nœuds et leurs réglages, les connexions, le routage des canaux et les assignations MIDI. Modifiez un nœud partagé dans n’importe quelle scène, enregistrez-la, et toutes les scènes reçoivent la modification. Un nœud réglé sur Vary by Scene partage tout de même ses canaux et ses connexions.
+Ce que chaque scène conserve pour elle-même :
+
+- Si chaque nœud est contourné ou coupé. Un nœud contourné laisse passer son entrée telle quelle. Un nœud coupé ne laisse rien passer : il coupe le chemin sur lequel il se trouve. Voir [Couper le son d’un nœud](editor.md).
+- Les réglages des nœuds réglés sur Vary by Scene. Cliquez sur un nœud avec le bouton droit et sélectionnez Vary by Scene : il affiche un petit badge de cartes empilées.
+
+Tout le reste est partagé : les autres nœuds et leurs réglages, les connexions, le routage des canaux et les assignations MIDI. Si vous modifiez un nœud partagé dans n’importe quelle scène et l’enregistrez, toutes les scènes reçoivent la modification. Un nœud réglé sur Vary by Scene partage toujours ses canaux et ses connexions.
 
 Pour créer une scène :
 
 1. Chargez le preset dont la nouvelle scène doit partir.
-2. Pour chaque plug-in qui doit être réglé autrement dans la nouvelle scène, faites un clic droit dessus et sélectionnez Vary by Scene.
-3. Faites les modifications pour la nouvelle scène.
+2. Pour chaque plug-in qui doit être réglé différemment dans la nouvelle scène, cliquez dessus avec le bouton droit et sélectionnez Vary by Scene.
+3. Faites les modifications pour la nouvelle scène. Pour écarter un chemin, coupez le son d’un nœud de ce chemin.
 4. Sélectionnez Save As Preset..., saisissez un nouveau nom, choisissez l’option de scène et cliquez sur Save.
 
-Avant l’enregistrement, la fenêtre Save Preset indique quelles autres scènes l’enregistrement met à jour et nomme les nœuds partagés dont les réglages y changeront. Si un réglage ne concerne que cette scène, annulez, réglez ce nœud sur Vary by Scene et enregistrez à nouveau.
+Avant l’enregistrement, la fenêtre Save Preset indique quelles autres scènes l’enregistrement met à jour et nomme les nœuds partagés dont les réglages y changeront. Si une modification ne concerne que cette scène, annulez, cliquez sur le nœud avec le bouton droit, sélectionnez Vary by Scene, puis enregistrez de nouveau. Chaque scène garde alors ses propres réglages pour ce nœud. Elle reste une scène, et les scènes partagent toujours tout le reste.
 
-Pour modifier une scène, chargez-la, faites vos modifications, puis enregistrez-la sous le même nom. Enregistrer par-dessus une autre scène avec laquelle elle partage remplace cette scène, qui reste une scène. Un nœud que vous ajoutez apparaît aussi dans les autres scènes, contourné, pour qu’elles sonnent pareil jusqu’à ce que vous l’y activiez.
+Pour modifier une scène, chargez-la, faites vos modifications, puis enregistrez-la sous le même nom. Enregistrer par-dessus une autre scène avec laquelle elle partage remplace cette scène, qui reste une scène. Un nœud que vous ajoutez apparaît aussi dans les autres scènes, contourné, pour qu’elles sonnent de la même façon jusqu’à ce que vous l’y activiez. Un nœud contourné laisse tout de même passer son entrée : pour qu’un nouveau chemin reste silencieux dans les autres scènes, coupez-y le son de l’un de ses nœuds.
 
-Pour qu’une scène cesse de partager avec les autres, faites un clic droit dessus dans la fenêtre Save Preset et sélectionnez Convert to Standalone Preset. Elle garde ses réglages actuels.
+Pour qu’une scène cesse de partager avec les autres, cliquez dessus avec le bouton droit dans la fenêtre Save Preset et sélectionnez Convert to Standalone Preset. Elle conserve ses réglages actuels.
 
 ## Renommer ou supprimer un preset
 

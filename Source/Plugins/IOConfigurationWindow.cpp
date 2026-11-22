@@ -621,11 +621,15 @@ IOConfigurationWindow::~IOConfigurationWindow()
     {
         if (auto* p = getAudioProcessor())
         {
+            // A muted node stays suspended (see PluginGraph::setNodeMuted())
+            auto* node = graph->getNodeForId (getNodeID());
+            const bool isMuted = node != nullptr && (bool) node->properties[PluginGraph::mutedProp];
+
             if (p->getBusesLayout() == currentLayout)
             {
                 // Layout unchanged: only this plugin needs re-preparing
                 p->prepareToPlay (graph->getSampleRate(), graph->getBlockSize());
-                p->suspendProcessing (false);
+                p->suspendProcessing (isMuted);
                 return;
             }
 
@@ -633,7 +637,7 @@ IOConfigurationWindow::~IOConfigurationWindow()
             graph->releaseResources();
 
             p->prepareToPlay (graph->getSampleRate(), graph->getBlockSize());
-            p->suspendProcessing (false);
+            p->suspendProcessing (isMuted);
 
             graph->prepareToPlay (graph->getSampleRate(), graph->getBlockSize());
             graph->suspendProcessing (false);

@@ -111,6 +111,7 @@ public:
     static inline const Identifier openWithPresetProp { "openWithPreset" };
     static inline const Identifier freePositionProp { "freePosition" };
     static inline const Identifier varyBySceneProp { Curve::Scenes::varyAttribute };
+    static inline const Identifier mutedProp { Curve::Scenes::mutedAttribute };
 
     // A hidden bus keeps running but shows no pins in the graph editor, for buses that can't be
     // disabled. Hiding one removes its connections. Pass midiBus for the node's MIDI port.
@@ -130,6 +131,14 @@ public:
     // than sharing them. Bypass always varies by scene.
     void setNodeVariesByScene (NodeID, bool);
     bool doesNodeVaryByScene (NodeID) const;
+
+    // Not the graph's I/O nodes, or those set in Audio Settings, which have no settings of their own
+    static bool canVaryByScene (AudioProcessor&);
+
+    // A muted node passes on nothing and isn't processed: unlike bypass, which passes its input
+    // straight through, it cuts the path it's on. Like bypass, each scene has its own.
+    void setNodeMuted (NodeID, bool shouldBeMuted);
+    bool isNodeMuted (NodeID) const;
 
     // The node's custom name if it has one, otherwise its processor's name.
     String getNodeDisplayName (NodeID) const;
@@ -175,6 +184,17 @@ public:
 
     // The loaded preset's scene group, or empty
     const String& getSceneGroup() const { return sceneGroup; }
+
+    // The colour that marks a group's scenes, the same wherever they're shown
+    static Colour getSceneGroupColour (const String& group);
+
+    // Switching to another scene of the loaded group that shares the live graph, e.g. from the
+    // menu, only sets what each scene has of its own (bypass, mute, and the settings of nodes that
+    // vary by scene), rather than loading every plug-in again. Prepare returns the scene to switch
+    // to, or nothing if it has to be loaded: not a scene of the group, a shared setting changed
+    // since loading, or a plug-in still loading or missing. Apply it with the audio stopped.
+    std::unique_ptr<XmlElement> prepareSceneSwitch (const File&) const;
+    void switchScene (const File&, const XmlElement& scene);
 
     // Takes a preset out of its scene group. It sounds the same.
     static Result makeSeparatePreset (const File&, PluginGraph* loadedGraph);
@@ -249,6 +269,16 @@ private:
     // other scenes still share its graph
     String sceneGroup;
     std::unique_ptr<XmlElement> loadedXml;
+
+    // Each node's state as in the file it was loaded from or saved to, and as the plug-in reported
+    // it just after. Many plug-ins don't report back exactly the state they were given, and those
+    // with a bypass parameter keep the node's bypass in it, which each scene has its own of. While
+    // a plug-in still reports the same, its state is saved and compared as in the file, so an
+    // unchanged scene isn't a change to the others (see createXml())
+    struct StateAsSaved { String inFile, reported; };
+    std::map<uint32, StateAsSaved> statesAsSaved;
+    void rememberStateAsSaved (AudioProcessorGraph::Node&, const String& inFile);
+    void rememberSavedStates (const XmlElement& saved);
 
     void createNodeFromXml (const XmlElement&, bool restorePluginWindows = false);
     void createNodeFromXmlAsync (std::shared_ptr<const XmlElement> nodeXml,

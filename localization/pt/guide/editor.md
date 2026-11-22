@@ -29,7 +29,11 @@ Para organizar o grafo inteiro pelo fluxo do sinal, clique com o botão direito 
 
 ## Ignorar um nó
 
-Clique no botão liga/desliga do nó. Clique novamente para reativá-lo. Você também pode clicar com o botão direito no nó e selecionar Toggle Bypass.
+Clique no botão liga/desliga do nó. Clique novamente para reativá-lo. Você também pode clicar com o botão direito no nó e selecionar Bypass.
+
+## Silenciar um nó
+
+Clique com o botão direito no nó e selecione Mute. Um nó mudo não deixa passar nada e não é processado, então corta o caminho em que está, enquanto um nó em bypass deixa sua entrada passar sem alteração. Ele fica esmaecido, com contorno tracejado e cruzes vermelhas nas saídas. Para tirar o mudo, clique no botão liga/desliga dele ou selecione Mute de novo. Nas [cenas](presets.md), cada cena tem seu próprio estado.
 
 ## Abrir a janela de um plug-in
 
@@ -43,9 +47,10 @@ Clique com o botão direito em um nó para ver estas opções:
 
 | Item | Função |
 |---|---|
+| Bypass | Ativa ou desativa o bypass. Não aparece nos nós de E/S nem nos medidores. |
+| Mute | Silencia o nó ou tira o mudo. Um nó mudo não deixa passar nada. Veja acima. |
 | Delete This Node | Remove o nó. |
 | Disconnect All Pins | Remove todas as conexões do nó. |
-| Toggle Bypass | Ativa ou desativa o bypass. Não aparece nos nós de E/S nem nos medidores. |
 | Rename This Node | Altera o nome mostrado no nó. |
 | MIDI Learn | Inicia o [MIDI Learn](midi-control.md). |
 | Clear MIDI Mappings | Remove os mapeamentos MIDI do nó. Só aparece se ele tiver algum. |

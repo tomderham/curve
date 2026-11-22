@@ -1,13 +1,13 @@
 # MIDI control
 
-A MIDI controller or keyboard can play instrument plug-ins, change plug-in parameters, bypass nodes and switch presets. Enable it under MIDI inputs in [Audio Settings](audio-settings.md).
+A MIDI controller or keyboard can play instrument plug-ins, change plug-in parameters, bypass or mute nodes and switch presets. Enable it under MIDI inputs in [Audio Settings](audio-settings.md).
 
 ## Choose how to control a plug-in
 
 There are two ways to control a plug-in from your controller:
 
 - **Connect MIDI to the plug-in.** A MIDI Input node sends MIDI straight to the plug-in's amber input pin, and the plug-in decides what to do with it. Use this to play an instrument, and to use any MIDI mapping built into the plug-in.
-- **Use Curve's MIDI Learn.** Curve reads the controller itself, then changes the plug-in's parameters or bypass for you. This needs no MIDI Input node or connections. Use this for plug-ins with no amber input pin, and for bypass.
+- **Use Curve's MIDI Learn.** Curve reads the controller itself, then changes the plug-in's parameters, bypass or mute for you. This needs no MIDI Input node or connections. Use this for plug-ins with no amber input pin, and for bypass and mute.
 
 MIDI Learn can only reach the parameters that a plug-in makes available to its host. Some plug-ins, especially large instruments, make only some of their controls available. If moving a control in the plug-in's window during MIDI Learn has no effect, Curve can't map that control.
 
@@ -31,6 +31,7 @@ Effect plug-ins that respond to MIDI connect the same way. To send MIDI from a p
 2. Choose what to control:
    - For a plug-in parameter, open the plug-in's window and move the control.
    - For a node's bypass, click its power button.
+   - To mute a node, right-click it and select Mute.
 3. Move a knob, fader or button on your controller. The mapping is made straight away, and you can carry on mapping other controls.
 4. Press Esc, or select MIDI Learn again, to finish.
 
@@ -38,14 +39,14 @@ Mappings are saved with the preset, so use Save As Preset... to keep them.
 
 ## Remove a mapping
 
-- To remove the mapping for the selected parameter or bypass, press Delete during MIDI Learn.
+- To remove the mapping for the selected parameter, bypass or mute, press Delete during MIDI Learn.
 - To remove all of a node's mappings, right-click it and select Clear MIDI Mappings.
 
 ## How mapped controls behave
 
 - Knobs and faders (CC) cover a parameter's full range. You can narrow it in MIDI Mappings for Current Preset..., below.
 - Notes and program changes toggle the target.
-- For bypass, and for on/off parameters such as Mute, Curve works out whether a CC button is momentary, where each press toggles it, or latching, where it follows the button's state.
+- For bypass and mute, and for on/off parameters such as Record, Curve works out whether a CC button is momentary, where each press toggles it, or latching, where it follows the button's state.
 
 Nodes with mappings show a small MIDI socket icon. Hover over the node to see its mappings in the status bar.
 
@@ -59,7 +60,7 @@ Click the menu icon at the top left of the editor window and select MIDI Mapping
 - **From and To:** the values a knob or fader moves between. A narrower range gives finer steps, for example -20 dB to +6 dB on a Gain node. For Toggle and Follow, they're the off and on values. Type a value in the parameter's units, or a percentage such as 25%.
 - **Invert:** reverses the control.
 
-Bypass mappings have no From and To. Click × to remove a mapping. Mappings are saved with the preset, so use Save As Preset... to keep your changes.
+Bypass and mute mappings have no From and To. Click × to remove a mapping. Mappings are saved with the preset, so use Save As Preset... to keep your changes.
 
 ## Switch presets from a controller
 
