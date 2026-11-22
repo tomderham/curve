@@ -78,6 +78,8 @@ Right-click a plug-in's node and select Configure Audio I/O. A plug-in's pins co
 - **Enabled:** turns the bus off, which removes its pins. It's greyed out if the plug-in can't run without the bus.
 - **Shown:** hides the bus's pins from the graph, but the bus keeps running. Use it to tidy away a bus you don't use that can't be turned off. Hiding a bus removes its connections, and a hidden input receives silence. Shown is greyed out while the bus is off.
 
+A plug-in with several outputs, such as a multi-output instrument, starts with only its main output on, as in most DAWs. Turn the others on here. If a plug-in can't turn them off, they're hidden instead. Inputs, such as a sidechain, all start on.
+
 If the plug-in has a MIDI pin, MIDI Port has its own Shown setting. A side with only MIDI, such as an instrument's input, has just that setting.
 
 Changing a layout or turning a bus on or off disconnects all of the node's pins. The settings are saved with the preset. When you point at a node with hidden pins, the status bar says so.

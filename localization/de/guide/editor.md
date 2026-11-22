@@ -78,6 +78,8 @@ Klicke mit der rechten Maustaste auf den Node eines Plug-ins und wähle Configur
 - **Enabled:** schaltet den Bus aus, wodurch seine Pins verschwinden. Die Option ist ausgegraut, wenn das Plug-in ohne den Bus nicht laufen kann.
 - **Shown:** blendet die Pins des Busses im Graph aus, der Bus läuft aber weiter. Damit räumst du einen Bus weg, den du nicht verwendest und der sich nicht ausschalten lässt. Beim Ausblenden werden die Verbindungen des Busses entfernt, und ein ausgeblendeter Eingang erhält Stille. Shown ist ausgegraut, solange der Bus aus ist.
 
+Ein Plug-in mit mehreren Ausgängen, etwa ein Instrument mit mehreren Ausgängen, startet wie in den meisten DAWs nur mit eingeschaltetem Hauptausgang. Schalte die anderen hier ein. Kann ein Plug-in sie nicht ausschalten, werden sie stattdessen ausgeblendet. Eingänge, etwa ein Sidechain, sind anfangs alle eingeschaltet.
+
 Wenn das Plug-in einen MIDI-Pin hat, hat MIDI Port eine eigene Shown-Einstellung. Eine Seite, die nur MIDI hat, etwa der Eingang eines Instruments, hat nur diese Einstellung.
 
 Wenn du ein Layout änderst oder einen Bus ein- oder ausschaltest, werden alle Pins des Nodes getrennt. Die Einstellungen werden mit dem Preset gespeichert. Wenn du auf einen Node mit ausgeblendeten Pins zeigst, weist die Statusleiste darauf hin.

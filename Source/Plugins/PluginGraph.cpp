@@ -145,11 +145,35 @@ void PluginGraph::addPluginCallback (std::unique_ptr<AudioPluginInstance> instan
         if (dynamic_cast<MeterNode*> (instance.get()) == nullptr)
             instance->enableAllBuses();
 
+        // A plug-in with many outputs, such as a multi-output instrument, starts with only its main
+        // output, as a DAW loads it, so it isn't a wide block of pins. Configure Audio I/O turns the
+        // others on. Inputs stay on, so a sidechain can be connected. One that can't turn its extra
+        // outputs off keeps them running, with their pins hidden
+        bool hideExtraOutputs = false;
+
+        if (instance->getPluginDescription().pluginFormatName != Curve::AudioConstants::internalPluginFormat
+            && instance->getBusCount (false) > 1)
+        {
+            auto layout = instance->getBusesLayout();
+
+            for (int i = 1; i < layout.outputBuses.size(); ++i)
+                layout.outputBuses.getReference (i) = AudioChannelSet::disabled();
+
+            hideExtraOutputs = ! instance->setBusesLayout (layout);
+        }
+
+        const auto numOutputBuses = instance->getBusCount (false);
+
         if (auto node = graph.addNode (std::move (instance)))
         {
             node->properties.set ("x", pos.x);
             node->properties.set ("y", pos.y);
             node->properties.set ("useARA", useARA == PluginDescriptionAndPreference::UseARA::yes);
+
+            if (hideExtraOutputs)
+                for (int i = 1; i < numOutputBuses; ++i)
+                    setBusHidden (node->nodeID, false, i, true);
+
             changed();
         }
     }

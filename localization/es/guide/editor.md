@@ -78,6 +78,8 @@ Haz clic con el botón derecho en el nodo de un plug-in y selecciona Configure A
 - **Enabled:** desactiva el bus, lo que elimina sus pines. Aparece atenuado si el plug-in no puede funcionar sin el bus.
 - **Shown:** oculta los pines del bus en el grafo, pero el bus sigue funcionando. Úsalo para quitar de en medio un bus que no usas y que no se puede desactivar. Al ocultar un bus se eliminan sus conexiones, y una entrada oculta recibe silencio. Shown aparece atenuado mientras el bus está desactivado.
 
+Un plug-in con varias salidas, como un instrumento multisalida, empieza solo con su salida principal activada, como en la mayoría de los DAW. Activa las demás aquí. Si un plug-in no puede desactivarlas, se ocultan. Todas las entradas, como un sidechain, empiezan activadas.
+
 Si el plug-in tiene un pin MIDI, MIDI Port tiene su propio ajuste Shown. Un lado que solo tiene MIDI, como la entrada de un instrumento, solo tiene ese ajuste.
 
 Cambiar una disposición o activar o desactivar un bus desconecta todos los pines del nodo. Los ajustes se guardan con el preset. Al señalar un nodo con pines ocultos, la barra de estado lo indica.

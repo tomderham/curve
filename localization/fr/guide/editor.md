@@ -78,6 +78,8 @@ Cliquez avec le bouton droit sur le nœud d’un plug-in et sélectionnez Config
 - **Enabled:** désactive le bus, ce qui retire ses broches. L’option est grisée si le plug-in ne peut pas fonctionner sans ce bus.
 - **Shown:** masque les broches du bus dans le graphe, mais le bus continue de fonctionner. Servez-vous-en pour ranger un bus que vous n’utilisez pas et qui ne peut pas être désactivé. Masquer un bus supprime ses connexions, et une entrée masquée reçoit du silence. Shown est grisé tant que le bus est désactivé.
 
+Un plug-in à plusieurs sorties, comme un instrument multisortie, démarre avec seulement sa sortie principale activée, comme dans la plupart des DAW. Activez les autres ici. Si un plug-in ne peut pas les désactiver, elles sont masquées. Toutes les entrées, comme un sidechain, démarrent activées.
+
 Si le plug-in a une broche MIDI, MIDI Port a son propre réglage Shown. Un côté qui n’a que du MIDI, comme l’entrée d’un instrument, n’a que ce réglage.
 
 Changer une disposition, ou activer ou désactiver un bus, déconnecte toutes les broches du nœud. Les réglages sont enregistrés avec le preset. Quand vous pointez un nœud dont des broches sont masquées, la barre d’état l’indique.
