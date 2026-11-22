@@ -749,13 +749,11 @@ struct GraphEditorPanel::PluginComponent final : public Component,
             promptRenameNode();
         });
 
-        if (auto* engine = panel.midiEngine)
+        // MIDI Learn itself is in the editor's menu, as it maps any node, the tempo and the transport
+        if (graph.getMidiMappings().hasMappingsForNode (pluginID))
         {
             menu->addSeparator();
-            menu->addItem ("MIDI Learn", true, engine->isLearning(), [engine] { engine->setLearning (! engine->isLearning()); });
-
-            if (graph.getMidiMappings().hasMappingsForNode (pluginID))
-                menu->addItem ("Clear MIDI Mappings", [this] { graph.removeMidiMappingsForNode (pluginID); });
+            menu->addItem ("Clear MIDI Mappings", [this] { graph.removeMidiMappingsForNode (pluginID); });
         }
 
         if (auto* proc = getProcessor(); proc != nullptr && PluginGraph::canVaryByScene (*proc))
@@ -1422,6 +1420,180 @@ public:
 };
 
 //==============================================================================
+/*  Start/Stop, the tempo, and Tap, for the plug-ins that follow the host's tempo and transport.
+    In MIDI Learn, clicking one picks it as the target instead, as the bypass button does.
+*/
+class GraphEditorPanel::TransportStrip final : public Component,
+                                               private Timer
+{
+public:
+    explicit TransportStrip (GraphEditorPanel& p) : panel (p)
+    {
+        playButton.onClick = [this]
+        {
+            if (! learn (MidiMappingTarget::Kind::transport))
+                panel.graph.setTransportPlaying (! transport().isPlaying());
+        };
+        playButton.setTooltip ("Start or stop the transport, for plug-ins that play with the host, such as drum machines");
+        addAndMakeVisible (playButton);
+
+        tempoLabel.setEditable (true, true, false);
+        tempoLabel.setJustificationType (Justification::centred);
+        tempoLabel.setColour (Label::outlineColourId, Colours::white.withAlpha (0.2f));
+        tempoLabel.setTooltip ("The preset's tempo, for tempo-synced plug-ins. Click to type it");
+        tempoLabel.onTextChange = [this]
+        {
+            if (const auto bpm = tempoLabel.getText().retainCharacters ("0123456789.").getDoubleValue(); bpm > 0.0)
+                panel.graph.setTempo (bpm);
+
+            refresh();
+        };
+        tempoLabel.onLearnClick = [this] { return learn (MidiMappingTarget::Kind::tempo); };
+        addAndMakeVisible (tempoLabel);
+
+        tapButton.setButtonText ("Tap");
+        tapButton.setTooltip ("Tap in time to set the tempo");
+        tapButton.onClick = [this]
+        {
+            if (! learn (MidiMappingTarget::Kind::tapTempo))
+                panel.graph.tapTempo();
+
+            refresh();
+        };
+        addAndMakeVisible (tapButton);
+
+        refresh();
+        startTimerHz (10);
+    }
+
+    void resized() override
+    {
+        auto r = getLocalBounds();
+        playButton.setBounds (r.removeFromLeft (getHeight()));
+        r.removeFromLeft (6);
+        tapButton.setBounds (r.removeFromRight (44));
+        r.removeFromRight (6);
+        tempoLabel.setBounds (r);
+    }
+
+    void paintOverChildren (Graphics& g) override
+    {
+        // The one picked in MIDI Learn
+        if (auto* engine = panel.midiEngine; engine != nullptr && engine->isLearning())
+        {
+            if (const auto& target = engine->getLearnTarget(); target.has_value() && target->isHostTarget())
+            {
+                auto* c = target->kind == MidiMappingTarget::Kind::transport ? (Component*) &playButton
+                        : target->kind == MidiMappingTarget::Kind::tempo     ? (Component*) &tempoLabel
+                                                                             : (Component*) &tapButton;
+                g.setColour (Curve::Colours::accent);
+                g.drawRoundedRectangle (c->getBounds().toFloat().reduced (0.5f), 4.0f, 2.0f);
+            }
+        }
+    }
+
+private:
+    struct PlayButton final : public Button
+    {
+        std::function<bool()> isPlaying;
+        PlayButton() : Button ("Start/Stop") {}
+
+        void paintButton (Graphics& g, bool highlighted, bool down) override
+        {
+            auto b = getLocalBounds().toFloat().reduced (1.0f);
+
+            if (highlighted || down)
+            {
+                g.setColour (Colours::white.withAlpha (down ? 0.22f : 0.12f));
+                g.fillRoundedRectangle (b, 4.0f);
+            }
+
+            const auto glyph = b.withSizeKeepingCentre (10.0f, 10.0f);
+            const bool playing = isPlaying != nullptr && isPlaying();
+
+            if (playing)
+            {
+                g.setColour (Curve::Colours::accent);
+                g.fillRect (glyph.reduced (0.5f));
+            }
+            else
+            {
+                Path triangle;
+                triangle.addTriangle (glyph.getX() + 1.0f, glyph.getY(), glyph.getX() + 1.0f, glyph.getBottom(),
+                                      glyph.getRight() + 1.0f, glyph.getCentreY());
+                g.setColour (Colours::white.withAlpha (highlighted ? 0.95f : 0.7f));
+                g.fillPath (triangle);
+            }
+        }
+    };
+
+    // Clicking it in MIDI Learn picks the tempo instead of editing it
+    struct TempoLabel final : public Label
+    {
+        std::function<bool()> onLearnClick;
+
+        void mouseDown (const MouseEvent& e) override
+        {
+            if (onLearnClick == nullptr || ! onLearnClick())
+                Label::mouseDown (e);
+        }
+
+        void mouseUp (const MouseEvent& e) override
+        {
+            if (panelIsLearning == nullptr || ! panelIsLearning())
+                Label::mouseUp (e);
+        }
+
+        std::function<bool()> panelIsLearning;
+    };
+
+    HostTransport& transport()  { return panel.graph.getTransport(); }
+
+    bool learn (MidiMappingTarget::Kind kind)
+    {
+        auto* engine = panel.midiEngine;
+
+        if (engine == nullptr || ! engine->isLearning())
+            return false;
+
+        engine->selectLearnTarget (MidiMappingTarget::forHost (kind));
+        repaint();
+        return true;
+    }
+
+    // Follows changes made elsewhere, e.g. from MIDI or a scene switch, repainting only what changed
+    void refresh()
+    {
+        const auto bpm = transport().getTempo();
+        const auto text = String (bpm, 1).trimCharactersAtEnd ("0").trimCharactersAtEnd (".") + " BPM";
+
+        if (! tempoLabel.isBeingEdited() && tempoLabel.getText() != text)
+            tempoLabel.setText (text, dontSendNotification);
+
+        if (const bool playing = transport().isPlaying(); playing != shownPlaying)
+        {
+            shownPlaying = playing;
+            playButton.repaint();
+        }
+    }
+
+    void timerCallback() override
+    {
+        if (isShowing())
+            refresh();
+    }
+
+    bool shownPlaying = false;
+
+    GraphEditorPanel& panel;
+    PlayButton playButton;
+    TempoLabel tempoLabel;
+    TextButton tapButton;
+
+    friend class GraphEditorPanel;
+};
+
+//==============================================================================
 GraphEditorPanel::GraphEditorPanel (PluginGraph& g)  : graph (g)
 {
     burgerButton = std::make_unique<BurgerButton>();
@@ -1431,6 +1603,11 @@ GraphEditorPanel::GraphEditorPanel (PluginGraph& g)  : graph (g)
             mw->showAppMenu (burgerButton.get());
     };
     addAndMakeVisible (burgerButton.get());
+
+    transportStrip = std::make_unique<TransportStrip> (*this);
+    transportStrip->playButton.isPlaying = [this] { return graph.getTransport().isPlaying(); };
+    transportStrip->tempoLabel.panelIsLearning = [this] { return midiEngine != nullptr && midiEngine->isLearning(); };
+    addAndMakeVisible (transportStrip.get());
 
     graph.addChangeListener (this);
     setOpaque (true);
@@ -1443,6 +1620,7 @@ GraphEditorPanel::~GraphEditorPanel()
     removeMouseListener (&hoverTracker);
     graph.removeChangeListener (this);
     burgerButton = nullptr;
+    transportStrip = nullptr;
     draggingConnector = nullptr;
     nodes.clear();
     connectors.clear();
@@ -1515,6 +1693,10 @@ void GraphEditorPanel::midiLearnStateChanged()
 
     updateComponents();
     repaint();
+
+    // Its MIDI Learn highlight
+    if (transportStrip != nullptr)
+        transportStrip->repaint();
 }
 
 void GraphEditorPanel::mouseDown (const MouseEvent& e)
@@ -1600,6 +1782,9 @@ void GraphEditorPanel::resized()
     if (burgerButton != nullptr)
         burgerButton->setBounds (10, 8, 24, 24);
 
+    if (transportStrip != nullptr)
+        transportStrip->setBounds (getWidth() - 10 - 170, 8, 170, 24);
+
     updateComponents();
 }
 
@@ -1652,6 +1837,11 @@ void GraphEditorPanel::updateComponents()
             comp->update();
         }
     }
+
+    // Above the nodes, which are added after them
+    for (Component* c : { (Component*) burgerButton.get(), (Component*) transportStrip.get() })
+        if (c != nullptr)
+            c->toFront (false);
 
     // After creating nodes, so connectors see rebuilt nodes' pins
     for (auto* cc : connectors)

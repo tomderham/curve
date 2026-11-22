@@ -35,6 +35,15 @@ Clique no botão liga/desliga do nó. Clique novamente para reativá-lo. Você t
 
 Clique com o botão direito no nó e selecione Mute. Um nó mudo não deixa passar nada e não é processado, então corta o caminho em que está, enquanto um nó em bypass deixa sua entrada passar sem alteração. Ele fica esmaecido, com contorno tracejado e cruzes vermelhas nas saídas. Para tirar o mudo, clique no botão liga/desliga dele ou selecione Mute de novo. Nas [cenas](presets.md), cada cena tem seu próprio estado.
 
+## Andamento e transporte
+
+A barra no canto superior direito do editor define o andamento que os plug-ins sincronizados seguem, como delays, e inicia e para o transporte para os plug-ins que tocam junto com o host, como baterias eletrônicas.
+
+- Para definir o andamento, clique nele e digite um valor, ou clique em Tap no ritmo pelo menos duas vezes.
+- Clique no botão de reprodução para iniciar o transporte do começo do compasso 1, e clique de novo para pará-lo.
+
+O andamento é salvo com o preset, e nas [cenas](presets.md) cada cena tem o seu. A fórmula de compasso é 4/4. O transporte não é salvo e fica parado quando o Curve inicia.
+
 ## Abrir a janela de um plug-in
 
 Clique duas vezes no nó.
@@ -52,7 +61,6 @@ Clique com o botão direito em um nó para ver estas opções:
 | Delete This Node | Remove o nó. |
 | Disconnect All Pins | Remove todas as conexões do nó. |
 | Rename This Node | Altera o nome mostrado no nó. |
-| MIDI Learn | Inicia o [MIDI Learn](midi-control.md). |
 | Clear MIDI Mappings | Remove os mapeamentos MIDI do nó. Só aparece se ele tiver algum. |
 | Always Open Plug-in GUI with Preset | Abre a janela do plug-in sempre que o preset é carregado. Nas [cenas](presets.md), cada cena tem seu próprio ajuste. |
 | Import EQ from AutoEQ... | Aparece nos nós Parametric EQ. Consulte [EQ para fones de ouvido e AutoEQ](eq-and-autoeq.md). |

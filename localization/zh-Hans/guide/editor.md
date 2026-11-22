@@ -35,6 +35,15 @@
 
 右键点按节点并选择 Mute。静音的节点不输出任何内容，也不进行处理，因此会切断它所在的路径；而旁通的节点会让输入原样通过。静音的节点显示为暗色，轮廓为虚线，输出上有红色叉号。要取消静音，请点按它的电源按钮，或再次选择 Mute。在[场景](presets.md)中，每个场景都有自己的状态。
 
+## 速度和走带
+
+编辑器右上角的栏用于设置延迟等速度同步插件所跟随的速度，并为鼓机等随宿主一起演奏的插件启动和停止走带。
+
+- 要设置速度，请点按速度并输入数值，或按节拍点按 Tap 至少两次。
+- 点按播放按钮可从第 1 小节开头启动走带，再次点按则停止。
+
+速度随预设一起存储，在[场景](presets.md)中每个场景都有自己的速度。拍号为 4/4。走带不会存储，Curve 启动时处于停止状态。
+
 ## 打开插件窗口
 
 连按节点。
@@ -52,7 +61,6 @@
 | Delete This Node | 移除节点。 |
 | Disconnect All Pins | 移除节点的所有连接。 |
 | Rename This Node | 更改节点上显示的名称。 |
-| MIDI Learn | 启动 [MIDI Learn](midi-control.md)。 |
 | Clear MIDI Mappings | 移除节点的 MIDI 映射。仅在节点有映射时显示。 |
 | Always Open Plug-in GUI with Preset | 每次载入预设时打开插件的窗口。 在[场景](presets.md)中，每个场景都有自己的设置。 |
 | Import EQ from AutoEQ... | 显示在 Parametric EQ 节点上。请参阅[耳机 EQ 和 AutoEQ](eq-and-autoeq.md)。 |

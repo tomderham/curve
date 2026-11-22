@@ -786,9 +786,9 @@ void PresetSaveDialog::updateSceneChoice()
 
         if (isGroupScene && target != graph.getFile())
             hints.add ("Replaces " + quotedName (target.getFileNameWithoutExtension())
-                       + ", including its own bypass and mute. It stays a scene.");
+                       + ", including its own tempo, bypass and mute. It stays a scene.");
         else if (! sharing.isEmpty())
-            hints.add ("Each scene keeps its own bypass and mute, and all settings of nodes set to Vary by Scene.");
+            hints.add ("Each scene keeps its own tempo, bypass and mute, and all settings of nodes set to Vary by Scene.");
 
         hints.add (describeLeftOut (plan->leftOut));
         hints.removeEmptyStrings();
@@ -963,7 +963,7 @@ void PresetSaveDialog::attemptSave()
         auto options = juce::MessageBoxOptions::makeOptionsOkCancel (
             juce::MessageBoxIconType::WarningIcon,
             "Replace Scene?",
-            "Replace the scene '" + legalName + "' with this one? It loses its own bypass settings, and its "
+            "Replace the scene '" + legalName + "' with this one? It loses its own tempo, bypass and mute, and its "
             "settings on nodes with Vary by Scene enabled. It stays a scene of the group.",
             "Replace",
             "Cancel");

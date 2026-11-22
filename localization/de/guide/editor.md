@@ -35,6 +35,15 @@ Klicke auf die Ein/Aus-Taste am Node. Klicke erneut darauf, um den Node wieder z
 
 Klicke mit der rechten Maustaste auf den Node und wähle Mute. Ein stummgeschalteter Node gibt nichts weiter und wird nicht verarbeitet. Er unterbricht so den Signalweg, auf dem er liegt, während ein umgangener Node sein Eingangssignal unverändert weitergibt. Er ist abgeblendet, mit gestricheltem Rahmen und roten Kreuzen an seinen Ausgängen. Um die Stummschaltung aufzuheben, klicke auf seine Ein/Aus-Taste oder wähle erneut Mute. In [Szenen](presets.md) hat jede Szene ihren eigenen Zustand.
 
+## Tempo und Transport
+
+Die Leiste oben rechts im Editor legt das Tempo fest, dem tempo-synchronisierte Plug-ins wie Delays folgen, und startet und stoppt den Transport für Plug-ins, die mit dem Host mitspielen, etwa Drumcomputer.
+
+- Um das Tempo festzulegen, klicke darauf und gib einen Wert ein, oder klicke mindestens zweimal im Takt auf Tap.
+- Klicke auf die Wiedergabetaste, um den Transport am Anfang von Takt 1 zu starten, und erneut, um ihn zu stoppen.
+
+Das Tempo wird mit dem Preset gespeichert, und in [Szenen](presets.md) hat jede Szene ihr eigenes. Die Taktart ist 4/4. Der Transport wird nicht gespeichert und ist beim Start von Curve gestoppt.
+
 ## Das Fenster eines Plug-ins öffnen
 
 Doppelklicke auf den Node.
@@ -52,7 +61,6 @@ Klicke mit der rechten Maustaste auf einen Node, um diese Optionen zu sehen:
 | Delete This Node | Entfernt den Node. |
 | Disconnect All Pins | Entfernt alle Verbindungen des Nodes. |
 | Rename This Node | Ändert den auf dem Node angezeigten Namen. |
-| MIDI Learn | Startet [MIDI Learn](midi-control.md). |
 | Clear MIDI Mappings | Entfernt die MIDI-Zuweisungen des Nodes. Wird nur angezeigt, wenn es welche gibt. |
 | Always Open Plug-in GUI with Preset | Öffnet das Fenster des Plug-ins bei jedem Laden des Presets. In [Szenen](presets.md) hat jede Szene ihre eigene Einstellung. |
 | Import EQ from AutoEQ... | Wird bei Nodes vom Typ Parametric EQ angezeigt. Siehe [Kopfhörer-EQ und AutoEQ](eq-and-autoeq.md). |

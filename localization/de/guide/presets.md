@@ -37,6 +37,7 @@ Der Wechsel zu einer anderen Szene geht schnell: Curve ändert nur, was diese Sz
 
 Was jede Szene für sich behält:
 
+- Ihr Tempo. Siehe [Tempo und Transport](editor.md).
 - Ob jeder Node umgangen oder stummgeschaltet ist. Ein umgangener Node gibt sein Eingangssignal unverändert weiter. Ein stummgeschalteter Node gibt nichts weiter und unterbricht so den Signalweg, auf dem er liegt. Siehe [Einen Node stummschalten](editor.md).
 - Die Einstellungen von Nodes, die auf Vary by Scene gesetzt sind. Klicke mit der rechten Maustaste auf einen Node und wähle Vary by Scene; er zeigt dann ein kleines Symbol aus gestapelten Karten.
 - Welche Plug-in-Fenster mit ihr geöffnet werden (Always Open Plug-in GUI with Preset) und wo sie liegen. Ein Node, den du einer Szene hinzufügst, wird mit den anderen nicht geöffnet.

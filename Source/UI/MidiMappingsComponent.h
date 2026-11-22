@@ -44,7 +44,7 @@ public:
         maxHeader.setText ("To", juce::dontSendNotification);
         invertHeader.setText ("Invert", juce::dontSendNotification);
 
-        emptyLabel.setText ("This preset has no MIDI mappings. Right-click a node and select MIDI Learn to make one.",
+        emptyLabel.setText ("This preset has no MIDI mappings. To make one, click the menu icon at the top left of the editor and select MIDI Learn.",
                             juce::dontSendNotification);
         emptyLabel.setJustificationType (juce::Justification::centred);
         emptyLabel.setColour (juce::Label::textColourId, juce::Colours::white.withAlpha (0.6f));
@@ -211,7 +211,7 @@ private:
         rows.clear();
 
         for (const auto& m : graph.getMidiMappings().getMappings())
-            if (m.target.isNodeTarget())
+            if (m.target.isNodeTarget() || m.target.isHostTarget())
                 addRow (m);
 
         updateWindowTitle();
@@ -226,21 +226,24 @@ private:
         r->mapping = m;
 
         r->control.setText (m.trigger.describe(), juce::dontSendNotification);
-        const auto target = graph.getNodeDisplayName (m.target.nodeID) + juce::String::fromUTF8 (" \xe2\x80\xba ")
-                          + graph.describeMidiMappingTarget (m.target);
+        const auto target = m.target.isNodeTarget() ? graph.getNodeDisplayName (m.target.nodeID) + juce::String::fromUTF8 (" \xe2\x80\xba ")
+                                                          + graph.describeMidiMappingTarget (m.target)
+                                                    : graph.describeMidiMappingTarget (m.target);
         r->target.setText (target, juce::dontSendNotification);
         r->target.setTooltip (target);
 
-        auto* param = findParameter (m);
-        const bool isParameter = param != nullptr;
+        const bool isParameter = hasRange (m);
 
         // Bypass has no range: a press toggles it, or it follows the button
         if (isParameter)
             r->mode.addItem ("Range", rangeId);
         r->mode.addItem ("Toggle", toggleId);
         r->mode.addItem ("Follow", followId);
-        r->mode.setTooltip ("Range: a knob or fader sets the value. Toggle: each press switches between From and To. "
-                            "Follow: To while the button is held or on, From when it's released or off.");
+        r->mode.setTooltip (m.target.kind == MidiMappingTarget::Kind::tapTempo
+                              ? "Toggle: taps on each press, for a button that springs back. "
+                                "Follow: taps on each change, for a button that stays on or off until pressed again."
+                              : "Range: a knob or fader sets the value. Toggle: each press switches between From and To. "
+                                "Follow: To while the button is held or on, From when it's released or off.");
         r->mode.setSelectedId (m.mode == MidiMapping::Mode::absolute ? rangeId
                              : m.mode == MidiMapping::Mode::toggle   ? toggleId : followId,
                                juce::dontSendNotification);
@@ -258,23 +261,22 @@ private:
             const bool isMin = valueLabel == &r->minValue;
             valueLabel->setEditable (isParameter);
             valueLabel->setColour (juce::Label::outlineColourId, juce::Colours::white.withAlpha (isParameter ? 0.2f : 0.0f));
-            valueLabel->setText (isParameter ? describeValue (*param, isMin ? m.minValue : m.maxValue)
+            valueLabel->setText (isParameter ? describeRangeValue (m, isMin ? m.minValue : m.maxValue)
                                              : juce::String::fromUTF8 ("\xe2\x80\x94"),
                                  juce::dontSendNotification);
 
             valueLabel->onTextChange = [this, r, isMin]
             {
-                auto* p = findParameter (r->mapping);
-                if (p == nullptr)
+                if (! hasRange (r->mapping))
                     return;
 
                 auto updated = r->mapping;
-                const auto value = parseValue (*p, (isMin ? r->minValue : r->maxValue).getText());
+                const auto value = parseRangeValue (r->mapping, (isMin ? r->minValue : r->maxValue).getText());
                 (isMin ? updated.minValue : updated.maxValue) = value;
                 assign (*r, updated);
 
                 // As the parameter shows it, e.g. snapped to its steps
-                (isMin ? r->minValue : r->maxValue).setText (describeValue (*p, value), juce::dontSendNotification);
+                (isMin ? r->minValue : r->maxValue).setText (describeRangeValue (r->mapping, value), juce::dontSendNotification);
             };
         }
 
@@ -307,7 +309,7 @@ private:
     // Invert has no effect on a toggle, or on a bypass toggled by each press
     static void updateEnablement (Row& r, bool isParameter)
     {
-        r.invert.setEnabled (r.mapping.mode != MidiMapping::Mode::toggle);
+        r.invert.setEnabled (r.mapping.mode != MidiMapping::Mode::toggle && r.mapping.target.kind != MidiMappingTarget::Kind::tapTempo);
         r.minValue.setEnabled (isParameter);
         r.maxValue.setEnabled (isParameter);
     }
@@ -323,7 +325,49 @@ private:
 
         if (wasCurrent)
             shownMappings = describeMappings(); // already showing it
-        updateEnablement (r, findParameter (updated) != nullptr);
+        updateEnablement (r, hasRange (updated));
+    }
+
+    // A parameter's range, or the tempo's, which a knob sweeps between From and To
+    bool hasRange (const MidiMapping& m) const
+    {
+        return findParameter (m) != nullptr || m.target.kind == MidiMappingTarget::Kind::tempo;
+    }
+
+    static double toTempo (float normalised)
+    {
+        return MidiMappingTarget::minMappedTempo + (MidiMappingTarget::maxMappedTempo - MidiMappingTarget::minMappedTempo) * normalised;
+    }
+
+    juce::String describeRangeValue (const MidiMapping& m, float normalised) const
+    {
+        if (m.target.kind == MidiMappingTarget::Kind::tempo)
+            return juce::String (toTempo (normalised), 1).trimCharactersAtEnd ("0").trimCharactersAtEnd (".") + " BPM";
+
+        if (auto* p = findParameter (m))
+            return describeValue (*p, normalised);
+
+        return {};
+    }
+
+    float parseRangeValue (const MidiMapping& m, const juce::String& text) const
+    {
+        if (m.target.kind == MidiMappingTarget::Kind::tempo)
+        {
+            // A percentage is of the range a knob sweeps, as for a parameter
+            const auto trimmed = text.trim();
+
+            if (trimmed.endsWithChar ('%'))
+                return juce::jlimit (0.0f, 1.0f, trimmed.dropLastCharacters (1).trim().getFloatValue() / 100.0f);
+
+            return (float) juce::jlimit (0.0, 1.0, (trimmed.getDoubleValue() - MidiMappingTarget::minMappedTempo)
+                                                       / (MidiMappingTarget::maxMappedTempo - MidiMappingTarget::minMappedTempo));
+        }
+
+        if (auto* p = findParameter (m))
+            return parseValue (*p, text);
+
+        return 0.0f;
     }
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MidiMappingsComponent)

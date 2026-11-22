@@ -37,6 +37,7 @@ Passer à une autre scène est rapide : Curve ne change que ce que cette scène 
 
 Ce que chaque scène conserve pour elle-même :
 
+- Son tempo. Voir [Tempo et transport](editor.md).
 - Si chaque nœud est contourné ou coupé. Un nœud contourné laisse passer son entrée telle quelle. Un nœud coupé ne laisse rien passer : il coupe le chemin sur lequel il se trouve. Voir [Couper le son d’un nœud](editor.md).
 - Les réglages des nœuds réglés sur Vary by Scene. Cliquez sur un nœud avec le bouton droit et sélectionnez Vary by Scene : il affiche un petit badge de cartes empilées.
 - Les fenêtres de plug-ins qui s’ouvrent avec elle (Always Open Plug-in GUI with Preset), et leur position. Un nœud ajouté à une scène ne s’ouvre pas avec les autres.

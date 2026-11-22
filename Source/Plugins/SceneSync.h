@@ -31,6 +31,7 @@ namespace Curve::Scenes
 inline constexpr const char* groupAttribute = "sceneGroup";
 inline constexpr const char* varyAttribute  = "varyByScene";
 inline constexpr const char* mutedAttribute = "muted";
+inline constexpr const char* tempoAttribute = "tempo";
 
 /** Removes what a plug-in's description records about when it was read, which is new each
     time the plug-in is created, so a preset just loaded and saved has the same description.
@@ -96,7 +97,7 @@ inline bool isNeverBypassed (const juce::XmlElement& node)
     return false;
 }
 
-/** The part of a scene's graph that every scene of its group has: without its bypass and mute flags,
+/** The part of a scene's graph that every scene of its group has: without its tempo, its bypass and mute flags,
     the state of nodes that vary by scene, or the Audio Input and Output nodes' channel layout.
     Connections, including those to those nodes, are shared.
 */
@@ -104,6 +105,7 @@ inline std::unique_ptr<juce::XmlElement> getSharedPart (const juce::XmlElement& 
 {
     auto shared = std::make_unique<juce::XmlElement> (graph);
     shared->removeAttribute (groupAttribute);
+    shared->removeAttribute (tempoAttribute);
 
     for (auto* node : shared->getChildWithTagNameIterator ("FILTER"))
     {
@@ -155,6 +157,12 @@ inline std::unique_ptr<juce::XmlElement> createOtherScene (const juce::XmlElemen
         otherNodes[node->getIntAttribute ("uid")] = node;
 
     auto result = std::make_unique<juce::XmlElement> (saved);
+
+    // Its own tempo
+    if (other.hasAttribute (tempoAttribute))
+        result->setAttribute (tempoAttribute, other.getStringAttribute (tempoAttribute));
+    else
+        result->removeAttribute (tempoAttribute);
 
     for (auto* node : result->getChildWithTagNameIterator ("FILTER"))
     {

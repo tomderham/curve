@@ -35,6 +35,15 @@ Haz clic en el botón de encendido del nodo. Vuelve a hacer clic para reactivarl
 
 Haz clic con el botón derecho en el nodo y selecciona Mute. Un nodo silenciado no deja pasar nada y no se procesa, así que corta la ruta en la que está, mientras que un nodo omitido deja pasar su entrada sin cambios. Se muestra atenuado, con el contorno discontinuo y cruces rojas en sus salidas. Para quitar el silencio, haz clic en su botón de encendido o vuelve a seleccionar Mute. En las [escenas](presets.md), cada escena tiene su propio estado.
 
+## Tempo y transporte
+
+La barra de la parte superior derecha del editor fija el tempo que siguen los plug-ins sincronizados, como los delays, e inicia y detiene el transporte para los plug-ins que tocan junto con el host, como las cajas de ritmos.
+
+- Para fijar el tempo, haz clic en él y escribe un valor, o haz clic en Tap al ritmo al menos dos veces.
+- Haz clic en el botón de reproducción para iniciar el transporte desde el principio del compás 1, y vuelve a hacer clic para detenerlo.
+
+El tempo se guarda con el preset, y en las [escenas](presets.md) cada escena tiene el suyo. El compás es de 4/4. El transporte no se guarda y está detenido al iniciar Curve.
+
 ## Abrir la ventana de un plug-in
 
 Haz doble clic en el nodo.
@@ -52,7 +61,6 @@ Haz clic con el botón derecho en un nodo para ver estas opciones:
 | Delete This Node | Elimina el nodo. |
 | Disconnect All Pins | Elimina todas las conexiones del nodo. |
 | Rename This Node | Cambia el nombre que se muestra en el nodo. |
-| MIDI Learn | Inicia [MIDI Learn](midi-control.md). |
 | Clear MIDI Mappings | Elimina las asignaciones MIDI del nodo. Solo se muestra si tiene alguna. |
 | Always Open Plug-in GUI with Preset | Abre la ventana del plug-in cada vez que se carga el preset. En las [escenas](presets.md), cada escena tiene su propio ajuste. |
 | Import EQ from AutoEQ... | Se muestra en los nodos Parametric EQ. Consulta [EQ para auriculares y AutoEQ](eq-and-autoeq.md). |

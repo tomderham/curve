@@ -37,6 +37,7 @@
 #include "../UI/PluginWindow.h"
 #include "../Midi/MidiMapping.h"
 #include "SceneSync.h"
+#include "HostTransport.h"
 
 //==============================================================================
 /** A type that encapsulates a PluginDescription and some preferences regarding
@@ -244,7 +245,15 @@ public:
     File getSuggestedSaveAsFile (const File& defaultFile) override;
 
     //==============================================================================
-    AudioProcessorGraph graph;
+    TransportGraph graph;
+
+    //==============================================================================
+    // The preset's tempo, which each scene has its own of, and the transport plug-ins follow.
+    // Changing the tempo marks the preset as changed; starting and stopping doesn't.
+    HostTransport& getTransport()                { return graph.transport; }
+    void setTempo (double bpm);
+    void tapTempo();
+    void setTransportPlaying (bool);
 
 private:
     //==============================================================================

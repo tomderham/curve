@@ -522,12 +522,20 @@ public:
       *outInitialSelectedId = initialId;
     menu.addSeparator();
 
-    // The mappings belong to the loaded preset, so they sit with the editor's preset items
-    if (!includeVisibilityToggle)
+    // The mappings belong to the loaded preset, so they sit with the editor's preset items. MIDI
+    // Learn maps any node, the tempo and the transport, so it's here rather than on a node
+    if (!includeVisibilityToggle) {
+      auto* engine = mainWindow.graphHolder != nullptr ? mainWindow.graphHolder->midiEngine.get() : nullptr;
+      menu.addItem("MIDI Learn", engine != nullptr, engine != nullptr && engine->isLearning(), [safeWindow] {
+        if (auto* w = safeWindow.getComponent())
+          if (w->graphHolder != nullptr && w->graphHolder->midiEngine != nullptr)
+            w->graphHolder->midiEngine->setLearning(!w->graphHolder->midiEngine->isLearning());
+      });
       menu.addItem("MIDI Mappings for Current Preset...", [safeWindow] {
         if (auto* w = safeWindow.getComponent())
           w->showMidiMappingsWindow();
       });
+    }
     menu.addSubMenu("Settings", settingsmenu, true);
 
     return menu;

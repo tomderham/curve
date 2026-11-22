@@ -27,11 +27,12 @@ Plug-ins de efeito que respondem a MIDI são conectados da mesma forma. Para env
 
 ## Mapear um controle com o MIDI Learn
 
-1. Clique com o botão direito em qualquer nó e selecione MIDI Learn. O editor ganha uma borda destacada e a barra de status orienta você.
+1. Clique no ícone de menu no canto superior esquerdo do editor e selecione MIDI Learn. O editor ganha uma borda destacada e a barra de status orienta você.
 2. Escolha o que controlar:
    - Para um parâmetro de plug-in, abra a janela do plug-in e mova o controle.
    - Para o bypass de um nó, clique no botão liga/desliga dele.
    - Para silenciar um nó, clique nele com o botão direito e selecione Mute.
+   - Para o andamento, Tap ou Start/Stop, clique nele no canto superior direito do editor.
 3. Mova um knob, fader ou botão do seu controlador. O mapeamento é feito na hora, e você pode continuar mapeando outros controles.
 4. Pressione Esc, ou selecione MIDI Learn novamente, para concluir.
 
@@ -49,6 +50,7 @@ Os mapeamentos são salvos com o preset, portanto use Save As Preset... para man
 - Notas e mudanças de programa alternam o destino.
 - Para o bypass e o mudo, e para parâmetros liga/desliga como Record, o Curve identifica se um botão CC é momentâneo, em que cada toque alterna o estado, ou com trava, em que o estado acompanha o do botão.
 - Um controle pode controlar vários alvos: mapeie-o de novo com o MIDI Learn para adicionar outro. Um controle com vários alvos não altera os parâmetros de nós mudos, então nas [cenas](presets.md) um knob pode controlar o instrumento que cada cena usa.
+- Um knob ou fader no andamento percorre de 40 a 240 BPM, faixa que você pode restringir em MIDI Mappings for Current Preset.... Um botão em Tap marca o andamento, e um em Start/Stop inicia e para o transporte.
 
 Os nós com mapeamentos mostram um pequeno ícone de conector MIDI. Passe o ponteiro sobre o nó para ver os mapeamentos dele na barra de status.
 

@@ -35,6 +35,15 @@ Click the power button on the node. Click it again to re-enable the node. You ca
 
 Right-click the node and select Mute. A muted node passes on nothing and isn't processed, so it cuts the path it's on, where a bypassed node passes its input straight through. It's dimmed, with a dashed outline and red crosses on its outputs. To unmute it, click its power button, or select Mute again. In [scenes](presets.md), each scene has its own.
 
+## Tempo and transport
+
+The strip at the top right of the editor sets the tempo that tempo-synced plug-ins follow, such as delays, and starts and stops the transport for plug-ins that play along with the host, such as drum machines.
+
+- To set the tempo, click it and type a value, or click Tap in time at least twice.
+- Click the play button to start the transport from the beginning of bar 1, and click it again to stop it.
+
+The tempo is saved with the preset, and in [scenes](presets.md) each scene has its own. The time signature is 4/4. The transport isn't saved, and is stopped when Curve starts.
+
 ## Open a plug-in's window
 
 Double-click the node.
@@ -52,7 +61,6 @@ Right-click a node for these options:
 | Delete This Node | Removes the node. |
 | Disconnect All Pins | Removes all of the node's connections. |
 | Rename This Node | Changes the name shown on the node. |
-| MIDI Learn | Starts [MIDI Learn](midi-control.md). |
 | Clear MIDI Mappings | Removes the node's MIDI mappings. Shown only if it has some. |
 | Always Open Plug-in GUI with Preset | Opens the plug-in's window whenever the preset loads. In [scenes](presets.md), each scene has its own. |
 | Import EQ from AutoEQ... | Shown on Parametric EQ nodes. See [Headphone EQ and AutoEQ](eq-and-autoeq.md). |

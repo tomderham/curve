@@ -45,7 +45,7 @@ struct MidiTrigger
 /** What a mapping controls. */
 struct MidiMappingTarget
 {
-    enum class Kind { parameter, bypass, nextPreset, previousPreset, mute };
+    enum class Kind { parameter, bypass, nextPreset, previousPreset, mute, tempo, tapTempo, transport };
 
     Kind kind = Kind::parameter;
     AudioProcessorGraph::NodeID nodeID;
@@ -56,11 +56,18 @@ struct MidiMappingTarget
     static MidiMappingTarget forBypass (AudioProcessorGraph::NodeID);
     static MidiMappingTarget forMute (AudioProcessorGraph::NodeID);
     static MidiMappingTarget forPresetStep (bool next);
+    static MidiMappingTarget forHost (Kind);   // tempo, tapTempo or transport
 
     bool isNodeTarget() const { return kind == Kind::parameter || kind == Kind::bypass || kind == Kind::mute; }
 
-    // Bypass and mute: on or off, with no range
-    bool isSwitch() const { return kind == Kind::bypass || kind == Kind::mute; }
+    // Bypass, mute and the transport: on or off, with no range
+    bool isSwitch() const { return kind == Kind::bypass || kind == Kind::mute || kind == Kind::transport; }
+
+    // The preset's tempo and transport rather than a node's, saved with the preset like node targets
+    bool isHostTarget() const { return kind == Kind::tempo || kind == Kind::tapTempo || kind == Kind::transport; }
+
+    // A knob or fader on the tempo sweeps this range
+    static constexpr double minMappedTempo = 40.0, maxMappedTempo = 240.0;
 
     /** Finds the target parameter on the given processor, by ID then by index. */
     AudioProcessorParameter* findParameter (AudioProcessor&) const;

@@ -201,7 +201,8 @@ void MidiControlEngine::changeListenerCallback (ChangeBroadcaster*)
 
     // Also when another preset loaded, whose node with the same ID is a different plug-in
     if (learnTarget.has_value()
-        && (graph->getGraphGeneration() != learnTargetGeneration || graph->graph.getNodeForId (learnTarget->nodeID) == nullptr))
+        && (graph->getGraphGeneration() != learnTargetGeneration
+            || (learnTarget->isNodeTarget() && graph->graph.getNodeForId (learnTarget->nodeID) == nullptr)))
     {
         learnTarget.reset();
         lastLearned.reset();
@@ -411,6 +412,58 @@ void MidiControlEngine::applyMapping (const MidiMapping& m, int controlValue)
             return;
         }
 
+        case MidiMappingTarget::Kind::tempo:
+        {
+            if (graph == nullptr)
+                return;
+
+            const auto toTempo = [] (float normalised)
+            {
+                return MidiMappingTarget::minMappedTempo + (MidiMappingTarget::maxMappedTempo - MidiMappingTarget::minMappedTempo) * normalised;
+            };
+
+            const auto from = toTempo (m.minValue), to = toTempo (m.maxValue);
+
+            switch (m.mode)
+            {
+                case MidiMapping::Mode::absolute:
+                    graph->setTempo (toTempo (m.scale (controlValue)));
+                    break;
+
+                // Between From and To, e.g. from a footswitch: to whichever is further from the tempo now
+                case MidiMapping::Mode::toggle:
+                    if (pressed)
+                    {
+                        const auto now = graph->getTransport().getTempo();
+                        graph->setTempo (std::abs (now - from) <= std::abs (now - to) ? to : from);
+                    }
+                    break;
+
+                case MidiMapping::Mode::follow:
+                    graph->setTempo ((pressed != m.invert) ? to : from);
+                    break;
+            }
+
+            return;
+        }
+
+        // A latching button taps on every change, as each press sends the other value; a momentary
+        // one on each press, not its release
+        case MidiMappingTarget::Kind::tapTempo:
+            if (graph != nullptr && (pressed || m.mode == MidiMapping::Mode::follow))
+                graph->tapTempo();
+            return;
+
+        case MidiMappingTarget::Kind::transport:
+            if (graph == nullptr)
+                return;
+
+            if (m.mode == MidiMapping::Mode::follow)
+                graph->setTransportPlaying (pressed != m.invert);
+            else if (pressed)
+                graph->setTransportPlaying (! graph->getTransport().isPlaying());
+            return;
+
         case MidiMappingTarget::Kind::mute:
         {
             if (graph == nullptr || graph->graph.getNodeForId (m.target.nodeID) == nullptr)
@@ -597,7 +650,7 @@ void MidiControlEngine::handleLearnMessage (const MidiMessage& message)
 
     if (! learnTarget.has_value())
     {
-        showLearnStatus ("MIDI Learn: first move a control in a plugin window, click a bypass button, or right-click a node and select Mute");
+        showLearnStatus ("MIDI Learn: first move a control in a plugin window, click a bypass button or the tempo controls, or right-click a node and select Mute");
         return;
     }
 
@@ -694,7 +747,7 @@ void MidiControlEngine::showLearnStatus (const String& detail)
 
     if (! learnTarget.has_value())
     {
-        onStatusMessage ("MIDI Learn: move a control in a plugin window, click a bypass button, or right-click a node and select Mute  "
+        onStatusMessage ("MIDI Learn: move a control in a plugin window, click a bypass button or the tempo controls, or right-click a node and select Mute  "
                          + String::fromUTF8 ("\xe2\x80\xa2") + "  Esc to finish");
         return;
     }

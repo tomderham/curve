@@ -27,11 +27,12 @@ Effekt-Plug-ins, die auf MIDI reagieren, werden genauso verbunden. Um MIDI von e
 
 ## Ein Bedienelement mit MIDI Learn zuweisen
 
-1. Klicke mit der rechten Maustaste auf einen beliebigen Node und wähle MIDI Learn. Der Editor erhält einen hervorgehobenen Rahmen, und die Statusleiste führt dich durch die Schritte.
+1. Klicke auf das Menüsymbol oben links im Editor und wähle MIDI Learn. Der Editor erhält einen hervorgehobenen Rahmen, und die Statusleiste führt dich durch die Schritte.
 2. Wähle aus, was gesteuert werden soll:
    - Für einen Plug-in-Parameter öffne das Fenster des Plug-ins und bewege das Bedienelement.
    - Für den Bypass eines Nodes klicke auf dessen Ein/Aus-Taste.
    - Zum Stummschalten eines Nodes klicke mit der rechten Maustaste darauf und wähle Mute.
+   - Für Tempo, Tap oder Start/Stop klicke oben rechts im Editor darauf.
 3. Bewege einen Regler, Fader oder Taster an deinem Controller. Die Zuweisung erfolgt sofort, und du kannst weitere Bedienelemente zuweisen.
 4. Drücke Esc oder wähle erneut MIDI Learn, um den Vorgang zu beenden.
 
@@ -49,6 +50,7 @@ Zuweisungen werden mit dem Preset gespeichert. Verwende also Save As Preset..., 
 - Noten und Program Changes schalten das Ziel um.
 - Bei Bypass und Stummschaltung und bei Ein/Aus-Parametern wie Record erkennt Curve, ob ein CC-Taster als Taster arbeitet, bei dem jeder Druck umschaltet, oder als Schalter, bei dem der Zustand des Tasters übernommen wird.
 - Ein Bedienelement kann mehrere Ziele steuern: Weise es mit MIDI Learn erneut zu, um ein weiteres hinzuzufügen. Ein Bedienelement mit mehreren Zielen lässt die Parameter stummgeschalteter Nodes unverändert, sodass in [Szenen](presets.md) ein Regler das Instrument steuern kann, das die Szene verwendet.
+- Ein Regler oder Fader für das Tempo deckt 40 bis 240 BPM ab; du kannst den Bereich in MIDI Mappings for Current Preset... eingrenzen. Eine Taste für Tap tippt das Tempo, eine für Start/Stop startet und stoppt den Transport.
 
 Nodes mit Zuweisungen zeigen ein kleines MIDI-Buchsensymbol. Bewege den Mauszeiger über den Node, um seine Zuweisungen in der Statusleiste zu sehen.
 

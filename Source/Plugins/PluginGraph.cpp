@@ -446,6 +446,9 @@ String PluginGraph::describeMidiMappingTarget (const MidiMappingTarget& target) 
     {
         case MidiMappingTarget::Kind::bypass:           return "Bypass";
         case MidiMappingTarget::Kind::mute:             return "Mute";
+        case MidiMappingTarget::Kind::tempo:            return "Tempo";
+        case MidiMappingTarget::Kind::tapTempo:         return "Tap Tempo";
+        case MidiMappingTarget::Kind::transport:        return "Start/Stop";
         case MidiMappingTarget::Kind::nextPreset:       return "Next Preset";
         case MidiMappingTarget::Kind::previousPreset:   return "Previous Preset";
         case MidiMappingTarget::Kind::parameter:        break;
@@ -630,6 +633,7 @@ void PluginGraph::newDocument()
 {
     clear();
     setFile ({});
+    graph.transport.setTempo (HostTransport::defaultTempo);
 
     graph.removeChangeListener (this);
 
@@ -1190,6 +1194,7 @@ void PluginGraph::showRestoreFailures()
 std::unique_ptr<XmlElement> PluginGraph::createXml() const
 {
     auto xml = std::make_unique<XmlElement> ("FILTERGRAPH");
+    xml->setAttribute (Curve::Scenes::tempoAttribute, graph.transport.getTempo());
 
     for (auto* node : graph.getNodes())
     {
@@ -1222,7 +1227,7 @@ std::unique_ptr<XmlElement> PluginGraph::createXml() const
     MidiMappingSet mappingsToSave;
 
     for (auto& m : midiMappings.getMappings())
-        if (graph.getNodeForId (m.target.nodeID) != nullptr)
+        if (! m.target.isNodeTarget() || graph.getNodeForId (m.target.nodeID) != nullptr)
             mappingsToSave.assign (m);
 
     if (! mappingsToSave.isEmpty())
@@ -1237,6 +1242,7 @@ void PluginGraph::restoreFromXml (const XmlElement& xml, bool restorePluginWindo
 
     sceneGroup = xml.getStringAttribute (Curve::Scenes::groupAttribute);
     loadedXml = std::make_unique<XmlElement> (xml);
+    graph.transport.setTempo (xml.getDoubleAttribute (Curve::Scenes::tempoAttribute, HostTransport::defaultTempo));
 
     preConfigureGraphChannels (graph, &xml);
 
@@ -1307,6 +1313,29 @@ void PluginGraph::setNodeMuted (NodeID nodeID, bool shouldBeMuted)
         applyMute (*node, shouldBeMuted);
         graph.sendChangeMessage();
     }
+}
+
+void PluginGraph::setTempo (double bpm)
+{
+    const auto previous = graph.transport.getTempo();
+    graph.transport.setTempo (bpm);
+
+    if (! approximatelyEqual (previous, graph.transport.getTempo()))
+        changed();
+}
+
+void PluginGraph::tapTempo()
+{
+    const auto previous = graph.transport.getTempo();
+
+    if (graph.transport.tap() && ! approximatelyEqual (previous, graph.transport.getTempo()))
+        changed();
+}
+
+void PluginGraph::setTransportPlaying (bool shouldPlay)
+{
+    graph.transport.setPlaying (shouldPlay);
+    sendChangeMessage();
 }
 
 bool PluginGraph::isConfiguringAudioIO (NodeID nodeID) const
@@ -1443,6 +1472,8 @@ void PluginGraph::switchScene (const File& file, const XmlElement& scene)
             }
         }
     }
+
+    graph.transport.setTempo (scene.getDoubleAttribute (Curve::Scenes::tempoAttribute, HostTransport::defaultTempo));
 
     // Another preset is loaded, for anything planned for the previous one, e.g. a save
     ++restoreGeneration;

@@ -35,6 +35,15 @@ Cliquez sur le bouton d’alimentation du nœud. Cliquez de nouveau pour le réa
 
 Cliquez sur le nœud avec le bouton droit et sélectionnez Mute. Un nœud coupé ne laisse rien passer et n’est pas traité : il coupe le chemin sur lequel il se trouve, alors qu’un nœud contourné laisse passer son entrée telle quelle. Il est grisé, avec un contour en pointillés et des croix rouges sur ses sorties. Pour rétablir le son, cliquez sur son bouton d’alimentation ou sélectionnez de nouveau Mute. Dans les [scènes](presets.md), chaque scène a son propre état.
 
+## Tempo et transport
+
+La barre en haut à droite de l’éditeur règle le tempo que suivent les plug-ins synchronisés, comme les delays, et démarre et arrête le transport pour les plug-ins qui jouent avec l’hôte, comme les boîtes à rythmes.
+
+- Pour régler le tempo, cliquez dessus et saisissez une valeur, ou cliquez sur Tap en rythme au moins deux fois.
+- Cliquez sur le bouton de lecture pour démarrer le transport au début de la mesure 1, et cliquez de nouveau pour l’arrêter.
+
+Le tempo est enregistré avec le preset, et dans les [scènes](presets.md) chaque scène a le sien. La mesure est à 4/4. Le transport n’est pas enregistré et il est arrêté au démarrage de Curve.
+
 ## Ouvrir la fenêtre d’un plug-in
 
 Double-cliquez sur le nœud.
@@ -52,7 +61,6 @@ Cliquez avec le bouton droit sur un nœud pour accéder aux options suivantes :
 | Delete This Node | Supprime le nœud. |
 | Disconnect All Pins | Supprime toutes les connexions du nœud. |
 | Rename This Node | Modifie le nom affiché sur le nœud. |
-| MIDI Learn | Démarre [MIDI Learn](midi-control.md). |
 | Clear MIDI Mappings | Supprime les assignations MIDI du nœud. Affiché uniquement s’il en a. |
 | Always Open Plug-in GUI with Preset | Ouvre la fenêtre du plug-in à chaque chargement du preset. Dans les [scènes](presets.md), chaque scène a son propre réglage. |
 | Import EQ from AutoEQ... | Affiché sur les nœuds Parametric EQ. Voir [EQ de casque et AutoEQ](eq-and-autoeq.md). |

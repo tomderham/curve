@@ -27,11 +27,12 @@ Les plug-ins d’effet qui réagissent au MIDI se connectent de la même manièr
 
 ## Assigner une commande avec MIDI Learn
 
-1. Cliquez avec le bouton droit sur un nœud et sélectionnez MIDI Learn. L’éditeur reçoit une bordure en surbrillance, et la barre d’état vous guide.
+1. Cliquez sur l’icône de menu en haut à gauche de l’éditeur et sélectionnez MIDI Learn. L’éditeur reçoit une bordure en surbrillance, et la barre d’état vous guide.
 2. Choisissez ce que vous voulez contrôler :
    - Pour un paramètre de plug-in, ouvrez la fenêtre du plug-in et déplacez la commande.
    - Pour le contournement d’un nœud, cliquez sur son bouton d’alimentation.
    - Pour couper le son d’un nœud, cliquez dessus avec le bouton droit et sélectionnez Mute.
+   - Pour le tempo, Tap ou Start/Stop, cliquez dessus en haut à droite de l’éditeur.
 3. Déplacez un bouton rotatif, un fader ou un bouton de votre contrôleur. L’assignation est faite immédiatement, et vous pouvez continuer à assigner d’autres commandes.
 4. Appuyez sur Esc, ou sélectionnez de nouveau MIDI Learn, pour terminer.
 
@@ -49,6 +50,7 @@ Les assignations sont enregistrées avec le preset : utilisez donc Save As Prese
 - Les notes et les changements de programme basculent la cible.
 - Pour le contournement et la coupure du son, et pour les paramètres marche/arrêt comme Record, Curve détermine si un bouton CC est momentané, chaque pression basculant l’état, ou à verrouillage, l’état suivant celui du bouton.
 - Un contrôle peut piloter plusieurs cibles : assignez-le de nouveau avec MIDI Learn pour en ajouter une. Un contrôle à plusieurs cibles ne modifie pas les paramètres des nœuds coupés : dans les [scènes](presets.md), un bouton peut ainsi piloter l’instrument utilisé par chaque scène.
+- Un bouton rotatif ou un fader assigné au tempo couvre de 40 à 240 BPM, plage que vous pouvez restreindre dans MIDI Mappings for Current Preset.... Un bouton sur Tap tape le tempo, et un bouton sur Start/Stop démarre et arrête le transport.
 
 Les nœuds comportant des assignations affichent une petite icône de prise MIDI. Survolez le nœud pour voir ses assignations dans la barre d’état.
 

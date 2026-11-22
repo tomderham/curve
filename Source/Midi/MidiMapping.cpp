@@ -99,6 +99,14 @@ MidiMappingTarget MidiMappingTarget::forMute (AudioProcessorGraph::NodeID nodeID
     return t;
 }
 
+MidiMappingTarget MidiMappingTarget::forHost (Kind kind)
+{
+    jassert (kind == Kind::tempo || kind == Kind::tapTempo || kind == Kind::transport);
+    MidiMappingTarget t;
+    t.kind = kind;
+    return t;
+}
+
 MidiMappingTarget MidiMappingTarget::forPresetStep (bool next)
 {
     MidiMappingTarget t;
@@ -135,12 +143,13 @@ bool MidiMappingTarget::operator== (const MidiMappingTarget& other) const
 //==============================================================================
 MidiMapping::Mode MidiMapping::getDefaultMode (const MidiTrigger& trigger, const MidiMappingTarget& target)
 {
-    if (target.kind == MidiMappingTarget::Kind::parameter && trigger.type == MidiTrigger::Type::controller)
+    if ((target.kind == MidiMappingTarget::Kind::parameter || target.kind == MidiMappingTarget::Kind::tempo)
+        && trigger.type == MidiTrigger::Type::controller)
         return Mode::absolute;
 
-    // A CC driving bypass or mute starts as a latching switch; learning switches it to
-    // toggle if the button turns out to be momentary.
-    if (target.isSwitch() && trigger.type == MidiTrigger::Type::controller)
+    // A CC driving bypass, mute, the transport or tap tempo starts as a latching switch; learning
+    // switches it to toggle if the button turns out to be momentary.
+    if ((target.isSwitch() || target.kind == MidiMappingTarget::Kind::tapTempo) && trigger.type == MidiTrigger::Type::controller)
         return Mode::follow;
 
     return Mode::toggle;
@@ -190,6 +199,9 @@ static const char* toString (MidiMappingTarget::Kind k)
         case MidiMappingTarget::Kind::parameter:        return "parameter";
         case MidiMappingTarget::Kind::bypass:           return "bypass";
         case MidiMappingTarget::Kind::mute:             return "mute";
+        case MidiMappingTarget::Kind::tempo:            return "tempo";
+        case MidiMappingTarget::Kind::tapTempo:         return "tapTempo";
+        case MidiMappingTarget::Kind::transport:        return "transport";
         case MidiMappingTarget::Kind::nextPreset:       return "nextPreset";
         case MidiMappingTarget::Kind::previousPreset:   return "previousPreset";
     }
@@ -253,7 +265,8 @@ std::optional<MidiMapping> MidiMapping::fromXml (const XmlElement& e)
     const auto kind = fromString (e.getStringAttribute ("target"),
                                   { MidiMappingTarget::Kind::parameter, MidiMappingTarget::Kind::bypass,
                                     MidiMappingTarget::Kind::nextPreset, MidiMappingTarget::Kind::previousPreset,
-                                    MidiMappingTarget::Kind::mute });
+                                    MidiMappingTarget::Kind::mute, MidiMappingTarget::Kind::tempo,
+                                    MidiMappingTarget::Kind::tapTempo, MidiMappingTarget::Kind::transport });
 
     if (! type.has_value() || ! kind.has_value())
         return std::nullopt;

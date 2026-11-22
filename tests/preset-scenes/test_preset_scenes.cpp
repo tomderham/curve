@@ -13,6 +13,11 @@ using namespace Curve::Scenes;
 
 static int failures = 0;
 
+static bool hasSharedChangesForTest (const SharedChanges& c)
+{
+    return c.changesSound() || ! c.addedNodes.isEmpty() || ! c.addedIONodes.isEmpty() || c.midiMappingsChanged;
+}
+
 #define CHECK(condition) \
     do { if (! (condition)) { std::printf ("FAILED line %d: %s\n", __LINE__, #condition); ++failures; } } while (false)
 
@@ -397,6 +402,19 @@ static void testOpenWithPresetIsEachScenes()
     CHECK (node (*createOtherScene (*late, *lateOpening), 2)->getBoolAttribute ("openWithPreset"));
 }
 
+// Tempo is each scene's own
+static void testTempoIsEachScenes()
+{
+    auto fast = parse (R"(<FILTERGRAPH sceneGroup="g" tempo="140"><FILTER uid="2" x="0.5" y="0.4"><STATE>eq</STATE></FILTER></FILTERGRAPH>)");
+    auto slow = parse (R"(<FILTERGRAPH sceneGroup="g" tempo="90"><FILTER uid="2" x="0.5" y="0.4"><STATE>eq</STATE></FILTER></FILTERGRAPH>)");
+    auto none = parse (R"(<FILTERGRAPH sceneGroup="g"><FILTER uid="2" x="0.5" y="0.4"><STATE>eq</STATE></FILTER></FILTERGRAPH>)");
+
+    CHECK (shareGraph (*fast, *slow));
+    CHECK (createOtherScene (*fast, *slow)->getStringAttribute ("tempo") == "90");
+    CHECK (! createOtherScene (*fast, *none)->hasAttribute ("tempo"));
+    CHECK (! hasSharedChangesForTest (describeChanges (*fast, *slow)));
+}
+
 int main()
 {
     testVaryingNodeWithoutStateKeepsNone();
@@ -424,6 +442,7 @@ int main()
     testMuteIsEachScenes();
     testChangedStateIsNamedByUID();
     testOpenWithPresetIsEachScenes();
+    testTempoIsEachScenes();
 
     if (failures == 0)
         std::printf ("All preset scene tests passed\n");

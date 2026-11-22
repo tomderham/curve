@@ -27,11 +27,12 @@ Effect plug-ins that respond to MIDI connect the same way. To send MIDI from a p
 
 ## Map a control with MIDI Learn
 
-1. Right-click any node and select MIDI Learn. The editor gets a highlighted border, and the status bar guides you.
+1. Click the menu icon at the top left of the editor and select MIDI Learn. The editor gets a highlighted border, and the status bar guides you.
 2. Choose what to control:
    - For a plug-in parameter, open the plug-in's window and move the control.
    - For a node's bypass, click its power button.
    - To mute a node, right-click it and select Mute.
+   - For the tempo, Tap or Start/Stop, click it at the top right of the editor.
 3. Move a knob, fader or button on your controller. The mapping is made straight away, and you can carry on mapping other controls.
 4. Press Esc, or select MIDI Learn again, to finish.
 
@@ -49,6 +50,7 @@ Mappings are saved with the preset, so use Save As Preset... to keep them.
 - Notes and program changes toggle the target.
 - For bypass and mute, and for on/off parameters such as Record, Curve works out whether a CC button is momentary, where each press toggles it, or latching, where it follows the button's state.
 - One control can control several targets: map it again with MIDI Learn to add another. A control with several targets leaves the parameters of muted nodes alone, so in [scenes](presets.md) one knob can control whichever instrument the scene uses.
+- A knob or fader on the tempo sweeps 40 to 240 BPM, which you can narrow in MIDI Mappings for Current Preset.... A button on Tap taps the tempo, and one on Start/Stop starts and stops the transport.
 
 Nodes with mappings show a small MIDI socket icon. Hover over the node to see its mappings in the status bar.
 

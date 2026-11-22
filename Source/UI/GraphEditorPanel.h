@@ -123,6 +123,10 @@ private:
     class BurgerButton;
     std::unique_ptr<BurgerButton> burgerButton;
 
+    // The preset's tempo and the transport, top right
+    class TransportStrip;
+    std::unique_ptr<TransportStrip> transportStrip;
+
     PluginComponent* getComponentForPlugin (AudioProcessorGraph::NodeID) const;
     ConnectorComponent* getComponentForConnection (const AudioProcessorGraph::Connection&) const;
     PinComponent* findPinAt (Point<float>) const;

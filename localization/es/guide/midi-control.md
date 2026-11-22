@@ -27,11 +27,12 @@ Los plug-ins de efecto que responden a MIDI se conectan de la misma forma. Para 
 
 ## Asignar un control con MIDI Learn
 
-1. Haz clic con el botón derecho en cualquier nodo y selecciona MIDI Learn. El editor muestra un borde resaltado y la barra de estado te guía.
+1. Haz clic en el icono de menú de la parte superior izquierda del editor y selecciona MIDI Learn. El editor muestra un borde resaltado y la barra de estado te guía.
 2. Elige qué quieres controlar:
    - Para un parámetro de plug-in, abre la ventana del plug-in y mueve el control.
    - Para la omisión de un nodo, haz clic en su botón de encendido.
    - Para silenciar un nodo, haz clic con el botón derecho en él y selecciona Mute.
+   - Para el tempo, Tap o Start/Stop, haz clic en ello en la parte superior derecha del editor.
 3. Mueve un mando, fader o botón de tu controlador. La asignación se hace de inmediato y puedes seguir asignando otros controles.
 4. Pulsa Esc, o selecciona MIDI Learn de nuevo, para terminar.
 
@@ -49,6 +50,7 @@ Las asignaciones se guardan con el preset, así que usa Save As Preset... para c
 - Las notas y los cambios de programa alternan el destino.
 - Para la omisión y el silencio, y para parámetros de encendido/apagado como Record, Curve determina si un botón CC es momentáneo, donde cada pulsación lo alterna, o de enclavamiento, donde sigue el estado del botón.
 - Un control puede manejar varios destinos: asígnalo de nuevo con MIDI Learn para añadir otro. Un control con varios destinos no cambia los parámetros de los nodos silenciados, así que en las [escenas](presets.md) un mando puede controlar el instrumento que use cada escena.
+- Un mando o fader asignado al tempo recorre de 40 a 240 BPM, rango que puedes acotar en MIDI Mappings for Current Preset.... Un botón en Tap marca el tempo, y uno en Start/Stop inicia y detiene el transporte.
 
 Los nodos con asignaciones muestran un pequeño icono de conector MIDI. Pasa el puntero sobre el nodo para ver sus asignaciones en la barra de estado.
 
