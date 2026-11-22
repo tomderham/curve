@@ -39,6 +39,7 @@ Lo que cada escena guarda para sí:
 
 - Si cada nodo está omitido o silenciado. Un nodo omitido deja pasar su entrada sin cambios. Un nodo silenciado no deja pasar nada, así que corta la ruta en la que está. Consulta [Silenciar un nodo](editor.md).
 - Los ajustes de los nodos configurados con Vary by Scene. Haz clic con el botón derecho en un nodo y selecciona Vary by Scene; mostrará una pequeña insignia de tarjetas apiladas.
+- Qué ventanas de plug-ins se abren con ella (Always Open Plug-in GUI with Preset) y dónde están. Un nodo que añadas a una escena no se abre con las demás.
 
 Todo lo demás se comparte: los demás nodos y sus ajustes, las conexiones, el enrutamiento de canales y las asignaciones MIDI. Si cambias un nodo compartido en cualquier escena y la guardas, todas las escenas reciben el cambio. Un nodo con Vary by Scene sigue compartiendo sus canales y conexiones.
 

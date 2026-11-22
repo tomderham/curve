@@ -326,6 +326,9 @@ void MidiControlEngine::handleAsyncUpdate()
             matched = true;
             const auto value = MidiMapping::getControlValue (p.message);
 
+            if (isSkippedWhileMuted (*t, m))
+                continue;
+
             if (m.mode != MidiMapping::Mode::absolute)
             {
                 applyMapping (m, value);
@@ -348,6 +351,16 @@ void MidiControlEngine::handleAsyncUpdate()
     if (! presetLoaded)
         for (auto& [mapping, value] : latestAbsoluteValues)
             applyMapping (*mapping, value);
+}
+
+bool MidiControlEngine::isSkippedWhileMuted (const Table& t, const MidiMapping& m) const
+{
+    // A control with several targets, e.g. the level of each scene's instrument, leaves muted ones
+    // alone: they're not heard, and changing a shared one would change it in every scene
+    if (m.target.kind != MidiMappingTarget::Kind::parameter || graph == nullptr || ! graph->isNodeMuted (m.target.nodeID))
+        return false;
+
+    return std::count_if (t.mappings.begin(), t.mappings.end(), [&m] (const MidiMapping& other) { return other.trigger == m.trigger; }) > 1;
 }
 
 void MidiControlEngine::applyMapping (const MidiMapping& m, int controlValue)
@@ -496,6 +509,9 @@ void MidiControlEngine::setLearning (bool shouldLearn)
     learnTarget.reset();
     lastLearned.reset();
 
+    // A preset button's release goes to learning meanwhile, so it mustn't stay held
+    heldPresetStepControls.clear();
+
     updateCapturing();
     updateWatchers();
     rebuildTable();
@@ -562,7 +578,8 @@ void MidiControlEngine::handleLearnMessage (const MidiMessage& message)
         if (! MidiMapping::isPress (value))
             return;
 
-        globalMappings.assign ({ *trigger, *presetStepTarget, MidiMapping::Mode::toggle });
+        // One button for next or previous, not both
+        globalMappings.assign ({ *trigger, *presetStepTarget, MidiMapping::Mode::toggle }, true);
         saveGlobalMappings();
         rebuildTable();
 
@@ -619,7 +636,14 @@ void MidiControlEngine::handleLearnMessage (const MidiMessage& message)
     lastLearned = mapping;
     lastLearnedTime = Time::getMillisecondCounter();
 
-    showLearnStatus ("MIDI Learn: mapped " + trigger->describe() + String::fromUTF8 (" \xe2\x86\x92 ") + describeTarget (*learnTarget));
+    // A control can have several targets, so say what else it controls
+    StringArray others;
+    for (const auto& m : graph->getMidiMappings().getMappings())
+        if (m.trigger == *trigger && m.target != *learnTarget)
+            others.add (describeTarget (m.target));
+
+    showLearnStatus ("MIDI Learn: mapped " + trigger->describe() + String::fromUTF8 (" \xe2\x86\x92 ") + describeTarget (*learnTarget)
+                     + (others.isEmpty() ? String() : ", which also controls " + others.joinIntoString (", ")));
 
     if (onLearnStateChanged != nullptr)
         onLearnStateChanged();
@@ -628,6 +652,7 @@ void MidiControlEngine::handleLearnMessage (const MidiMessage& message)
 void MidiControlEngine::learnPresetStep (bool next, std::function<void (const MidiTrigger&)> onLearned)
 {
     presetStepTarget = MidiMappingTarget::forPresetStep (next);
+    heldPresetStepControls.clear();
     onPresetStepLearned = std::move (onLearned);
     updateCapturing();
 }
@@ -686,6 +711,7 @@ void MidiControlEngine::showLearnStatus (const String& detail)
 void MidiControlEngine::clearGlobalMappings()
 {
     globalMappings.clear();
+    heldPresetStepControls.clear();
     saveGlobalMappings();
     rebuildTable();
 }

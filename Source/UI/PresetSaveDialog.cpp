@@ -204,8 +204,10 @@ void PresetSaveDialog::resized()
     bounds.removeFromBottom (12);
 
     // Below the name, lined up with its editor, as tall as what it shows
+    // but leaving the list room for a few rows (name 28 + gaps 18 + list 90)
     const auto sceneWidth = bounds.getWidth() - 90;
-    auto sceneSection = bounds.removeFromBottom (juce::jmax (126, getSceneSectionHeight (sceneWidth)));
+    const auto maxSceneHeight = juce::jmax (126, bounds.getHeight() - 136);
+    auto sceneSection = bounds.removeFromBottom (juce::jmin (maxSceneHeight, juce::jmax (126, getSceneSectionHeight (sceneWidth))));
     bounds.removeFromBottom (6);
 
     auto nameSection = bounds.removeFromBottom (28);
@@ -1034,7 +1036,7 @@ void PresetSaveDialog::doSave (const juce::File& file)
     if (res.wasOk())
     {
         graph.setLastDocumentOpened (file);
-            closeDialog();
+        closeDialog();
     }
     else
     {

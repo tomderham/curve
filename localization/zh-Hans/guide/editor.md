@@ -54,7 +54,7 @@
 | Rename This Node | 更改节点上显示的名称。 |
 | MIDI Learn | 启动 [MIDI Learn](midi-control.md)。 |
 | Clear MIDI Mappings | 移除节点的 MIDI 映射。仅在节点有映射时显示。 |
-| Always Open Plug-in GUI with Preset | 每次载入预设时打开插件的窗口。 |
+| Always Open Plug-in GUI with Preset | 每次载入预设时打开插件的窗口。 在[场景](presets.md)中，每个场景都有自己的设置。 |
 | Import EQ from AutoEQ... | 显示在 Parametric EQ 节点上。请参阅[耳机 EQ 和 AutoEQ](eq-and-autoeq.md)。 |
 | Import EQ from file... | 显示在 Parametric EQ 节点上。请参阅[耳机 EQ 和 AutoEQ](eq-and-autoeq.md)。 |
 | Configure Audio I/O | 更改插件的通道布局，并关闭或隐藏其引脚。见下文。 |

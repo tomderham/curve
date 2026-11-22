@@ -39,6 +39,7 @@ Was jede Szene für sich behält:
 
 - Ob jeder Node umgangen oder stummgeschaltet ist. Ein umgangener Node gibt sein Eingangssignal unverändert weiter. Ein stummgeschalteter Node gibt nichts weiter und unterbricht so den Signalweg, auf dem er liegt. Siehe [Einen Node stummschalten](editor.md).
 - Die Einstellungen von Nodes, die auf Vary by Scene gesetzt sind. Klicke mit der rechten Maustaste auf einen Node und wähle Vary by Scene; er zeigt dann ein kleines Symbol aus gestapelten Karten.
+- Welche Plug-in-Fenster mit ihr geöffnet werden (Always Open Plug-in GUI with Preset) und wo sie liegen. Ein Node, den du einer Szene hinzufügst, wird mit den anderen nicht geöffnet.
 
 Alles andere wird geteilt: die übrigen Nodes und ihre Einstellungen, Verbindungen, Kanal-Routing und MIDI-Zuordnungen. Änderst du einen geteilten Node in einer beliebigen Szene und speicherst sie, erhalten alle Szenen die Änderung. Ein auf Vary by Scene gesetzter Node teilt trotzdem seine Kanäle und Verbindungen.
 

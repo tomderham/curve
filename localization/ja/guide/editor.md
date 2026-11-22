@@ -54,7 +54,7 @@
 | Rename This Node | ノードに表示される名前を変更します。 |
 | MIDI Learn | [MIDI Learn](midi-control.md)を開始します。 |
 | Clear MIDI Mappings | ノードのMIDIマッピングを削除します。マッピングがある場合にのみ表示されます。 |
-| Always Open Plug-in GUI with Preset | プリセットを読み込むたびにプラグインのウインドウを開きます。 |
+| Always Open Plug-in GUI with Preset | プリセットを読み込むたびにプラグインのウインドウを開きます。 [シーン](presets.md)では、シーンごとに設定を持ちます。 |
 | Import EQ from AutoEQ... | Parametric EQノードに表示されます。[ヘッドフォンEQとAutoEQ](eq-and-autoeq.md)を参照してください。 |
 | Import EQ from file... | Parametric EQノードに表示されます。[ヘッドフォンEQとAutoEQ](eq-and-autoeq.md)を参照してください。 |
 | Configure Audio I/O | プラグインのチャンネルレイアウトを変更し、ピンをオフにしたり非表示にしたりします。下記を参照してください。 |

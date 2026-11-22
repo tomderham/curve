@@ -44,12 +44,14 @@ inline void removeDescriptionTimes (juce::XmlElement& node)
     }
 }
 
-/** Whether a node attribute is where its plug-in window is and whether it's open, which is each
-    scene's own: just opening or moving a window isn't a change to the shared graph.
+/** Whether a node attribute is about its plug-in window: where it is, whether it's open, and
+    whether it opens with the preset. Each scene has its own, so one scene can show the windows of
+    the instruments it uses, and just opening or moving a window isn't a change to the shared graph.
 */
 inline bool isWindowAttribute (const juce::String& name)
 {
-    return name.startsWith ("uiopen_") || name.startsWith ("uiLastX_") || name.startsWith ("uiLastY_");
+    return name.startsWith ("uiopen_") || name.startsWith ("uiLastX_") || name.startsWith ("uiLastY_")
+        || name == "openWithPreset";
 }
 
 inline void removeWindowAttributes (juce::XmlElement& node)
@@ -140,7 +142,8 @@ inline bool shareGraph (const juce::XmlElement& a, const juce::XmlElement& b)
 
 /** Another scene of the group once `saved` has been saved: the saved graph, with the other
     scene's own bypass and mute for each node, its own state for each node that varies by scene, and its
-    own Audio Input and Output layout (see isAudioDeviceNode()), and its own plug-in windows. Nodes
+    own Audio Input and Output layout (see isAudioDeviceNode()), and its own plug-in windows,
+    including which open with it. Nodes
     it doesn't have yet are bypassed in it, so adding a node doesn't change how it sounds, except
     those that can't be bypassed (see isNeverBypassed()), which pass on nothing but what they're connected to.
 */
@@ -159,7 +162,9 @@ inline std::unique_ptr<juce::XmlElement> createOtherScene (const juce::XmlElemen
 
         if (own == otherNodes.end())
         {
+            // Doesn't open with the other scenes, where it's bypassed
             node->removeAttribute (mutedAttribute);
+            removeWindowAttributes (*node);
 
             if (! isNeverBypassed (*node))
                 node->setAttribute ("bypassed", true);

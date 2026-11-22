@@ -81,8 +81,6 @@ private:
     bool canSaveAsScene = false;
     bool hasScrolledToActivePreset = false;
 
-    // The loaded preset, then the others sharing its graph, for the scene option's label
-
     // What saving as a new scene, or over a scene of the loaded group, does to the other scenes.
     // Made once each, as it reads every plug-in's state, and edits can't be made while this is
     // open; along with which presets are scenes still sharing the loaded graph. All made again

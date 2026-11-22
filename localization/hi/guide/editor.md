@@ -54,7 +54,7 @@
 | Rename This Node | नोड पर दिखने वाला नाम बदलता है। |
 | MIDI Learn | [MIDI Learn](midi-control.md) शुरू करता है। |
 | Clear MIDI Mappings | नोड की MIDI मैपिंग हटाता है। केवल तभी दिखता है जब कोई मैपिंग हो। |
-| Always Open Plug-in GUI with Preset | हर बार प्रीसेट लोड होने पर प्लग-इन की विंडो खोलता है। |
+| Always Open Plug-in GUI with Preset | हर बार प्रीसेट लोड होने पर प्लग-इन की विंडो खोलता है। [सीन](presets.md) में हर सीन की अपनी सेटिंग होती है। |
 | Import EQ from AutoEQ... | Parametric EQ नोड पर दिखता है। [हेडफ़ोन EQ और AutoEQ](eq-and-autoeq.md) देखें। |
 | Import EQ from file... | Parametric EQ नोड पर दिखता है। [हेडफ़ोन EQ और AutoEQ](eq-and-autoeq.md) देखें। |
 | Configure Audio I/O | किसी प्लग-इन के चैनल लेआउट बदलता है, और उसके पिन बंद करता है या छिपाता है। नीचे देखें। |

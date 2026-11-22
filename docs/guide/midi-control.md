@@ -41,12 +41,14 @@ Mappings are saved with the preset, so use Save As Preset... to keep them.
 
 - To remove the mapping for the selected parameter, bypass or mute, press Delete during MIDI Learn.
 - To remove all of a node's mappings, right-click it and select Clear MIDI Mappings.
+- To move a control to another target, remove its old mapping, as mapping it again adds a target.
 
 ## How mapped controls behave
 
 - Knobs and faders (CC) cover a parameter's full range. You can narrow it in MIDI Mappings for Current Preset..., below.
 - Notes and program changes toggle the target.
 - For bypass and mute, and for on/off parameters such as Record, Curve works out whether a CC button is momentary, where each press toggles it, or latching, where it follows the button's state.
+- One control can control several targets: map it again with MIDI Learn to add another. A control with several targets leaves the parameters of muted nodes alone, so in [scenes](presets.md) one knob can control whichever instrument the scene uses.
 
 Nodes with mappings show a small MIDI socket icon. Hover over the node to see its mappings in the status bar.
 

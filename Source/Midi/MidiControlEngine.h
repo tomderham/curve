@@ -130,6 +130,7 @@ private:
 
     void handleLearnMessage (const MidiMessage&);
     void applyMapping (const MidiMapping&, int controlValue);
+    bool isSkippedWhileMuted (const Table&, const MidiMapping&) const;
     void stepPreset (int delta);
     void loadPresetAt (int index);
     void parameterTouched (AudioProcessorGraph::NodeID, int paramIndex);

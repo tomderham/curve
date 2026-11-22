@@ -39,6 +39,7 @@ Ce que chaque scène conserve pour elle-même :
 
 - Si chaque nœud est contourné ou coupé. Un nœud contourné laisse passer son entrée telle quelle. Un nœud coupé ne laisse rien passer : il coupe le chemin sur lequel il se trouve. Voir [Couper le son d’un nœud](editor.md).
 - Les réglages des nœuds réglés sur Vary by Scene. Cliquez sur un nœud avec le bouton droit et sélectionnez Vary by Scene : il affiche un petit badge de cartes empilées.
+- Les fenêtres de plug-ins qui s’ouvrent avec elle (Always Open Plug-in GUI with Preset), et leur position. Un nœud ajouté à une scène ne s’ouvre pas avec les autres.
 
 Tout le reste est partagé : les autres nœuds et leurs réglages, les connexions, le routage des canaux et les assignations MIDI. Si vous modifiez un nœud partagé dans n’importe quelle scène et l’enregistrez, toutes les scènes reçoivent la modification. Un nœud réglé sur Vary by Scene partage toujours ses canaux et ses connexions.
 

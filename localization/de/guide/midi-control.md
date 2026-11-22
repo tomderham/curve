@@ -41,12 +41,14 @@ Zuweisungen werden mit dem Preset gespeichert. Verwende also Save As Preset..., 
 
 - Um die Zuweisung für den ausgewählten Parameter, Bypass oder die Stummschaltung zu entfernen, drücke während MIDI Learn die Taste Delete.
 - Um alle Zuweisungen eines Nodes zu entfernen, klicke mit der rechten Maustaste darauf und wähle Clear MIDI Mappings.
+- Um ein Bedienelement einem anderen Ziel zuzuweisen, entferne seine alte Zuweisung, denn eine erneute Zuweisung fügt ein Ziel hinzu.
 
 ## So verhalten sich zugewiesene Bedienelemente
 
 - Regler und Fader (CC) decken den gesamten Bereich eines Parameters ab. In MIDI Mappings for Current Preset... kannst du ihn eingrenzen (siehe unten).
 - Noten und Program Changes schalten das Ziel um.
 - Bei Bypass und Stummschaltung und bei Ein/Aus-Parametern wie Record erkennt Curve, ob ein CC-Taster als Taster arbeitet, bei dem jeder Druck umschaltet, oder als Schalter, bei dem der Zustand des Tasters übernommen wird.
+- Ein Bedienelement kann mehrere Ziele steuern: Weise es mit MIDI Learn erneut zu, um ein weiteres hinzuzufügen. Ein Bedienelement mit mehreren Zielen lässt die Parameter stummgeschalteter Nodes unverändert, sodass in [Szenen](presets.md) ein Regler das Instrument steuern kann, das die Szene verwendet.
 
 Nodes mit Zuweisungen zeigen ein kleines MIDI-Buchsensymbol. Bewege den Mauszeiger über den Node, um seine Zuweisungen in der Statusleiste zu sehen.
 

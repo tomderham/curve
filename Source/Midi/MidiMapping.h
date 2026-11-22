@@ -104,12 +104,14 @@ struct MidiMapping
 };
 
 //==============================================================================
-/** A list of mappings in which each trigger and each target appear at most once. */
+/** A list of mappings in which each target appears at most once. A trigger can control several
+    targets, e.g. one knob for the level of whichever instrument a scene unmutes. */
 class MidiMappingSet
 {
 public:
-    /** Adds the mapping, replacing any mapping with the same trigger or the same target. */
-    void assign (const MidiMapping&);
+    /** Adds the mapping, replacing any mapping with the same target, and with the same trigger too
+        if replaceSameTrigger is set. */
+    void assign (const MidiMapping&, bool replaceSameTrigger = false);
 
     bool removeFor (const MidiMappingTarget&);
     bool removeForNode (AudioProcessorGraph::NodeID);

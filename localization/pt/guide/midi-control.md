@@ -41,12 +41,14 @@ Os mapeamentos são salvos com o preset, portanto use Save As Preset... para man
 
 - Para remover o mapeamento do parâmetro, bypass ou mudo selecionado, pressione Delete durante o MIDI Learn.
 - Para remover todos os mapeamentos de um nó, clique nele com o botão direito e selecione Clear MIDI Mappings.
+- Para passar um controle para outro alvo, remova o mapeamento antigo, pois mapeá-lo de novo adiciona um alvo.
 
 ## Como os controles mapeados se comportam
 
 - Knobs e faders (CC) cobrem toda a faixa de um parâmetro. Você pode restringi-la em MIDI Mappings for Current Preset... (veja abaixo).
 - Notas e mudanças de programa alternam o destino.
 - Para o bypass e o mudo, e para parâmetros liga/desliga como Record, o Curve identifica se um botão CC é momentâneo, em que cada toque alterna o estado, ou com trava, em que o estado acompanha o do botão.
+- Um controle pode controlar vários alvos: mapeie-o de novo com o MIDI Learn para adicionar outro. Um controle com vários alvos não altera os parâmetros de nós mudos, então nas [cenas](presets.md) um knob pode controlar o instrumento que cada cena usa.
 
 Os nós com mapeamentos mostram um pequeno ícone de conector MIDI. Passe o ponteiro sobre o nó para ver os mapeamentos dele na barra de status.
 

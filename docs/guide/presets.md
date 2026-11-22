@@ -39,6 +39,7 @@ What each scene keeps for itself:
 
 - Whether each node is bypassed or muted. A bypassed node passes its input straight through. A muted node passes on nothing, so it cuts the path it's on. See [Mute a node](editor.md).
 - The settings of nodes set to Vary by Scene. Right-click a node and select Vary by Scene, and it shows a small stacked-cards badge.
+- Which plug-in windows open with it (Always Open Plug-in GUI with Preset), and where they are. A node you add to a scene doesn't open with the others.
 
 Everything else is shared: the other nodes and their settings, connections, channel routing and MIDI mappings. Change a shared node in any scene, save it, and every scene gets the change. A node set to Vary by Scene still shares its channels and connections.
 

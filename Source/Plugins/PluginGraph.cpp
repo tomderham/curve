@@ -380,7 +380,27 @@ void PluginGraph::setNodeBypassed (NodeID nodeID, bool shouldBeBypassed)
             || (shouldBeBypassed && ! canBeBypassed (*node->getProcessor())))
             return;
 
+        // A plug-in with a bypass parameter keeps it in its state. If that's unchanged since it was
+        // loaded or saved apart from this, it still is: bypass is each scene's own
+        auto saved = statesAsSaved.find (nodeID.uid);
+        bool wasAsSaved = false;
+
+        if (saved != statesAsSaved.end() && node->getProcessor()->getBypassParameter() != nullptr)
+        {
+            MemoryBlock before;
+            node->getProcessor()->getStateInformation (before);
+            wasAsSaved = before.toBase64Encoding() == saved->second.reported;
+        }
+
         node->setBypassed (shouldBeBypassed);
+
+        if (wasAsSaved)
+        {
+            MemoryBlock after;
+            node->getProcessor()->getStateInformation (after);
+            saved->second.reported = after.toBase64Encoding();
+        }
+
         graph.sendChangeMessage();
     }
 }
@@ -1284,15 +1304,41 @@ void PluginGraph::setNodeMuted (NodeID nodeID, bool shouldBeMuted)
         if ((bool) node->properties[mutedProp] == shouldBeMuted)
             return;
 
-        if (shouldBeMuted)
-            node->properties.set (mutedProp, true);
-        else
-            node->properties.remove (mutedProp);
-
-        // The graph clears a suspended node's output and doesn't process it
-        node->getProcessor()->suspendProcessing (shouldBeMuted);
+        applyMute (*node, shouldBeMuted);
         graph.sendChangeMessage();
     }
+}
+
+bool PluginGraph::isConfiguringAudioIO (NodeID nodeID) const
+{
+    for (auto* w : activePluginWindows)
+        if (w->type == PluginWindow::Type::audioIO && w->node->nodeID == nodeID)
+            return true;
+
+    return false;
+}
+
+void PluginGraph::applyMute (AudioProcessorGraph::Node& node, bool shouldBeMuted)
+{
+    auto* processor = node.getProcessor();
+    const bool wasMuted = node.properties[mutedProp];
+
+    if (shouldBeMuted)
+        node.properties.set (mutedProp, true);
+    else
+        node.properties.remove (mutedProp);
+
+    // Left suspended while Configure Audio I/O is open: its resources are released, and the
+    // window prepares it again and unmutes it when it closes
+    if (isConfiguringAudioIO (node.nodeID))
+        return;
+
+    // Reset while still suspended, so nothing is processing it
+    if (wasMuted && ! shouldBeMuted)
+        processor->reset();
+
+    // The graph clears a suspended node's output and doesn't process it
+    processor->suspendProcessing (shouldBeMuted);
 }
 
 bool PluginGraph::isNodeMuted (NodeID nodeID) const
@@ -1335,6 +1381,22 @@ void PluginGraph::switchScene (const File& file, const XmlElement& scene)
     // Setting plug-ins' state changes them, which isn't an edit to this scene
     graph.removeChangeListener (this);
 
+    // As loading does, close the windows that don't open with this scene; openPresetPluginWindows()
+    // opens the rest. First, as a closing window records where it was in its node
+    std::set<uint32> opensWithScene;
+    for (auto* e : scene.getChildWithTagNameIterator ("FILTER"))
+        if (e->getBoolAttribute (openWithPresetProp))
+            opensWithScene.insert ((uint32) e->getIntAttribute ("uid"));
+
+    // Always the others, such as Configure Audio I/O, which prepares its plug-in again as it closes
+    for (int i = activePluginWindows.size(); --i >= 0;)
+    {
+        auto* w = activePluginWindows.getUnchecked (i);
+
+        if (w->type != PluginWindow::Type::normal || opensWithScene.count (w->node->nodeID.uid) == 0)
+            activePluginWindows.remove (i);
+    }
+
     for (auto* e : scene.getChildWithTagNameIterator ("FILTER"))
     {
         auto* node = graph.getNodeForId (NodeID ((uint32) e->getIntAttribute ("uid")));
@@ -1360,12 +1422,12 @@ void PluginGraph::switchScene (const File& file, const XmlElement& scene)
         if (auto* state = e->getChildByName ("STATE"))
             rememberStateAsSaved (*node, state->getAllSubText());
 
-        const bool isMuted = e->getBoolAttribute (mutedProp);
-        if (isMuted)
-            node->properties.set (mutedProp, true);
+        applyMute (*node, e->getBoolAttribute (mutedProp));
+
+        if (opensWithScene.count (node->nodeID.uid) > 0)
+            node->properties.set (openWithPresetProp, true);
         else
-            node->properties.remove (mutedProp);
-        processor->suspendProcessing (isMuted);
+            node->properties.remove (openWithPresetProp);
 
         // Where this scene's plug-in windows were. Open ones stay where they are
         for (int i = 0; i < (int) PluginWindow::Type::numTypes; ++i)

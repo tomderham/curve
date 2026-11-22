@@ -54,7 +54,7 @@ Cliquez avec le bouton droit sur un nœud pour accéder aux options suivantes :
 | Rename This Node | Modifie le nom affiché sur le nœud. |
 | MIDI Learn | Démarre [MIDI Learn](midi-control.md). |
 | Clear MIDI Mappings | Supprime les assignations MIDI du nœud. Affiché uniquement s’il en a. |
-| Always Open Plug-in GUI with Preset | Ouvre la fenêtre du plug-in à chaque chargement du preset. |
+| Always Open Plug-in GUI with Preset | Ouvre la fenêtre du plug-in à chaque chargement du preset. Dans les [scènes](presets.md), chaque scène a son propre réglage. |
 | Import EQ from AutoEQ... | Affiché sur les nœuds Parametric EQ. Voir [EQ de casque et AutoEQ](eq-and-autoeq.md). |
 | Import EQ from file... | Affiché sur les nœuds Parametric EQ. Voir [EQ de casque et AutoEQ](eq-and-autoeq.md). |
 | Configure Audio I/O | Modifie les dispositions de canaux d’un plug-in, et désactive ou masque ses broches. Voir ci-dessous. |

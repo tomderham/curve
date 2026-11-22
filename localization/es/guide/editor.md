@@ -54,7 +54,7 @@ Haz clic con el botón derecho en un nodo para ver estas opciones:
 | Rename This Node | Cambia el nombre que se muestra en el nodo. |
 | MIDI Learn | Inicia [MIDI Learn](midi-control.md). |
 | Clear MIDI Mappings | Elimina las asignaciones MIDI del nodo. Solo se muestra si tiene alguna. |
-| Always Open Plug-in GUI with Preset | Abre la ventana del plug-in cada vez que se carga el preset. |
+| Always Open Plug-in GUI with Preset | Abre la ventana del plug-in cada vez que se carga el preset. En las [escenas](presets.md), cada escena tiene su propio ajuste. |
 | Import EQ from AutoEQ... | Se muestra en los nodos Parametric EQ. Consulta [EQ para auriculares y AutoEQ](eq-and-autoeq.md). |
 | Import EQ from file... | Se muestra en los nodos Parametric EQ. Consulta [EQ para auriculares y AutoEQ](eq-and-autoeq.md). |
 | Configure Audio I/O | Cambia las disposiciones de canales de un plug-in y desactiva u oculta sus pines. Consulta más abajo. |

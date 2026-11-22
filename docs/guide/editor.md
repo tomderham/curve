@@ -54,7 +54,7 @@ Right-click a node for these options:
 | Rename This Node | Changes the name shown on the node. |
 | MIDI Learn | Starts [MIDI Learn](midi-control.md). |
 | Clear MIDI Mappings | Removes the node's MIDI mappings. Shown only if it has some. |
-| Always Open Plug-in GUI with Preset | Opens the plug-in's window whenever the preset loads. |
+| Always Open Plug-in GUI with Preset | Opens the plug-in's window whenever the preset loads. In [scenes](presets.md), each scene has its own. |
 | Import EQ from AutoEQ... | Shown on Parametric EQ nodes. See [Headphone EQ and AutoEQ](eq-and-autoeq.md). |
 | Import EQ from file... | Shown on Parametric EQ nodes. See [Headphone EQ and AutoEQ](eq-and-autoeq.md). |
 | Configure Audio I/O | Changes a plug-in's channel layouts, and turns off or hides its pins. See below. |

@@ -54,7 +54,7 @@ Clique com o botão direito em um nó para ver estas opções:
 | Rename This Node | Altera o nome mostrado no nó. |
 | MIDI Learn | Inicia o [MIDI Learn](midi-control.md). |
 | Clear MIDI Mappings | Remove os mapeamentos MIDI do nó. Só aparece se ele tiver algum. |
-| Always Open Plug-in GUI with Preset | Abre a janela do plug-in sempre que o preset é carregado. |
+| Always Open Plug-in GUI with Preset | Abre a janela do plug-in sempre que o preset é carregado. Nas [cenas](presets.md), cada cena tem seu próprio ajuste. |
 | Import EQ from AutoEQ... | Aparece nos nós Parametric EQ. Consulte [EQ para fones de ouvido e AutoEQ](eq-and-autoeq.md). |
 | Import EQ from file... | Aparece nos nós Parametric EQ. Consulte [EQ para fones de ouvido e AutoEQ](eq-and-autoeq.md). |
 | Configure Audio I/O | Altera os layouts de canais de um plug-in e desativa ou oculta os pinos dele. Veja abaixo. |

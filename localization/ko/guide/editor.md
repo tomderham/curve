@@ -54,7 +54,7 @@
 | Rename This Node | 노드에 표시되는 이름을 변경합니다. |
 | MIDI Learn | [MIDI Learn](midi-control.md)을 시작합니다. |
 | Clear MIDI Mappings | 노드의 MIDI 매핑을 제거합니다. 매핑이 있을 때만 표시됩니다. |
-| Always Open Plug-in GUI with Preset | 프리셋을 불러올 때마다 플러그인 창을 엽니다. |
+| Always Open Plug-in GUI with Preset | 프리셋을 불러올 때마다 플러그인 창을 엽니다. [장면](presets.md)에서는 장면마다 설정이 따로 있습니다. |
 | Import EQ from AutoEQ... | Parametric EQ 노드에 표시됩니다. [헤드폰 EQ 및 AutoEQ](eq-and-autoeq.md)를 참조하십시오. |
 | Import EQ from file... | Parametric EQ 노드에 표시됩니다. [헤드폰 EQ 및 AutoEQ](eq-and-autoeq.md)를 참조하십시오. |
 | Configure Audio I/O | 플러그인의 채널 레이아웃을 변경하고, 핀을 끄거나 숨깁니다. 아래를 참조하십시오. |

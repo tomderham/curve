@@ -276,10 +276,13 @@ std::optional<MidiMapping> MidiMapping::fromXml (const XmlElement& e)
 }
 
 //==============================================================================
-void MidiMappingSet::assign (const MidiMapping& mapping)
+void MidiMappingSet::assign (const MidiMapping& mapping, bool replaceSameTrigger)
 {
     mappings.erase (std::remove_if (mappings.begin(), mappings.end(),
-                                    [&] (const MidiMapping& m) { return m.trigger == mapping.trigger || m.target == mapping.target; }),
+                                    [&] (const MidiMapping& m)
+                                    {
+                                        return m.target == mapping.target || (replaceSameTrigger && m.trigger == mapping.trigger);
+                                    }),
                     mappings.end());
     mappings.push_back (mapping);
 }

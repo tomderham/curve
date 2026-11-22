@@ -278,6 +278,14 @@ private:
     struct StateAsSaved { String inFile, reported; };
     std::map<uint32, StateAsSaved> statesAsSaved;
     void rememberStateAsSaved (AudioProcessorGraph::Node&, const String& inFile);
+
+    // Configure Audio I/O suspends the plug-in and releases its resources while open, then
+    // prepares it again and applies its mute when it closes (see IOConfigurationWindow)
+    bool isConfiguringAudioIO (NodeID) const;
+
+    // Mutes or unmutes a node's processor. Unmuting resets it first, so voices and tails held
+    // while it wasn't processed don't come back
+    void applyMute (AudioProcessorGraph::Node&, bool shouldBeMuted);
     void rememberSavedStates (const XmlElement& saved);
 
     void createNodeFromXml (const XmlElement&, bool restorePluginWindows = false);

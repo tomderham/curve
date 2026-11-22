@@ -39,6 +39,7 @@ O que cada cena guarda para si:
 
 - Se cada nó está em bypass ou mudo. Um nó em bypass deixa sua entrada passar sem alteração. Um nó mudo não deixa passar nada, então corta o caminho em que está. Consulte [Silenciar um nó](editor.md).
 - Os ajustes dos nós definidos como Vary by Scene. Clique com o botão direito em um nó e selecione Vary by Scene; ele mostra um pequeno selo de cartões empilhados.
+- Quais janelas de plug-ins abrem com ela (Always Open Plug-in GUI with Preset), e onde ficam. Um nó que você adiciona a uma cena não abre com as outras.
 
 Todo o resto é compartilhado: os outros nós e seus ajustes, as conexões, o roteamento de canais e os mapeamentos MIDI. Altere um nó compartilhado em qualquer cena, salve, e todas as cenas recebem a alteração. Um nó definido como Vary by Scene continua compartilhando seus canais e conexões.
 

@@ -1224,7 +1224,14 @@ void MainHostWindow::loadPreset(juce::File file)
     {
         if (auto scene = graphHolder->graph->prepareSceneSwitch (file))
         {
-            replaceGraph ([this, file, &scene] { graphHolder->graph->switchScene (file, *scene); });
+            replaceGraph ([this, file, &scene]
+            {
+                graphHolder->graph->switchScene (file, *scene);
+
+                // As loading does, so the loopback tap follows mute and bypass before audio resumes
+                graphHolder->propagateDeviceSettingsToNodes();
+            });
+
             graphHolder->graph->openPresetPluginWindows();
             return;
         }

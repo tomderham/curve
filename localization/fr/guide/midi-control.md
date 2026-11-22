@@ -41,12 +41,14 @@ Les assignations sont enregistrées avec le preset : utilisez donc Save As Prese
 
 - Pour supprimer l’assignation du paramètre, du contournement ou de la coupure du son sélectionné, appuyez sur Delete pendant MIDI Learn.
 - Pour supprimer toutes les assignations d’un nœud, cliquez dessus avec le bouton droit et sélectionnez Clear MIDI Mappings.
+- Pour attribuer un contrôle à une autre cible, supprimez son ancienne assignation, car l’assigner de nouveau ajoute une cible.
 
 ## Comportement des commandes assignées
 
 - Les boutons rotatifs et les faders (CC) couvrent toute la plage d’un paramètre. Vous pouvez la restreindre dans MIDI Mappings for Current Preset... (voir ci-dessous).
 - Les notes et les changements de programme basculent la cible.
 - Pour le contournement et la coupure du son, et pour les paramètres marche/arrêt comme Record, Curve détermine si un bouton CC est momentané, chaque pression basculant l’état, ou à verrouillage, l’état suivant celui du bouton.
+- Un contrôle peut piloter plusieurs cibles : assignez-le de nouveau avec MIDI Learn pour en ajouter une. Un contrôle à plusieurs cibles ne modifie pas les paramètres des nœuds coupés : dans les [scènes](presets.md), un bouton peut ainsi piloter l’instrument utilisé par chaque scène.
 
 Les nœuds comportant des assignations affichent une petite icône de prise MIDI. Survolez le nœud pour voir ses assignations dans la barre d’état.
 

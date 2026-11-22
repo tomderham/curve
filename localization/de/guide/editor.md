@@ -54,7 +54,7 @@ Klicke mit der rechten Maustaste auf einen Node, um diese Optionen zu sehen:
 | Rename This Node | Ändert den auf dem Node angezeigten Namen. |
 | MIDI Learn | Startet [MIDI Learn](midi-control.md). |
 | Clear MIDI Mappings | Entfernt die MIDI-Zuweisungen des Nodes. Wird nur angezeigt, wenn es welche gibt. |
-| Always Open Plug-in GUI with Preset | Öffnet das Fenster des Plug-ins bei jedem Laden des Presets. |
+| Always Open Plug-in GUI with Preset | Öffnet das Fenster des Plug-ins bei jedem Laden des Presets. In [Szenen](presets.md) hat jede Szene ihre eigene Einstellung. |
 | Import EQ from AutoEQ... | Wird bei Nodes vom Typ Parametric EQ angezeigt. Siehe [Kopfhörer-EQ und AutoEQ](eq-and-autoeq.md). |
 | Import EQ from file... | Wird bei Nodes vom Typ Parametric EQ angezeigt. Siehe [Kopfhörer-EQ und AutoEQ](eq-and-autoeq.md). |
 | Configure Audio I/O | Ändert die Kanal-Layouts eines Plug-ins und schaltet seine Pins aus oder blendet sie aus. Siehe unten. |

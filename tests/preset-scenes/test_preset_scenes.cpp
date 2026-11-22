@@ -379,6 +379,24 @@ static void testChangedStateIsNamedByUID()
     CHECK (describeChanges (*saved, *other).changedStateUIDs.isEmpty());
 }
 
+// Opening with the preset is each scene's own, and a node added to another scene doesn't open there
+static void testOpenWithPresetIsEachScenes()
+{
+    auto early = parse (R"(<FILTERGRAPH sceneGroup="g">
+  <FILTER uid="2" x="0.5" y="0.4" openWithPreset="1"><STATE>piano</STATE></FILTER>
+  <FILTER uid="5" x="0.2" y="0.4" openWithPreset="1"><STATE>organ</STATE></FILTER>
+</FILTERGRAPH>)");
+    auto late = parse (R"(<FILTERGRAPH sceneGroup="g"><FILTER uid="2" x="0.5" y="0.4"><STATE>piano</STATE></FILTER></FILTERGRAPH>)");
+
+    auto lateOpening = parse (R"(<FILTERGRAPH sceneGroup="g"><FILTER uid="2" x="0.5" y="0.4" openWithPreset="1"><STATE>piano</STATE></FILTER></FILTERGRAPH>)");
+    CHECK (shareGraph (*late, *lateOpening));
+
+    auto updated = createOtherScene (*early, *late);
+    CHECK (! node (*updated, 2)->hasAttribute ("openWithPreset"));
+    CHECK (! node (*updated, 5)->hasAttribute ("openWithPreset"));
+    CHECK (node (*createOtherScene (*late, *lateOpening), 2)->getBoolAttribute ("openWithPreset"));
+}
+
 int main()
 {
     testVaryingNodeWithoutStateKeepsNone();
@@ -405,6 +423,7 @@ int main()
     testMidiMappingChangeIsDescribed();
     testMuteIsEachScenes();
     testChangedStateIsNamedByUID();
+    testOpenWithPresetIsEachScenes();
 
     if (failures == 0)
         std::printf ("All preset scene tests passed\n");

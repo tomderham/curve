@@ -41,12 +41,14 @@ Las asignaciones se guardan con el preset, así que usa Save As Preset... para c
 
 - Para eliminar la asignación del parámetro, la omisión o el silencio seleccionados, pulsa Delete durante MIDI Learn.
 - Para eliminar todas las asignaciones de un nodo, haz clic con el botón derecho en él y selecciona Clear MIDI Mappings.
+- Para pasar un control a otro destino, elimina su asignación anterior, ya que asignarlo de nuevo añade un destino.
 
 ## Cómo se comportan los controles asignados
 
 - Los mandos y faders (CC) cubren todo el rango de un parámetro. Puedes acotarlo en MIDI Mappings for Current Preset... (ver abajo).
 - Las notas y los cambios de programa alternan el destino.
 - Para la omisión y el silencio, y para parámetros de encendido/apagado como Record, Curve determina si un botón CC es momentáneo, donde cada pulsación lo alterna, o de enclavamiento, donde sigue el estado del botón.
+- Un control puede manejar varios destinos: asígnalo de nuevo con MIDI Learn para añadir otro. Un control con varios destinos no cambia los parámetros de los nodos silenciados, así que en las [escenas](presets.md) un mando puede controlar el instrumento que use cada escena.
 
 Los nodos con asignaciones muestran un pequeño icono de conector MIDI. Pasa el puntero sobre el nodo para ver sus asignaciones en la barra de estado.
 
