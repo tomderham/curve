@@ -104,6 +104,14 @@ void SpeakerEmulationNode::prepareToPlay (double sampleRate, int samplesPerBlock
     rightBuffer.setSize (2, maxBlock, false, true, false);
 }
 
+void SpeakerEmulationNode::reset()
+{
+    leftConvolution.reset();
+    rightConvolution.reset();
+    leftBuffer.clear();
+    rightBuffer.clear();
+}
+
 void SpeakerEmulationNode::releaseResources()
 {
     leftConvolution.reset();

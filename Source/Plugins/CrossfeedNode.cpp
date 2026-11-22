@@ -505,6 +505,13 @@ void CrossfeedNode::prepareToPlay (double sampleRate, int samplesPerBlock)
     crossBuffer.setSize (2, maxBlock, false, true, false);
 }
 
+void CrossfeedNode::reset()
+{
+    directConvolution.reset();
+    crossConvolution.reset();
+    crossBuffer.clear();
+}
+
 void CrossfeedNode::releaseResources()
 {
     directConvolution.reset();

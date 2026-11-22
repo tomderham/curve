@@ -295,6 +295,7 @@ void PluginGraph::removeNode (NodeID nodeID)
 
     midiMappings.removeForNode (nodeID);
     statesAsSaved.erase (nodeID.uid);
+    ringOutEnds.erase (nodeID.uid);
     graph.removeNode (nodeID);
 }
 
@@ -309,6 +310,8 @@ void PluginGraph::clear()
     sceneGroup.clear();
     loadedXml.reset();
     statesAsSaved.clear();
+    ringOutEnds.clear();
+    stopTimer();
 
     closeAnyOpenPluginWindows();
 
@@ -416,7 +419,7 @@ void PluginGraph::setNodeBypassed (NodeID nodeID, bool shouldBeBypassed)
             wasAsSaved = before.toBase64Encoding() == saved->second.reported;
         }
 
-        node->setBypassed (shouldBeBypassed);
+        applyBypass (*node, shouldBeBypassed);
 
         if (wasAsSaved)
         {
@@ -1166,7 +1169,9 @@ bool PluginGraph::finishNodeFromXml (std::unique_ptr<AudioPluginInstance> instan
 
         if (xml.getBoolAttribute (mutedProp))
         {
+            // Nothing to ring out yet
             node->properties.set (mutedProp, true);
+            node->setOutputMuted (true);
             node->getProcessor()->suspendProcessing (true);
         }
 
@@ -1362,6 +1367,24 @@ void PluginGraph::setTransportPlaying (bool shouldPlay)
     sendChangeMessage();
 }
 
+void PluginGraph::resetProcessor (AudioProcessor& processor)
+{
+    const ScopedLock sl (processor.getCallbackLock());
+    processor.reset();
+}
+
+void PluginGraph::applyBypass (AudioProcessorGraph::Node& node, bool shouldBeBypassed)
+{
+    auto& processor = *node.getProcessor();
+    const bool resetsWhenUnbypassed = node.isBypassed() && ! shouldBeBypassed && processor.getBypassParameter() == nullptr;
+
+    // Reset first, as it's not yet being processed again
+    if (resetsWhenUnbypassed)
+        resetProcessor (processor);
+
+    node.setBypassed (shouldBeBypassed);
+}
+
 bool PluginGraph::isConfiguringAudioIO (NodeID nodeID) const
 {
     for (auto* w : activePluginWindows)
@@ -1376,22 +1399,88 @@ void PluginGraph::applyMute (AudioProcessorGraph::Node& node, bool shouldBeMuted
     auto* processor = node.getProcessor();
     const bool wasMuted = node.properties[mutedProp];
 
+    // Already so, e.g. the same in the scene switched to: a ring-out carries on
+    if (wasMuted == shouldBeMuted)
+        return;
+
+    ringOutEnds.erase (node.nodeID.uid);
+
     if (shouldBeMuted)
+    {
         node.properties.set (mutedProp, true);
-    else
-        node.properties.remove (mutedProp);
+        node.setOutputMuted (true);
+
+        // The graph's I/O nodes pass straight to the device as they're processed, so stop at once
+        const bool ringsOut = dynamic_cast<AudioProcessorGraph::AudioGraphIOProcessor*> (processor) == nullptr;
+
+        if (ringsOut && ! processor->isSuspended())
+        {
+            ringOutEnds[node.nodeID.uid] = Time::getMillisecondCounter() + ringOutMs;
+            startTimer (250);
+            return;
+        }
+
+        // Left to Configure Audio I/O while it's open, which suspends it as it closes
+        if (! isConfiguringAudioIO (node.nodeID))
+            processor->suspendProcessing (true);
+
+        return;
+    }
+
+    node.properties.remove (mutedProp);
 
     // Left suspended while Configure Audio I/O is open: its resources are released, and the
     // window prepares it again and unmutes it when it closes
     if (isConfiguringAudioIO (node.nodeID))
+    {
+        node.setOutputMuted (false);
         return;
+    }
 
-    // Reset while still suspended, so nothing is processing it
-    if (wasMuted && ! shouldBeMuted)
-        processor->reset();
+    // Suspended after ringing out: reset while still suspended, so nothing is processing it.
+    // Still ringing out, it was processed all along, so it just carries on
+    if (processor->isSuspended())
+    {
+        resetProcessor (*processor);
+        node.setOutputMuted (false);
+        processor->suspendProcessing (false);
+    }
+    else
+    {
+        node.setOutputMuted (false);
+    }
+}
 
-    // The graph clears a suspended node's output and doesn't process it
-    processor->suspendProcessing (shouldBeMuted);
+void PluginGraph::timerCallback()
+{
+    const auto now = Time::getMillisecondCounter();
+
+    for (auto it = ringOutEnds.begin(); it != ringOutEnds.end();)
+    {
+        auto* node = graph.getNodeForId (NodeID (it->first));
+
+        // Gone, or unmuted meanwhile
+        if (node == nullptr || ! (bool) node->properties[mutedProp])
+        {
+            it = ringOutEnds.erase (it);
+            continue;
+        }
+
+        // Rung out: suspend it, so it isn't processed. Left to Configure Audio I/O while it's open
+        if ((int32) (now - it->second) >= 0)
+        {
+            if (! isConfiguringAudioIO (node->nodeID))
+                node->getProcessor()->suspendProcessing (true);
+
+            it = ringOutEnds.erase (it);
+            continue;
+        }
+
+        ++it;
+    }
+
+    if (ringOutEnds.empty())
+        stopTimer();
 }
 
 bool PluginGraph::isNodeMuted (NodeID nodeID) const
@@ -1470,7 +1559,7 @@ void PluginGraph::switchScene (const File& file, const XmlElement& scene)
         }
 
         // After the state, as when loading
-        node->setBypassed (e->getBoolAttribute ("bypassed") && canBeBypassed (*processor));
+        applyBypass (*node, e->getBoolAttribute ("bypassed") && canBeBypassed (*processor));
 
         if (auto* state = e->getChildByName ("STATE"))
             rememberStateAsSaved (*node, state->getAllSubText());

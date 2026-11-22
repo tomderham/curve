@@ -69,7 +69,8 @@ struct PluginDescriptionAndPreference
 */
 class PluginGraph final : public FileBasedDocument,
                           public AudioProcessorListener,
-                          private ChangeListener
+                          private ChangeListener,
+                          private Timer
 {
 public:
     //==============================================================================
@@ -292,9 +293,23 @@ private:
     // prepares it again and applies its mute when it closes (see IOConfigurationWindow)
     bool isConfiguringAudioIO (NodeID) const;
 
-    // Mutes or unmutes a node's processor. Unmuting resets it first, so voices and tails held
-    // while it wasn't processed don't come back
+    // Mutes or unmutes a node. A muted node first rings out: it's still processed, with no new
+    // notes and its output discarded, so its tails, including a plug-in's built-in effects, die
+    // away out of earshot. Then it's suspended, so it isn't processed. Unmuted while ringing out,
+    // it just carries on; unmuted once suspended, it's reset first, and given all notes off (see
+    // the JUCE fork's AudioProcessorGraph), so nothing held while suspended comes back
     void applyMute (AudioProcessorGraph::Node&, bool shouldBeMuted);
+
+    static constexpr uint32 ringOutMs = 5000;
+    std::map<uint32, uint32> ringOutEnds;   // node uid -> Time::getMillisecondCounter() to suspend at
+    void timerCallback() override;
+
+    // Bypasses a node or not. A node without its own bypass parameter isn't processed while
+    // bypassed, so it's reset when unbypassed, for the same reason
+    void applyBypass (AudioProcessorGraph::Node&, bool shouldBeBypassed);
+
+    // Under its callback lock, as the audio thread may be processing it
+    static void resetProcessor (AudioProcessor&);
     void rememberSavedStates (const XmlElement& saved);
 
     void createNodeFromXml (const XmlElement&, bool restorePluginWindows = false);

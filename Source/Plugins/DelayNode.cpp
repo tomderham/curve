@@ -199,6 +199,12 @@ void DelayNode::prepareToPlay (double sampleRate, int samplesPerBlock)
     writePosition = 0;
 }
 
+void DelayNode::reset()
+{
+    delayLine.clear();
+    writePosition = 0;
+}
+
 void DelayNode::releaseResources()
 {
     delayLine.setSize (0, 0);
