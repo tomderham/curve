@@ -260,6 +260,18 @@ public:
         return DocumentWindow::getBorderThickness();
     }
 
+    // A resize the plug-in's editor makes itself is taken as it is (see DecoratorConstrainer).
+    // From JUCE's AudioPluginHost, upstream commit 5922150778
+    void childBoundsChanged (Component* child) override
+    {
+        std::optional<ScopedValueSetter<Rectangle<int>>> scope;
+
+        if (child == getContentComponent())
+            scope.emplace (constrainer.pendingBoundsFromChild, child->getLocalBounds());
+
+        DocumentWindow::childBoundsChanged (child);
+    }
+
 private:
     class DecoratorConstrainer final : public BorderedComponentBoundsConstrainer
     {
@@ -291,6 +303,14 @@ private:
                           bool isStretchingBottom,
                           bool isStretchingRight) override
         {
+            // Responding to the editor resizing itself, the only valid size is the editor's: its
+            // constrainer could otherwise hold the window at the old size, e.g. a fixed-size one
+            if (! pendingBoundsFromChild.isEmpty())
+            {
+                bounds = getAdditionalBorder().addedTo (pendingBoundsFromChild).withPosition (previousBounds.getPosition());
+                return;
+            }
+
             BorderedComponentBoundsConstrainer::checkBounds (bounds, previousBounds, limits,
                                                              isStretchingTop, isStretchingLeft,
                                                              isStretchingBottom, isStretchingRight);
@@ -337,6 +357,8 @@ private:
 
             return nativeFrame.addedTo (window.getContentComponentBorder());
         }
+
+        Rectangle<int> pendingBoundsFromChild;
 
     private:
         DocumentWindow& window;
