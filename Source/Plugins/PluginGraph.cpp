@@ -821,7 +821,7 @@ static XmlElement* createBusLayoutXml (const AudioProcessor::BusesLayout& layout
     return xml;
 }
 
-static XmlElement* createNodeXml (AudioProcessorGraph::Node* const node) noexcept
+static XmlElement* createNodeXml (AudioProcessorGraph::Node* const node, bool includeState) noexcept
 {
     if (auto* plugin = dynamic_cast<AudioPluginInstance*> (node->getProcessor()))
     {
@@ -871,6 +871,7 @@ static XmlElement* createNodeXml (AudioProcessorGraph::Node* const node) noexcep
             e->addChildElement (pd.createXml().release());
         }
 
+        if (includeState)
         {
             MemoryBlock m;
             node->getProcessor()->getStateInformation (m);
@@ -1220,14 +1221,14 @@ void PluginGraph::showRestoreFailures()
     pluginsFailedToRestore.clear();
 }
 
-std::unique_ptr<XmlElement> PluginGraph::createXml() const
+std::unique_ptr<XmlElement> PluginGraph::createXml (bool includeStates) const
 {
     auto xml = std::make_unique<XmlElement> ("FILTERGRAPH");
     xml->setAttribute (Curve::Scenes::tempoAttribute, graph.transport.getTempo());
 
     for (auto* node : graph.getNodes())
     {
-        auto* e = createNodeXml (node);
+        auto* e = createNodeXml (node, includeStates);
 
         // As in the file, while the plug-in reports what it did when that was loaded or saved
         if (auto saved = statesAsSaved.find (node->nodeID.uid); saved != statesAsSaved.end())
@@ -1500,10 +1501,9 @@ Colour PluginGraph::getSceneGroupColour (const String& group)
     return Colour (palette[(size_t) (group.hashCode64() & 0x7fffffff) % std::size (palette)]);
 }
 
-std::unique_ptr<XmlElement> PluginGraph::prepareSceneSwitch (const File& file) const
+std::unique_ptr<XmlElement> PluginGraph::prepareSceneSwitch (const File& file, String* whyLoadedInFull) const
 {
-    if (sceneGroup.isEmpty() || file == getFile() || pendingAsyncRestores > 0
-        || ! pluginsMissingFromLoad.isEmpty() || ! pluginsFailedToRestore.isEmpty())
+    if (sceneGroup.isEmpty() || file == getFile())
         return nullptr;
 
     auto scene = parseXMLIfTagMatches (file, "FILTERGRAPH");
@@ -1511,9 +1511,25 @@ std::unique_ptr<XmlElement> PluginGraph::prepareSceneSwitch (const File& file) c
     if (scene == nullptr || scene->getStringAttribute (Curve::Scenes::groupAttribute) != sceneGroup)
         return nullptr;
 
-    // The live graph, not as loaded: a shared setting changed since has to be lost, as loading does
-    if (! Curve::Scenes::shareGraph (*createXml(), *scene))
+    const auto loadInFull = [&] (const String& why) -> std::unique_ptr<XmlElement>
+    {
+        if (whyLoadedInFull != nullptr)
+            *whyLoadedInFull = why;
+
         return nullptr;
+    };
+
+    if (pendingAsyncRestores > 0)
+        return loadInFull ("a plug-in was still loading");
+
+    if (! pluginsMissingFromLoad.isEmpty() || ! pluginsFailedToRestore.isEmpty())
+        return loadInFull ("a plug-in didn't load");
+
+    // The live graph's structure: plug-ins' state is set to the scene's as it switches (see
+    // switchScene()), but nodes, connections, channel layouts and MIDI mappings changed since
+    // loading or saving need the scene loaded in full
+    if (! Curve::Scenes::shareStructure (*createXml (false), *scene))
+        return loadInFull ("nodes, connections, channel layouts or MIDI mappings changed since it was loaded or saved");
 
     return scene;
 }
@@ -1548,12 +1564,47 @@ void PluginGraph::switchScene (const File& file, const XmlElement& scene)
 
         auto* processor = node->getProcessor();
 
-        if (node->properties[varyBySceneProp])
+        // Where it is on the graph, its name, and whether it varies by scene, as the scene has
+        // them (see Curve::Scenes::getStructure()). First, as varying decides which state it gets
+        node->properties.set ("x", jlimit (0.0, 1.0, e->hasAttribute ("x") ? e->getDoubleAttribute ("x") : 0.5));
+        node->properties.set ("y", jlimit (0.0, 1.0, e->hasAttribute ("y") ? e->getDoubleAttribute ("y") : 0.5));
+
+        for (const auto& prop : { freePositionProp, varyBySceneProp })
         {
-            if (auto* state = e->getChildByName ("STATE"))
+            if (e->getBoolAttribute (prop))
+                node->properties.set (prop, true);
+            else
+                node->properties.remove (prop);
+        }
+
+        if (const auto customName = e->getStringAttribute ("customNodeName"); customName.isNotEmpty())
+            node->properties.set ("customNodeName", customName);
+        else
+            node->properties.remove ("customNodeName");
+
+        // Each node's state as the scene has it: its own for a node that varies by scene, and for
+        // a shared one, the saved one, so the scene is as saved, whatever was changed since. A
+        // shared node still as loaded or saved is left alone, so most plug-ins aren't touched
+        if (auto* state = e->getChildByName ("STATE"))
+        {
+            const auto sceneState = state->getAllSubText();
+            bool isAsScene = false;
+
+            if (! node->properties[varyBySceneProp])
+            {
+                MemoryBlock now;
+                processor->getStateInformation (now);
+                const auto nowText = now.toBase64Encoding();
+                const auto saved = statesAsSaved.find (node->nodeID.uid);
+
+                isAsScene = nowText == sceneState
+                         || (saved != statesAsSaved.end() && saved->second.reported == nowText && saved->second.inFile == sceneState);
+            }
+
+            if (! isAsScene)
             {
                 MemoryBlock m;
-                m.fromBase64Encoding (state->getAllSubText());
+                m.fromBase64Encoding (sceneState);
                 processor->setStateInformation (m.getData(), (int) m.getSize());
             }
         }

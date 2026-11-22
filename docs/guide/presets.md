@@ -33,7 +33,7 @@ If several presets have parts in common, you can make them scenes. For example, 
 
 Scenes that share with each other are marked in the same colour in Curve's menu and in the Save Preset window.
 
-Switching to another scene is quick: Curve changes only what that scene has of its own, without loading its plug-ins again. If you've changed a shared setting since loading, or a plug-in is missing, the scene loads in full instead, and the change is lost as it is when you switch presets.
+Switching to another scene is quick: Curve doesn't load its plug-ins again, but sets each one as the scene has it, including any shared setting you've changed since loading, so you get the scene as saved. If you've added or removed nodes or connections since saving, or a plug-in is missing, the scene loads in full instead.
 
 What each scene keeps for itself:
 

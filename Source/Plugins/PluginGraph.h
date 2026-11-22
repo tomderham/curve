@@ -161,7 +161,8 @@ public:
     void audioProcessorChanged (AudioProcessor*, const ChangeDetails&) override { changed(); }
 
     //==============================================================================
-    std::unique_ptr<XmlElement> createXml() const;
+    // Without the plug-ins' states, it's quick, e.g. to compare a graph's structure
+    std::unique_ptr<XmlElement> createXml (bool includeStates = true) const;
     void restoreFromXml (const XmlElement&, bool restorePluginWindows = false);
 
     void setRestorePluginWindowsOnLoad (bool shouldRestore) { restorePluginWindowsOnLoad = shouldRestore; }
@@ -190,12 +191,14 @@ public:
     // The colour that marks a group's scenes, the same wherever they're shown
     static Colour getSceneGroupColour (const String& group);
 
-    // Switching to another scene of the loaded group that shares the live graph, e.g. from the
-    // menu, only sets what each scene has of its own (bypass, mute, and the settings of nodes that
-    // vary by scene), rather than loading every plug-in again. Prepare returns the scene to switch
-    // to, or nothing if it has to be loaded: not a scene of the group, a shared setting changed
-    // since loading, or a plug-in still loading or missing. Apply it with the audio stopped.
-    std::unique_ptr<XmlElement> prepareSceneSwitch (const File&) const;
+    // Switching to another scene of the loaded group with the same structure as the live graph,
+    // e.g. from the menu, sets the plug-ins' state to the scene's where it differs, along with what
+    // each scene has of its own (bypass, mute, tempo, windows), rather than loading every plug-in
+    // again, so the scene is as saved. Prepare returns the scene to switch to, or nothing if it
+    // has to be loaded: not a scene of the group, nodes or connections changed since loading, or a
+    // plug-in still loading or missing. Apply it with the audio stopped.
+    // whyLoadedInFull: for a scene of the group that has to be loaded in full, why, to show the user
+    std::unique_ptr<XmlElement> prepareSceneSwitch (const File&, String* whyLoadedInFull = nullptr) const;
     void switchScene (const File&, const XmlElement& scene);
 
     // Takes a preset out of its scene group. It sounds the same.

@@ -1219,10 +1219,12 @@ void MainHostWindow::filesDropped (const StringArray& files, int x, int y)
 
 void MainHostWindow::loadPreset(juce::File file)
 {
-    // Another scene sharing the live graph: only what differs is set, without loading plug-ins
+    // Another scene with the live graph's structure: its plug-ins are set as it has them, without loading them
+    String whyLoadedInFull;
+
     if (graphHolder != nullptr && graphHolder->graph != nullptr)
     {
-        if (auto scene = graphHolder->graph->prepareSceneSwitch (file))
+        if (auto scene = graphHolder->graph->prepareSceneSwitch (file, &whyLoadedInFull))
         {
             replaceGraph ([this, file, &scene]
             {
@@ -1237,10 +1239,14 @@ void MainHostWindow::loadPreset(juce::File file)
         }
     }
 
-    replaceGraph ([this, file]
+    bool loaded = false;
+
+    replaceGraph ([this, file, &loaded]
     {
         graphHolder->graph->setRestorePluginWindowsOnLoad (false);
         auto result = graphHolder->graph->loadFrom (file, true);
+        loaded = result.wasOk();
+
         if (result.wasOk())
         {
             graphHolder->propagateDeviceSettingsToNodes();
@@ -1256,6 +1262,10 @@ void MainHostWindow::loadPreset(juce::File file)
 
     if (graphHolder != nullptr && graphHolder->graph != nullptr)
         graphHolder->graph->openPresetPluginWindows();
+
+    // A scene of the loaded group that couldn't switch in place: say why, as it's slower
+    if (loaded && whyLoadedInFull.isNotEmpty() && graphHolder != nullptr)
+        graphHolder->showStatusMessage ("Loaded \"" + file.getFileNameWithoutExtension() + "\" in full, as " + whyLoadedInFull, 8000);
 }
 
 void MainHostWindow::newPreset()

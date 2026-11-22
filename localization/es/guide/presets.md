@@ -33,7 +33,7 @@ Si varios presets tienen partes en común, puedes convertirlos en escenas. Por e
 
 Las escenas que comparten entre sí se marcan con el mismo color en el menú de Curve y en la ventana Save Preset.
 
-Cambiar a otra escena es rápido: Curve solo cambia lo que esa escena tiene propio, sin volver a cargar sus plug-ins. Si has cambiado un ajuste compartido desde que la cargaste, o falta un plug-in, la escena se carga por completo y el cambio se pierde, igual que al cambiar de preset.
+Cambiar a otra escena es rápido: Curve no vuelve a cargar sus plug-ins, sino que ajusta cada uno como lo tiene la escena, incluidos los ajustes compartidos que hayas cambiado desde que la cargaste, así que obtienes la escena tal como se guardó. Si desde que guardaste has añadido o eliminado nodos o conexiones, o falta un plug-in, la escena se carga por completo.
 
 Lo que cada escena guarda para sí:
 

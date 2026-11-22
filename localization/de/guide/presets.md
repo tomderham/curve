@@ -33,7 +33,7 @@ Wenn mehrere Presets Teile gemeinsam haben, kannst du sie zu Szenen machen. Szen
 
 Szenen, die miteinander teilen, sind in Curves Menü und im Fenster Save Preset mit derselben Farbe markiert.
 
-Der Wechsel zu einer anderen Szene geht schnell: Curve ändert nur, was diese Szene für sich hat, ohne ihre Plug-ins neu zu laden. Hast du seit dem Laden eine geteilte Einstellung geändert oder fehlt ein Plug-in, wird die Szene stattdessen vollständig geladen, und die Änderung geht verloren, wie beim Wechsel zu einem anderen Preset.
+Der Wechsel zu einer anderen Szene geht schnell: Curve lädt ihre Plug-ins nicht neu, sondern stellt jedes so ein, wie die Szene es hat, auch geteilte Einstellungen, die du seit dem Laden geändert hast, sodass du die Szene wie gespeichert erhältst. Hast du seit dem Speichern Nodes oder Verbindungen hinzugefügt oder entfernt oder fehlt ein Plug-in, wird die Szene stattdessen vollständig geladen.
 
 Was jede Szene für sich behält:
 

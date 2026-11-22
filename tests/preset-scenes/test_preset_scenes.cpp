@@ -415,6 +415,41 @@ static void testTempoIsEachScenes()
     CHECK (! hasSharedChangesForTest (describeChanges (*fast, *slow)));
 }
 
+// The same structure, whatever the plug-ins' state, but not with a node, connection or layout changed
+static void testShareStructureIgnoresState()
+{
+    auto a = parse (R"(<FILTERGRAPH sceneGroup="g"><FILTER uid="2" x="0.5" y="0.4"><STATE>piano-A</STATE><LAYOUT>2</LAYOUT></FILTER>
+  <CONNECTION srcFilter="2" srcChannel="0" dstFilter="9" dstChannel="0"/></FILTERGRAPH>)");
+    auto b = parse (R"(<FILTERGRAPH sceneGroup="g"><FILTER uid="2" x="0.5" y="0.4"><STATE>piano-B</STATE><LAYOUT>2</LAYOUT></FILTER>
+  <CONNECTION srcFilter="2" srcChannel="0" dstFilter="9" dstChannel="0"/></FILTERGRAPH>)");
+    auto otherConnection = parse (R"(<FILTERGRAPH sceneGroup="g"><FILTER uid="2" x="0.5" y="0.4"><STATE>piano-A</STATE><LAYOUT>2</LAYOUT></FILTER>
+  <CONNECTION srcFilter="2" srcChannel="1" dstFilter="9" dstChannel="0"/></FILTERGRAPH>)");
+    auto otherLayout = parse (R"(<FILTERGRAPH sceneGroup="g"><FILTER uid="2" x="0.5" y="0.4"><STATE>piano-A</STATE><LAYOUT>4</LAYOUT></FILTER>
+  <CONNECTION srcFilter="2" srcChannel="0" dstFilter="9" dstChannel="0"/></FILTERGRAPH>)");
+
+    CHECK (! shareGraph (*a, *b));
+    CHECK (shareStructure (*a, *b));
+    CHECK (! shareStructure (*a, *otherConnection));
+    CHECK (! shareStructure (*a, *otherLayout));
+
+    // Moved or renamed, which a switch sets as the scene has it
+    auto moved = parse (R"(<FILTERGRAPH sceneGroup="g"><FILTER uid="2" x="0.9" y="0.1" customNodeName="Keys"><STATE>piano-A</STATE><LAYOUT>2</LAYOUT></FILTER>
+  <CONNECTION srcFilter="2" srcChannel="0" dstFilter="9" dstChannel="0"/></FILTERGRAPH>)");
+    CHECK (shareStructure (*a, *moved));
+    CHECK (! shareGraph (*a, *moved));
+}
+
+// A plug-in updated since the scene was saved is the same plug-in
+static void testPluginVersionIsIgnored()
+{
+    auto saved = parse (R"(<FILTERGRAPH sceneGroup="g"><FILTER uid="2" x="0.5" y="0.4"><PLUGIN name="Some Instrument" format="AudioUnit" version="9.3.0"/><STATE>p</STATE></FILTER></FILTERGRAPH>)");
+    auto live = parse (R"(<FILTERGRAPH sceneGroup="g"><FILTER uid="2" x="0.5" y="0.4"><PLUGIN name="Some Instrument" format="AudioUnit" version="9.3.1"/><STATE>p</STATE></FILTER></FILTERGRAPH>)");
+
+    CHECK (shareGraph (*live, *saved));
+    CHECK (shareStructure (*live, *saved));
+    CHECK (describeChanges (*live, *saved).changedNodes.isEmpty());
+}
+
 int main()
 {
     testVaryingNodeWithoutStateKeepsNone();
@@ -443,6 +478,8 @@ int main()
     testChangedStateIsNamedByUID();
     testOpenWithPresetIsEachScenes();
     testTempoIsEachScenes();
+    testShareStructureIgnoresState();
+    testPluginVersionIsIgnored();
 
     if (failures == 0)
         std::printf ("All preset scene tests passed\n");

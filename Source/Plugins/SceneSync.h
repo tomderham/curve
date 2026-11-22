@@ -34,7 +34,8 @@ inline constexpr const char* mutedAttribute = "muted";
 inline constexpr const char* tempoAttribute = "tempo";
 
 /** Removes what a plug-in's description records about when it was read, which is new each
-    time the plug-in is created, so a preset just loaded and saved has the same description.
+    time the plug-in is created, and its version, which an update changes, so a preset just
+    loaded and saved has the same description, even with an updated plug-in.
 */
 inline void removeDescriptionTimes (juce::XmlElement& node)
 {
@@ -42,6 +43,7 @@ inline void removeDescriptionTimes (juce::XmlElement& node)
     {
         plugin->removeAttribute ("infoUpdateTime");
         plugin->removeAttribute ("fileTime");
+        plugin->removeAttribute ("version");
     }
 }
 
@@ -141,6 +143,38 @@ inline bool shareGraph (const juce::XmlElement& a, const juce::XmlElement& b)
 {
     return getSharedPart (a)->isEquivalentTo (getSharedPart (b).get(), true);
 }
+
+/** The node attributes a scene switched to in place sets as it has them, so they needn't match:
+    where a node is on the graph, its name, and whether it varies by scene.
+*/
+inline constexpr const char* settableNodeAttributes[] = { "x", "y", "freePosition", "customNodeName", varyAttribute };
+
+inline std::unique_ptr<juce::XmlElement> getStructure (const juce::XmlElement& graph)
+{
+    auto part = getSharedPart (graph);
+
+    for (auto* node : part->getChildWithTagNameIterator ("FILTER"))
+    {
+        if (auto* state = node->getChildByName ("STATE"))
+            node->removeChildElement (state, true);
+
+        for (const auto* attribute : settableNodeAttributes)
+            node->removeAttribute (attribute);
+    }
+
+    return part;
+}
+
+/** Whether two graphs share their structure: their nodes, connections, channel layouts and MIDI
+    mappings, whatever their plug-ins' state, where the nodes are and what they're called. A scene
+    with the same structure as the live graph can be switched to by setting the plug-ins' state,
+    without loading them again.
+*/
+inline bool shareStructure (const juce::XmlElement& a, const juce::XmlElement& b)
+{
+    return getStructure (a)->isEquivalentTo (getStructure (b).get(), true);
+}
+
 
 /** Another scene of the group once `saved` has been saved: the saved graph, with the other
     scene's own bypass and mute for each node, its own state for each node that varies by scene, and its

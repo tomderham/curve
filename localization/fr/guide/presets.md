@@ -33,7 +33,7 @@ Si plusieurs presets ont des parties en commun, vous pouvez en faire des scènes
 
 Les scènes qui partagent entre elles sont marquées de la même couleur dans le menu de Curve et dans la fenêtre Save Preset.
 
-Passer à une autre scène est rapide : Curve ne change que ce que cette scène a en propre, sans recharger ses plug-ins. Si vous avez modifié un réglage partagé depuis le chargement, ou si un plug-in manque, la scène est chargée entièrement, et la modification est perdue, comme lorsque vous changez de preset.
+Passer à une autre scène est rapide : Curve ne recharge pas ses plug-ins, mais règle chacun comme la scène l’a, y compris les réglages partagés modifiés depuis le chargement, de sorte que vous retrouvez la scène telle qu’enregistrée. Si vous avez ajouté ou supprimé des nœuds ou des connexions depuis l’enregistrement, ou si un plug-in manque, la scène est chargée entièrement.
 
 Ce que chaque scène conserve pour elle-même :
 

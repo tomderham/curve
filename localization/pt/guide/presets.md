@@ -33,7 +33,7 @@ Se vários presets têm partes em comum, você pode transformá-los em cenas. Po
 
 As cenas que compartilham entre si são marcadas com a mesma cor no menu do Curve e na janela Save Preset.
 
-Trocar para outra cena é rápido: o Curve muda só o que essa cena tem de próprio, sem carregar seus plug-ins de novo. Se você mudou um ajuste compartilhado desde que carregou, ou se falta um plug-in, a cena é carregada por completo, e a alteração se perde, como acontece ao trocar de preset.
+Trocar para outra cena é rápido: o Curve não carrega seus plug-ins de novo, mas ajusta cada um como a cena o tem, incluindo os ajustes compartilhados que você mudou desde que carregou, então você recebe a cena como foi salva. Se você adicionou ou removeu nós ou conexões desde que salvou, ou se falta um plug-in, a cena é carregada por completo.
 
 O que cada cena guarda para si:
 
