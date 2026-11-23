@@ -17,7 +17,6 @@ namespace Colours
     inline const juce::Colour accent { 0xff3b82f6 };
 
     // Window title bar button glyphs
-    inline const juce::Colour titleBarGlyph { 0xffd4d4d4 };
 
     // Graph wires and pins
     inline const juce::Colour audioWire { 0xff8fa3ad };

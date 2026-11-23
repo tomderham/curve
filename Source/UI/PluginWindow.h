@@ -49,19 +49,6 @@
 #include "../Plugins/IOConfigurationWindow.h"
 #include "../Plugins/ARAPlugin.h"
 
-inline String getFormatSuffix (const AudioProcessor* plugin)
-{
-    const auto format = [plugin]()
-    {
-        if (auto* instance = dynamic_cast<const AudioPluginInstance*> (plugin))
-            return instance->getPluginDescription().pluginFormatName;
-
-        return String();
-    }();
-
-    return format.isNotEmpty() ? (" (" + format + ")") : format;
-}
-
 class PluginGraph;
 
 /**
@@ -182,12 +169,16 @@ public:
     };
 
     PluginWindow (AudioProcessorGraph::Node* n, Type t, OwnedArray<PluginWindow>& windowList, KeyListener* keyListener)
-        : DocumentWindow (n->getProcessor()->getName() + getFormatSuffix (n->getProcessor()),
+        : DocumentWindow (n->getProcessor()->getName(),
                           LookAndFeel::getDefaultLookAndFeel().findColour (ResizableWindow::backgroundColourId),
                           DocumentWindow::minimiseButton | DocumentWindow::closeButton),
           activeWindowList (windowList),
           node (n), type (t)
     {
+        // As Curve's other windows. A title bar JUCE draws, over the plug-in's own view, could be
+        // left partly drawn when a plug-in sized itself as its window opened
+        setUsingNativeTitleBar (true);
+
         setSize (400, 300);
 
         if (auto* ui = createProcessorEditor (*node->getProcessor(), type))
@@ -203,18 +194,21 @@ public:
         const auto openingArea = getOpeningDisplayArea();
         auto& random = Random::getSystemRandom();
         const auto defaultX = openingArea.getX() + random.nextInt (jmax (1, jmin (500, openingArea.getWidth() - getWidth())));
-        const auto defaultY = openingArea.getY() + random.nextInt (jmax (1, jmin (500, openingArea.getHeight() - getHeight())));
+        const auto defaultY = openingArea.getY() + nativeTitleBarHeight
+                            + random.nextInt (jmax (1, jmin (500, openingArea.getHeight() - getHeight() - nativeTitleBarHeight)));
 
         auto savedX = (int) node->properties.getWithDefault (getLastXProp (type), defaultX);
         auto savedY = (int) node->properties.getWithDefault (getLastYProp (type), defaultY);
 
         // The saved position may be on a display that's gone, or in a gap between
         // displays of different sizes. If the title bar can't be reached, reopen
-        // centred on the display the mouse is on instead.
-        if (! isTitleBarReachable ({ savedX, savedY, getWidth(), getTitleBarHeight() }))
+        // centred on the display the mouse is on instead. Positions are of the window's
+        // content, with the native title bar above, whose height JUCE reports as 0, so
+        // take macOS's standard height
+        if (! isTitleBarReachable ({ savedX, savedY - nativeTitleBarHeight, getWidth(), nativeTitleBarHeight }))
         {
             savedX = openingArea.getX() + jmax (0, (openingArea.getWidth() - getWidth()) / 2);
-            savedY = openingArea.getY() + jmax (0, (openingArea.getHeight() - getHeight()) / 2);
+            savedY = openingArea.getY() + jmax (nativeTitleBarHeight, (openingArea.getHeight() - getHeight()) / 2);
         }
 
         setTopLeftPosition (savedX, savedY);
@@ -285,16 +279,6 @@ private:
             return editor != nullptr ? editor->getConstrainer() : nullptr;
         }
 
-        // Plug-in windows use a JUCE-drawn title bar, so unlike a native one, macOS
-        // doesn't stop it going under the menu bar or Dock, where it can't be
-        // grabbed again. While the user drags, keep it inside the usable area of
-        // the display the mouse is on, which still lets windows move between
-        // displays, including ones arranged above or below. AppKit also calls this
-        // at other times, such as when a window is first shown or changes level,
-        // while the mouse may be down on another display, so otherwise use the
-        // display the title bar is on. If it's on none, leave the position alone:
-        // macOS may be moving the window back to a display that has just woken,
-        // before JUCE's display list has caught up.
         void checkBounds (Rectangle<int>& bounds,
                           const Rectangle<int>& previousBounds,
                           const Rectangle<int>& limits,
@@ -314,34 +298,6 @@ private:
             BorderedComponentBoundsConstrainer::checkBounds (bounds, previousBounds, limits,
                                                              isStretchingTop, isStretchingLeft,
                                                              isStretchingBottom, isStretchingRight);
-
-            const bool isMoving = ! (isStretchingTop || isStretchingLeft || isStretchingBottom || isStretchingRight);
-
-            if (! (isMoving || isStretchingTop))
-                return;
-
-            const auto& displays = Desktop::getInstance().getDisplays();
-            const bool isDragging = window.isMouseButtonDown (true);
-            const auto titleBar = bounds.withHeight (window.getTitleBarHeight());
-            const auto* display = isDragging
-                                      ? displays.getDisplayForPoint (Desktop::getInstance().getMainMouseSource().getScreenPosition())
-                                      : displays.getDisplayForRect (titleBar);
-
-            if (display == nullptr || ! (isDragging || display->logicalBounds.toNearestInt().intersects (titleBar)))
-                return;
-
-            const auto area = display->userBounds.toNearestInt();
-
-            if (isStretchingTop)
-            {
-                if (bounds.getY() < area.getY())
-                    bounds.setTop (area.getY());
-
-                return;
-            }
-
-            const auto maxY = jmax (area.getY(), area.getBottom() - window.getTitleBarHeight());
-            bounds.setY (jlimit (area.getY(), maxY, bounds.getY()));
         }
 
         BorderSize<int> getAdditionalBorder() const override
@@ -376,6 +332,8 @@ private:
 
         return display != nullptr ? display->userBounds.toNearestInt() : Rectangle<int> { 0, 0, 800, 600 };
     }
+
+    static constexpr int nativeTitleBarHeight = 28;
 
     static bool isTitleBarReachable (Rectangle<int> titleBar)
     {

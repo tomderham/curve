@@ -364,11 +364,21 @@ PluginWindow* PluginGraph::getOrCreateWindowFor (AudioProcessorGraph::Node* node
                                                                       activePluginWindows,
                                                                       getCommandManager().getKeyMappings()));
             window->setAlwaysOnTop (pluginWindowsFloating);
+
+            // As its node is named, so a renamed one matches. Its format is in the node's tooltip
+            window->setName (getNodeDisplayName (node->nodeID));
             return window;
         }
     }
 
     return nullptr;
+}
+
+void PluginGraph::updatePluginWindowTitles()
+{
+    for (auto* w : activePluginWindows)
+        if (const auto name = getNodeDisplayName (w->node->nodeID); w->getName() != name)
+            w->setName (name);
 }
 
 bool PluginGraph::closeAnyOpenPluginWindows()

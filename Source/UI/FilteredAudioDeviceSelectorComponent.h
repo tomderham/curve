@@ -205,7 +205,7 @@ private:
         o.componentToCentreAround = getTopLevelComponent();
         o.dialogBackgroundColour = getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId);
         o.escapeKeyTriggersCloseButton = true;
-        o.useNativeTitleBar = false;
+        o.useNativeTitleBar = true;
         o.resizable = false;
         o.launchAsync();
     }

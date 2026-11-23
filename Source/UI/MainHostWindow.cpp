@@ -515,6 +515,9 @@ public:
                           DocumentWindow::minimiseButton | DocumentWindow::closeButton),
           owner (mw)
     {
+        // As Curve's other windows
+        setUsingNativeTitleBar (true);
+
         auto deadMansPedalFile = getAppProperties().getUserSettings()
                                    ->getFile().getSiblingFile ("RecentlyCrashedPluginsList");
 
@@ -736,6 +739,7 @@ void MainHostWindow::changeListenerCallback (ChangeBroadcaster* changed)
     else if (graphHolder != nullptr && changed == graphHolder->graph.get())
     {
         graphHolder->propagateDeviceSettingsToNodes();
+        graphHolder->graph->updatePluginWindowTitles();
 
         auto title = JUCEApplication::getInstance()->getApplicationName();
         auto f = graphHolder->graph->getFile();
@@ -1052,7 +1056,7 @@ void MainHostWindow::showAudioSettings()
     o.componentToCentreAround       = (isOnDesktop() && isVisible()) ? this : nullptr;
     o.dialogBackgroundColour        = getLookAndFeel().findColour (ResizableWindow::backgroundColourId);
     o.escapeKeyTriggersCloseButton  = true;
-    o.useNativeTitleBar             = false;
+    o.useNativeTitleBar             = true;
     o.resizable                     = false;
 
      auto* w = o.create();
@@ -1395,7 +1399,7 @@ void MainHostWindow::saveAsPreset()
     o.componentToCentreAround       = (isOnDesktop() && isVisible()) ? this : nullptr;
     o.dialogBackgroundColour        = getLookAndFeel().findColour (ResizableWindow::backgroundColourId);
     o.escapeKeyTriggersCloseButton  = true;
-    o.useNativeTitleBar             = false;
+    o.useNativeTitleBar             = true;
     o.resizable                     = false;
 
     auto* w = o.launchAsync();
@@ -1472,7 +1476,7 @@ void MainHostWindow::showOnlineCalibrationDialogForCreation (Point<int> pos)
     o.componentToCentreAround       = (isOnDesktop() && isVisible()) ? this : nullptr;
     o.dialogBackgroundColour        = getLookAndFeel().findColour (ResizableWindow::backgroundColourId);
     o.escapeKeyTriggersCloseButton  = true;
-    o.useNativeTitleBar             = false;
+    o.useNativeTitleBar             = true;
     o.resizable                     = true;
 
     o.launchAsync();
@@ -1539,7 +1543,7 @@ void MainHostWindow::showOnlineCalibrationDialogForNode (AudioProcessorGraph::No
     o.componentToCentreAround       = (isOnDesktop() && isVisible()) ? this : nullptr;
     o.dialogBackgroundColour        = getLookAndFeel().findColour (ResizableWindow::backgroundColourId);
     o.escapeKeyTriggersCloseButton  = true;
-    o.useNativeTitleBar             = false;
+    o.useNativeTitleBar             = true;
     o.resizable                     = true;
 
     o.launchAsync();

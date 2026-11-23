@@ -99,6 +99,9 @@ public:
 
     PluginWindow* getOrCreateWindowFor (AudioProcessorGraph::Node*, PluginWindow::Type);
 
+    // Open plug-in windows are titled as their nodes are named, so after a rename too
+    void updatePluginWindowTitles();
+
     // Device audio I/O and loopback nodes are configured in Audio Settings; any
     // window requested for them opens that instead.
     static bool isConfiguredByAudioSettings (AudioProcessor&);
