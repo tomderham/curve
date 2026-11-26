@@ -334,7 +334,7 @@ public:
 
         countLabel.setText (count, dontSendNotification);
         removeButton.setEnabled (getTableListBox().getNumSelectedRows() > 0);
-        scanButton.setEnabled (! isScanning() && pendingScans.isEmpty());
+        scanButton.setEnabled (! isBusyScanning());
     }
 
 private:
@@ -408,6 +408,10 @@ private:
 
             for (const auto& type : known)
                 list.removeType (type);
+
+            // Now, rather than when JUCE hears of it, so the rows aren't mapped as they were
+            owner.getTableListBox().updateContent();
+            owner.getTableListBox().deselectAllRows();
         }
 
         Array<int> getSelectedRows() const              { return getTargetRows (-1); }
@@ -480,7 +484,7 @@ private:
                 auto* format = findFormat (identifier);
 
                 menu.addItem (PopupMenu::Item ("Retry Scan")
-                                .setEnabled (format != nullptr)
+                                .setEnabled (format != nullptr && ! owner.isBusyScanning())
                                 .setAction ([this, targets, format]
                                             {
                                                 // Only one scan can run at a time, so a selection
@@ -494,7 +498,7 @@ private:
                                                 for (const auto& target : toScan)
                                                     clearFailure (target);
 
-                                                owner.scanFor (*format, toScan);
+                                                owner.startScan (*format, toScan);
                                             }));
             }
 
@@ -689,6 +693,23 @@ private:
             });
     }
 
+    // A scan, or a queue of them from Scan for New Plug-ins, is running
+    bool isBusyScanning() const     { return isScanning() || ! pendingScans.isEmpty(); }
+
+    // Starts one scan, unless one's running, which would be cut short. The buttons follow it
+    void startScan (AudioPluginFormat& format, const StringArray& files = {})
+    {
+        if (isBusyScanning())
+            return;
+
+        if (files.isEmpty())
+            scanFor (format);
+        else
+            scanFor (format, files);
+
+        startNextScan(); // which has none queued, so just waits for this one, then updates the buttons
+    }
+
     void showMoreMenu()
     {
         PopupMenu menu;
@@ -710,8 +731,8 @@ private:
             if (format->canScanForPlugins())
                 menu.addItem (PopupMenu::Item ("Scan " + format->getName() + " Plug-ins Only"
                                                + (format->getDefaultLocationsToSearch().getNumPaths() > 0 ? String ("...") : String()))
-                                .setEnabled (! isScanning())
-                                .setAction ([this, format] { scanFor (*format); }));
+                                .setEnabled (! isBusyScanning())
+                                .setAction ([this, format] { startScan (*format); }));
 
         menu.addSeparator();
 
@@ -727,12 +748,15 @@ private:
                                                           "Clear List", "Cancel", this,
                                                           ModalCallbackFunction::create ([safeThis = SafePointer<CustomPluginListComponent> (this)] (int result)
                                                           {
+                                                              // Curve's own stay, for presets to find (see FailedPluginRowsModel)
                                                               if (result == 1 && safeThis != nullptr)
-                                                                  safeThis->list.clear();
+                                                                  for (const auto& type : safeThis->list.getTypes())
+                                                                      if (type.pluginFormatName != InternalPluginFormat::getIdentifier())
+                                                                          safeThis->list.removeType (type);
                                                           }));
                         }));
 
-        menu.showMenuAsync (PopupMenu::Options().withTargetComponent (&moreButton));
+        menu.showMenuAsync (PopupMenu::Options().withTargetComponent (&moreButton).withDeletionCheck (*this));
     }
 
     void removeMissing()

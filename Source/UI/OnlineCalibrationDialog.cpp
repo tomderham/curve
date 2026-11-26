@@ -555,9 +555,11 @@ void OnlineCalibrationDialog::resized()
 
 void OnlineCalibrationDialog::updateFilterTableSize()
 {
-    // At least the viewport's height, so the message or background fills it
-    filterTable.setSize (filterViewport.getMaximumVisibleWidth(),
-                         juce::jmax (filterViewport.getHeight(), filterTable.getIdealHeight()));
+    // At least the viewport's height, so the message or background fills it, and narrower by the
+    // scrollbar when it'll be taller
+    const auto height = juce::jmax (filterViewport.getHeight(), filterTable.getIdealHeight());
+    const auto scrolls = height > filterViewport.getHeight();
+    filterTable.setSize (filterViewport.getWidth() - (scrolls ? filterViewport.getScrollBarThickness() : 0), height);
 }
 
 void OnlineCalibrationDialog::refreshSourceDropdown()
@@ -668,6 +670,7 @@ void OnlineCalibrationDialog::loadSelectedProfile()
         statusLabel.setText ({}, juce::dontSendNotification);
         curveVisualizer.setProfile (std::nullopt);
         filterTable.setProfile (std::nullopt);
+        updateFilterTableSize();
         actionButton.setEnabled (false);
         loadedProfile = std::nullopt;
         isLoadingProfile = false;

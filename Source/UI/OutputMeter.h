@@ -47,8 +47,10 @@ namespace OutputMeter
             {
                 auto& peak = blockPeaks[ch % 2];
 
+                // A sample that isn't a number, e.g. from a misbehaving plug-in, isn't a level
                 for (int i = 0; i < numSamples; ++i)
-                    peak = std::max (peak, std::abs (data[i]));
+                    if (const auto level = std::abs (data[i]); std::isfinite (level))
+                        peak = std::max (peak, level);
             }
         }
 
@@ -64,6 +66,15 @@ namespace OutputMeter
                    && ! peaks[side].compare_exchange_weak (held, blockPeaks[side], std::memory_order_relaxed))
             {}
         }
+    }
+
+    /** Turns measuring on or off. Either way, the next read starts from silence, not from whatever
+        was held from the last time. */
+    inline void setEnabled (bool shouldMeasure) noexcept
+    {
+        peaks[0].store (0.0f);
+        peaks[1].store (0.0f);
+        enabled.store (shouldMeasure);
     }
 
     /** Reader: the peaks since the last read, which then start again from silence. */

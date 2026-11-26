@@ -2445,8 +2445,16 @@ struct GraphDocumentComponent::TooltipBar final : public Component,
                 const auto hintText = TRANS ("Right-click anywhere to add plug-ins")
                                     + "  " + String::charToString (0x2022) + "  "
                                     + TRANS ("Drag pins to connect audio and MIDI");
-                g.setColour (Curve::Colours::dimText);
-                g.drawFittedText (hintText, bounds, Justification::centredRight, 1);
+
+                // Only where it fits beside the audio interface, which comes first
+                const auto font = g.getCurrentFont();
+                const auto needed = GlyphArrangement::getStringWidth (font, audio) + GlyphArrangement::getStringWidth (font, hintText) + 24.0f;
+
+                if (needed <= (float) bounds.getWidth())
+                {
+                    g.setColour (Curve::Colours::dimText);
+                    g.drawFittedText (hintText, bounds, Justification::centredRight, 1);
+                }
             }
 
             g.setColour (Curve::Colours::dimText);

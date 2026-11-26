@@ -301,7 +301,8 @@ public:
         if (! isDisplaced || node == nullptr)
             return;
 
-        const auto result = Curve::WindowPlacement::place (getSaved(), getWidth(), getHeight(), WindowArrangement::getDisplays());
+        const auto result = Curve::WindowPlacement::place (getSaved(), getWidth(), getHeight(), WindowArrangement::getDisplays(),
+                                                           hasTitleBar() ? titleBarHeight : 0);
 
         if (result.outcome == Curve::WindowPlacement::Outcome::onSavedDisplay)
         {
@@ -340,8 +341,16 @@ public:
     /** Called after the window's own close button closes it, e.g. for the menu bar panel to follow */
     std::function<void()> onClosed;
 
-    /** Called when it moves or changes size, e.g. for the backdrop behind it to follow */
+    /** Called when it moves, changes size, or is minimised or restored, e.g. for the backdrop behind it to follow */
     std::function<void()> onBoundsChanged;
+
+    void minimisationStateChanged (bool isNowMinimised) override
+    {
+        DocumentWindow::minimisationStateChanged (isNowMinimised);
+
+        if (onBoundsChanged != nullptr)
+            onBoundsChanged();
+    }
 
     /** Whether plug-in windows show on every Space, rather than only the one each is on. Off by
         default: windows stay on the Space they're put on (see PluginGraph::openPresetPluginWindows()). */
@@ -597,7 +606,7 @@ private:
         using namespace Curve::WindowPlacement;
 
         const auto saved = getSaved();
-        const auto result = place (saved, getWidth(), getHeight(), WindowArrangement::getDisplays());
+        const auto result = place (saved, getWidth(), getHeight(), WindowArrangement::getDisplays(), hasTitleBar() ? titleBarHeight : 0);
 
         isDisplaced = result.outcome == Outcome::displaced;
 

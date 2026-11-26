@@ -89,6 +89,7 @@ public:
 
         node.addChangeListener (this);
         loadFile();
+        timerCallback(); // In the stage layout from the start, if the windows are locked
 
         getOpenViewers().add (this);
 
@@ -129,13 +130,16 @@ public:
     {
         g.fillAll (Curve::Colours::canvas);
 
-        if (! node.getFile().existsAsFile())
+        if (! isLoaded)
         {
+            const auto& f = node.getFile();
+            const auto message = f == juce::File()  ? juce::String ("Open a PDF or an image of a score, or drop one here")
+                               : ! f.existsAsFile() ? "Can't find " + f.getFullPathName()
+                                                    : "Can't read " + f.getFileName() + " as a PDF or an image";
+
             g.setColour (Curve::Colours::dimText);
             g.setFont (juce::FontOptions (14.0f));
-            g.drawFittedText (node.getFile() == juce::File() ? "Open a PDF or an image of a score, or drop one here"
-                                                             : "Can't find " + node.getFile().getFullPathName(),
-                              getLocalBounds().withTrimmedTop (toolbarHeight()).reduced (20), juce::Justification::centred, 4);
+            g.drawFittedText (message, getLocalBounds().withTrimmedTop (toolbarHeight()).reduced (20), juce::Justification::centred, 4);
         }
     }
 
@@ -204,15 +208,12 @@ private:
     {
         loadedFile = node.getFile();
 
-        if (! loadedFile.existsAsFile() || ! pdfView.load (loadedFile))
-        {
+        isLoaded = loadedFile.existsAsFile() && pdfView.load (loadedFile);
+
+        if (! isLoaded)
             pdfView.clear();
-            host.setVisible (false);
-        }
-        else
-        {
-            host.setVisible (true);
-        }
+
+        host.setVisible (isLoaded);
 
         fileLabel.setText (loadedFile.getFileName(), juce::dontSendNotification);
         update();
@@ -269,6 +270,7 @@ private:
     std::unique_ptr<juce::FileChooser> chooser;
     juce::File loadedFile;
     bool stageLayout = false;
+    bool isLoaded = false;
     void* keyMonitor = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ScoreViewerEditor)
@@ -311,9 +313,16 @@ void ScoreViewerNode::turn (int direction)
     showPage (page + direction * (twoUp ? 2 : 1));
 }
 
-void ScoreViewerNode::showPage (int index)
+// PDFKit shows two pages side by side from an even page: 1-2, 3-4...
+static int toShownPage (int index, int numPages, bool twoUp)
 {
     const auto clamped = juce::jlimit (0, juce::jmax (0, numPages - 1), index);
+    return twoUp ? (clamped & ~1) : clamped;
+}
+
+void ScoreViewerNode::showPage (int index)
+{
+    const auto clamped = toShownPage (index, numPages, twoUp);
 
     if (clamped != page)
     {
@@ -327,6 +336,7 @@ void ScoreViewerNode::setTwoUp (bool shouldShowTwo)
     if (twoUp != shouldShowTwo)
     {
         twoUp = shouldShowTwo;
+        page = toShownPage (page, numPages, twoUp);
         sendChangeMessage();
     }
 }
@@ -378,7 +388,7 @@ void ScoreViewerNode::setStateInformation (const void* data, int sizeInBytes)
         }
 
         twoUp = xml->getBoolAttribute ("twoUp");
-        page = juce::jlimit (0, juce::jmax (0, numPages - 1), xml->getIntAttribute ("page"));
+        page = toShownPage (xml->getIntAttribute ("page"), numPages, twoUp);
         sendChangeMessage();
     }
 }

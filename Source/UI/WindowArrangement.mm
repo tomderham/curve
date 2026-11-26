@@ -262,13 +262,15 @@ void Backdrop::show (const Curve::WindowPlacement::Rect& area, const juce::Array
     [backdrop setCollectionBehavior: onAllSpaces ? NSWindowCollectionBehaviorCanJoinAllSpaces : NSWindowCollectionBehaviorDefault];
     [backdrop setFrame: frame display: YES];
 
-    // Its windows now, and no longer any that aren't
-    NSMutableSet* wanted = [NSMutableSet set];
+    // Its windows now, back to front, and no longer any that aren't
+    NSMutableArray<NSWindow*>* ordered = [NSMutableArray array];
 
     for (auto* component : windows)
         if (component != nullptr)
             if (NSWindow* w = getWindow (*component))
-                [wanted addObject: w];
+                [ordered addObject: w];
+
+    NSSet* wanted = [NSSet setWithArray: ordered];
 
     for (NSWindow* child in [[[backdrop childWindows] copy] autorelease])
         if (! [wanted containsObject: child])
@@ -279,7 +281,27 @@ void Backdrop::show (const Curve::WindowPlacement::Rect& area, const juce::Array
     if (! wasShowing)
         [backdrop orderFrontRegardless];
 
-    for (NSWindow* w in wanted)
+    // Windows that came to the Space being shown, e.g. as a scene opened more of them there, take
+    // the backdrop with them, rather than it taking them back to its own
+    if (! onAllSpaces && wasShowing && ! [backdrop isOnActiveSpace])
+    {
+        bool anyHere = false;
+
+        for (NSWindow* w in ordered)
+            anyHere = anyHere || [w isOnActiveSpace];
+
+        if (anyHere)
+        {
+            const auto behaviour = [backdrop collectionBehavior];
+            [backdrop setCollectionBehavior: behaviour | NSWindowCollectionBehaviorCanJoinAllSpaces];
+            [backdrop orderFrontRegardless];
+            [backdrop setCollectionBehavior: behaviour];
+        }
+    }
+
+    bool attached = false;
+
+    for (NSWindow* w in ordered)
     {
         if ([w parentWindow] != backdrop)
         {
@@ -287,8 +309,14 @@ void Backdrop::show (const Curve::WindowPlacement::Rect& area, const juce::Array
                 [[w parentWindow] removeChildWindow: w];
 
             [backdrop addChildWindow: w ordered: NSWindowAbove];
+            attached = true;
         }
     }
+
+    // Attaching puts each in front of the others, so they're put back in the order they were stacked
+    if (attached)
+        for (NSWindow* w in ordered)
+            [w orderFrontRegardless];
 }
 
 bool isMouseButtonDown()

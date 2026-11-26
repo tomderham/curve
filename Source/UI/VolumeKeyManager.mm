@@ -395,7 +395,10 @@ namespace
             return;
         }
 
-        const bool loopback = volumeTarget.load() == VolumeKeyManager::Target::loopback;
+        // Only the loopback nodes' audio if there are any: without, e.g. while the panel's slider sets
+        // Curve's volume as the only one there is, the whole output
+        const bool loopback = volumeTarget.load() == VolumeKeyManager::Target::loopback
+                           && OutputInterfaceLoopbackNode::isAnyTapActiveInGraph();
         OutputVolume::setting.store ({ OutputVolume::stepsToGain (volumeSteps.load(), volumeMuted.load()),
                                        loopback ? OutputVolume::loopback : OutputVolume::output });
     }
@@ -776,13 +779,11 @@ namespace
             const bool onlyVolume = curveOutputDevice.isNotEmpty() && device != kAudioObjectUnknown
                                  && ! macOSVolumeReachesChannels (device, curveOutputChannels);
 
-            if (onlyVolume != curveVolumeIsOnlyVolume.load())
-            {
-                curveVolumeIsOnlyVolume.store (onlyVolume);
+            curveVolumeIsOnlyVolume.store (onlyVolume);
 
-                if (! tap.isRunning())
-                    applyGain();
-            }
+            // Also as a loopback node comes or goes, which changes where the gain goes
+            if (! tap.isRunning())
+                applyGain();
 
             if (wanted && (! trusted || tapFailed))
                 startTimer (2000);

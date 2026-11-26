@@ -141,8 +141,8 @@ public:
   void timerCallback() override {
     stopTimer();
 
-    if (isMenuOpen) {
-      // If user is currently interacting with the menu, retry shortly after
+    if (isMenuOpen || (panel != nullptr && panel->isOpen())) {
+      // If user is currently interacting with the menu or panel, retry shortly after
       startTimer(1500);
       return;
     }

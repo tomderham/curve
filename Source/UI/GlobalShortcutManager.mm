@@ -65,6 +65,8 @@ bool GlobalShortcutManager::registerGlobalShortcut(uint32_t carbonKeyCode, uint3
 
     if (status == noErr)
         sGlobalHotKeyRefs[(uint32_t) shortcut] = ref;
+    else
+        sGlobalCallbacks.erase((uint32_t) shortcut);
 
     return status == noErr;
 }

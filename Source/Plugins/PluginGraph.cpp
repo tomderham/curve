@@ -103,8 +103,13 @@ void PluginGraph::changeListenerCallback (ChangeBroadcaster*)
     changed();
 
     for (int i = activePluginWindows.size(); --i >= 0;)
+    {
         if (! graph.getNodes().contains (activePluginWindows.getUnchecked (i)->node))
+        {
             activePluginWindows.remove (i);
+            updateBackdropSoon();
+        }
+    }
 }
 
 AudioProcessorGraph::Node::Ptr PluginGraph::getNodeForName (const String& name) const
@@ -307,6 +312,7 @@ void PluginGraph::removeNode (NodeID nodeID)
 
     midiMappings.removeForNode (nodeID);
     statesAsSaved.erase (nodeID.uid);
+    bypassedForComparison.erase (nodeID.uid);
     ringOutEnds.erase (nodeID.uid);
     graph.removeNode (nodeID);
 }
@@ -371,7 +377,11 @@ PluginWindow* PluginGraph::getOrCreateWindowFor (AudioProcessorGraph::Node* node
                 w->setMinimised (false);
 
             if (! w->isVisible())
+            {
                 w->setVisible (true);
+                sendChangeMessage();
+                updateBackdropSoon();
+            }
 
             return w;
         }
@@ -431,6 +441,7 @@ PluginWindow* PluginGraph::getOrCreateWindowFor (AudioProcessorGraph::Node* node
             };
 
             updateBackdropSoon();
+            sendChangeMessage();
 
             // As its node is named, so a renamed one matches. Its format is in the node's tooltip
             window->setName (getNodeDisplayName (node->nodeID));
@@ -454,6 +465,10 @@ bool PluginGraph::closeAnyOpenPluginWindows()
 
     bool wasEmpty = activePluginWindows.isEmpty();
     activePluginWindows.clear();
+
+    if (! wasEmpty)
+        sendChangeMessage();
+
     return ! wasEmpty;
 }
 
@@ -510,11 +525,14 @@ void PluginGraph::setBypassingAll (bool shouldBypass)
                 continue;
 
             bypassedForComparison.insert (node->nodeID.uid);
+            const ScopedValueSetter<bool> comparing (isApplyingComparison, true);
             setNodeBypassed (node->nodeID, true);
         }
     }
     else
     {
+        const ScopedValueSetter<bool> comparing (isApplyingComparison, true);
+
         for (const auto uid : std::exchange (bypassedForComparison, {}))
             setNodeBypassed (NodeID (uid), false);
     }
@@ -638,8 +656,19 @@ void PluginGraph::updateBackdrop()
     std::vector<Rect> frames;
     Array<Component*> inFront;
 
+    // Back to front, as they're stacked
+    std::stable_sort (windows.begin(), windows.end(), [] (const PluginWindow* a, const PluginWindow* b)
+    {
+        return a->getStackPosition() < b->getStackPosition();
+    });
+
     for (auto* w : windows)
     {
+        // A window kept on top, or floating for MIDI Learn, would drop to the backdrop's level as its
+        // child, so it's left free
+        if (w->isAlwaysOnTop())
+            continue;
+
         const auto titleBar = w->hasTitleBar() ? titleBarHeight : 0;
         const Rect frame { w->getX(), w->getY() - titleBar, w->getWidth(), w->getHeight() + titleBar };
 
@@ -737,6 +766,7 @@ void PluginGraph::closeWindowFor (const AudioProcessorGraph::Node& node, PluginW
         if (activePluginWindows.getUnchecked (i)->node.get() == &node && activePluginWindows.getUnchecked (i)->type == type)
             activePluginWindows.remove (i);
 
+    sendChangeMessage();
     updateBackdropSoon();
 }
 
@@ -756,6 +786,7 @@ void PluginGraph::setWindowKeptOnTop (NodeID nodeID, bool shouldKeepOnTop)
                 w->setAlwaysOnTop (pluginWindowsFloating || w->isKeptOnTop());
 
         sendChangeMessage();
+        updateBackdropSoon();
     }
 }
 
@@ -811,11 +842,15 @@ void PluginGraph::setPluginWindowsOnAllSpaces (bool shouldBeOnAll)
 
     for (auto* w : activePluginWindows)
         WindowArrangement::setOnAllSpaces (*w, shouldBeOnAll);
+
+    updateBackdropSoon();
 }
 
 void PluginGraph::setPluginWindowsFloating (bool shouldFloat)
 {
     pluginWindowsFloating = shouldFloat;
+
+    updateBackdropSoon();
 
     for (auto* w : activePluginWindows)
     {
@@ -829,6 +864,10 @@ void PluginGraph::setPluginWindowsFloating (bool shouldFloat)
 
 void PluginGraph::setNodeBypassed (NodeID nodeID, bool shouldBeBypassed)
 {
+    // Changed other than by Bypass All, it's no longer only bypassed to compare
+    if (! isApplyingComparison)
+        bypassedForComparison.erase (nodeID.uid);
+
     if (auto* node = graph.getNodeForId (nodeID))
     {
         if (node->isBypassed() == shouldBeBypassed
@@ -1289,8 +1328,8 @@ static XmlElement* createNodeXml (AudioProcessorGraph::Node* const node, bool in
         {
             auto type = (PluginWindow::Type) i;
 
-            if (node->properties.contains (PluginWindow::getOpenProp (type)))
-                PluginWindow::saveArrangement (node->properties, *e, type);
+            // Whichever it has: Keep on Top can be set before its window has ever opened
+            PluginWindow::saveArrangement (node->properties, *e, type);
         }
 
         {
@@ -1617,10 +1656,10 @@ bool PluginGraph::finishNodeFromXml (std::unique_ptr<AudioPluginInstance> instan
         {
             auto type = (PluginWindow::Type) i;
 
+            PluginWindow::restoreArrangement (xml, node->properties, type, false);
+
             if (xml.hasAttribute (PluginWindow::getOpenProp (type)))
             {
-                PluginWindow::restoreArrangement (xml, node->properties, type, false);
-
                 if (restorePluginWindows && node->properties[PluginWindow::getOpenProp (type)])
                 {
                     jassert (node->getProcessor() != nullptr);
@@ -2068,6 +2107,10 @@ void PluginGraph::switchScene (const File& file, const XmlElement& scene)
         for (int i = 0; i < (int) PluginWindow::Type::numTypes; ++i)
             PluginWindow::restoreArrangement (*e, node->properties, (PluginWindow::Type) i, true);
     }
+
+    // Open windows kept on top as this scene has them
+    for (auto* w : activePluginWindows)
+        w->setAlwaysOnTop (pluginWindowsFloating || w->isKeptOnTop());
 
     graph.transport.setTempo (scene.getDoubleAttribute (Curve::Scenes::tempoAttribute, HostTransport::defaultTempo));
     applyWindowLock (scene.getBoolAttribute (Curve::Scenes::windowsLockedAttribute));

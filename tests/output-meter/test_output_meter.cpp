@@ -4,6 +4,7 @@
 #include "../../Source/UI/OutputMeter.h"
 
 #include <cstdio>
+#include <limits>
 #include <vector>
 
 namespace
@@ -56,6 +57,19 @@ int main()
     OutputMeter::measure (missing, 2, 64);
     OutputMeter::read (left, right);
     check ("a missing channel is skipped", left == 0.0f && right == 0.5f);
+
+    std::vector<float> broken (64, 0.25f);
+    broken[3] = std::numeric_limits<float>::infinity();
+    broken[4] = std::numeric_limits<float>::quiet_NaN();
+    const float* withBroken[] = { broken.data(), broken.data() };
+    OutputMeter::measure (withBroken, 2, 64);
+    OutputMeter::read (left, right);
+    check ("samples that aren't numbers are left out", left == 0.25f && right == 0.25f);
+
+    OutputMeter::measure (stereo, 2, 64);
+    OutputMeter::setEnabled (true);
+    OutputMeter::read (left, right);
+    check ("turning it on again starts from silence", left == 0.0f && right == 0.0f);
 
     std::printf ("\n%s\n", failures == 0 ? "All passed" : "Some output meter tests FAILED");
     return failures == 0 ? 0 : 1;

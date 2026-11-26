@@ -114,6 +114,16 @@ int main()
         check ("one wider than the area still goes in at the left", wide[0].x == 10);
     }
 
+    // A locked window without its title bar, right at the top of the usable area, stays there
+    {
+        Saved top;
+        top.displayId = "LAPTOP";
+        top.offsetX = 10;
+        top.offsetY = 33;
+        check ("a window without a title bar can sit at the top", at (place (top, 400, 300, laptopOnly, 0), Outcome::onSavedDisplay, 10, 33));
+        check ("one with a title bar there is moved down to show it", place (top, 400, 300, laptopOnly).y == 61);
+    }
+
     // The backdrop behind a layout
     {
         const Rect usable { 0, 33, 1512, 949 };

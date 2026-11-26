@@ -321,6 +321,7 @@ private:
 
 
     std::set<uint32> bypassedForComparison; // by setBypassingAll(), to turn back on
+    bool isApplyingComparison = false;      // while setBypassingAll() sets them
 
     WindowArrangement::Backdrop backdrop;
     void applyWindowLock (bool shouldLock); // As a scene has it, without changing the preset

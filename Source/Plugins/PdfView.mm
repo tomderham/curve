@@ -109,6 +109,8 @@ struct PdfView::Impl
 
     ~Impl()
     {
+        // AppKit may keep the view a moment longer, e.g. through a swipe's momentum
+        view->onSwipe = nullptr;
         [view setDocument: nil];
         [view release];
     }
@@ -210,9 +212,13 @@ void* PdfView::addPageKeyMonitor (std::function<bool (int)> onTurn)
 
     id monitor = [NSEvent addLocalMonitorForEventsMatchingMask: NSEventMaskKeyDown handler: ^NSEvent* (NSEvent* event)
     {
-        // Typing, or a command
+        // Typing, in AppKit's text fields or JUCE's, which aren't AppKit's, or a command
         if ([[[event window] firstResponder] isKindOfClass: [NSText class]])
             return event;
+
+        if (auto* focused = juce::Component::getCurrentlyFocusedComponent())
+            if (auto* input = dynamic_cast<juce::TextInputTarget*> (focused); input != nullptr && input->isTextInputActive())
+                return event;
 
         const auto flags = [event modifierFlags] & NSEventModifierFlagDeviceIndependentFlagsMask;
 

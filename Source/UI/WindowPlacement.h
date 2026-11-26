@@ -116,9 +116,11 @@ namespace WindowPlacement
     }
 
     /** Whether enough of the title bar of a window whose content is at (x, y) is on a display for it to be dragged. */
-    inline bool isTitleBarReachable (const std::vector<Display>& displays, int x, int y, int width)
+    inline bool isTitleBarReachable (const std::vector<Display>& displays, int x, int y, int width, int titleBar_ = titleBarHeight)
     {
-        const Rect titleBar { x, y - titleBarHeight, width, titleBarHeight };
+        // Without a title bar (a locked window), the top of its content
+        const auto height = std::max (titleBar_, 1);
+        const Rect titleBar { x, y - titleBar_, width, height };
         const int needed = std::min (minVisibleWidth, width);
 
         for (const auto& d : displays)
@@ -135,10 +137,10 @@ namespace WindowPlacement
 
     /** Moves a window just enough to be wholly on the display's usable area, or if it's larger, to
         have its title bar and top left there. (x, y) and the size are of its content. */
-    inline void keepOn (const Display& display, int width, int height, int& x, int& y)
+    inline void keepOn (const Display& display, int width, int height, int& x, int& y, int titleBar = titleBarHeight)
     {
         const auto& u = display.usable;
-        const int top = u.y + titleBarHeight;
+        const int top = u.y + titleBar;
 
         x = std::max (u.x, std::min (x, u.right() - width));
         y = std::max (top, std::min (y, u.bottom() - height));
@@ -211,8 +213,9 @@ namespace WindowPlacement
         return right > left && bottom > top ? Rect { left, top, right - left, bottom - top } : Rect {};
     }
 
-    /** Where a window with content of the given size should reopen. */
-    inline Result place (const Saved& saved, int width, int height, const std::vector<Display>& displays)
+    /** Where a window with content of the given size, and a title bar this high (0 if hidden), should reopen. */
+    inline Result place (const Saved& saved, int width, int height, const std::vector<Display>& displays,
+                         int titleBar = titleBarHeight)
     {
         Result result;
 
@@ -225,8 +228,8 @@ namespace WindowPlacement
                 result.y = display->frame.y + saved.offsetY;
 
                 // The display may be at a lower resolution than it was
-                if (! isTitleBarReachable (displays, result.x, result.y, width))
-                    keepOn (*display, width, height, result.x, result.y);
+                if (! isTitleBarReachable (displays, result.x, result.y, width, titleBar))
+                    keepOn (*display, width, height, result.x, result.y, titleBar);
 
                 return result;
             }
@@ -238,13 +241,13 @@ namespace WindowPlacement
                 result.y = main->frame.y + saved.offsetY;
 
                 // Wholly on it, as it may have been anywhere on a larger display
-                keepOn (*main, width, height, result.x, result.y);
+                keepOn (*main, width, height, result.x, result.y, titleBar);
 
                 return result;
             }
         }
 
-        if (saved.hasAbsolute && isTitleBarReachable (displays, saved.x, saved.y, width))
+        if (saved.hasAbsolute && isTitleBarReachable (displays, saved.x, saved.y, width, titleBar))
         {
             result.outcome = Outcome::absolute;
             result.x = saved.x;

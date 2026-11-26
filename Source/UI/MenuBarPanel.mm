@@ -216,7 +216,9 @@ static constexpr float meterFloorDb = -60.0f, meterFallPerUpdateDb = 1.5f;
 
     for (int i = 0; i < 2; ++i)
     {
-        const auto db = peaks[i] > 0.0f ? std::max (meterFloorDb, 20.0f * std::log10 (peaks[i])) : meterFloorDb;
+        // To 0 dB at most, and nothing for a sample that isn't a number
+        const auto db = peaks[i] > 0.0f && std::isfinite (peaks[i]) ? juce::jlimit (meterFloorDb, 0.0f, 20.0f * std::log10 (peaks[i]))
+                                                                     : meterFloorDb;
         const auto shown = std::max (db, levelsDb[i] - meterFallPerUpdateDb);
         changed = changed || shown != levelsDb[i];
         levelsDb[i] = shown;
@@ -422,6 +424,8 @@ struct MenuBarPanel::Impl : private juce::Timer
 
     ~Impl() override
     {
+        *alive = false;
+        source.setMetering (false);
         stopWatching();
         stopTimer();
         source.onChange = nullptr;
@@ -509,12 +513,25 @@ private:
 
     CurvePanelMeter* meter = nil;  // Owned by the view hierarchy, while the panel shows it
     int ticksSinceVolume = 0;
+    std::function<void()> scrollAfterLayout;
     int volumeKind = 0; // What the slider shown sets
     NSSlider* volumeSlider = nil;
     NSTextField* volumeLabel = nil;
     NSButton* muteButton = nil;
 
     juce::Array<juce::File> presetFiles; // In the order of their keys
+
+    // For callbacks that may run after this has gone
+    std::shared_ptr<bool> alive = std::make_shared<bool> (true);
+
+    void callAsyncWhileAlive (std::function<void()> f)
+    {
+        juce::MessageManager::callAsync ([weak = std::weak_ptr<bool> (alive), f = std::move (f)]
+        {
+            if (auto isAlive = weak.lock(); isAlive != nullptr && *isAlive)
+                f();
+        });
+    }
     juce::uint32 lastCloseTime = 0;
 
     // Closes the panel on a click anywhere outside it: in another app, or in another of Curve's
@@ -539,7 +556,7 @@ private:
 
         resignObserver = [[[NSNotificationCenter defaultCenter] addObserverForName: NSApplicationDidResignActiveNotification
                                                                             object: nil
-                                                                             queue: [NSOperationQueue mainQueue]
+                                                                             queue: nil // posted on the main thread, so run there and then
                                                                         usingBlock: ^(NSNotification*) { close(); }] retain];
     }
 
@@ -699,6 +716,10 @@ private:
         addFullWidth (makeFooter (state));
 
         [root layoutSubtreeIfNeeded];
+
+        if (auto scroll = std::exchange (scrollAfterLayout, nullptr))
+            scroll();
+
         const NSSize size = NSMakeSize (panelWidth, [stack fittingSize].height);
         [root setFrameSize: size];
         [popover setContentSize: size];
@@ -745,11 +766,12 @@ private:
             auto* action = makeAction ([this, f] (id)
             {
                 close();
-                juce::MessageManager::callAsync (f); // After the menu and panel have closed
+                juce::MessageManager::callAsync (f); // After the menu and panel have closed. Only app-wide callbacks
             });
 
             NSMenuItem* item = [[[NSMenuItem alloc] initWithTitle: title action: @selector (perform:) keyEquivalent: @""] autorelease];
             [item setTarget: action];
+            [item setRepresentedObject: action]; // An item doesn't keep its target, and the panel can rebuild while its menu is open
             [menu addItem: item];
         };
 
@@ -763,6 +785,7 @@ private:
         auto* arrange = makeAction ([this] (id) { source.arrangePluginWindows(); });
         NSMenuItem* arrangeItem = [[[NSMenuItem alloc] initWithTitle: @"Arrange Plug-in Windows" action: @selector (perform:) keyEquivalent: @""] autorelease];
         [arrangeItem setTarget: arrange];
+        [arrangeItem setRepresentedObject: arrange];
         [arrangeItem setEnabled: panelState.numPluginWindows > 0];
         [menu setAutoenablesItems: NO];
         [menu addItem: arrangeItem];
@@ -772,6 +795,7 @@ private:
         auto* lock = makeAction ([this, locked] (id) { source.setPluginWindowPositionsLocked (! locked); });
         NSMenuItem* lockItem = [[[NSMenuItem alloc] initWithTitle: @"Lock Plug-in Windows (This Scene)" action: @selector (perform:) keyEquivalent: @""] autorelease];
         [lockItem setTarget: lock];
+        [lockItem setRepresentedObject: lock];
         [lockItem setState: locked ? NSControlStateValueOn : NSControlStateValueOff];
         [menu addItem: lockItem];
         [menu addItem: [NSMenuItem separatorItem]];
@@ -792,7 +816,7 @@ private:
         NSTextField* header = makeSectionHeader (headerText);
         [header setToolTip: state.isPresetModified ? @"The current preset has changes that aren't saved" : nil];
 
-        auto* save = makeAction ([this] (id) { close(); juce::MessageManager::callAsync ([this] { source.saveAsPreset(); }); });
+        auto* save = makeAction ([this] (id) { close(); callAsyncWhileAlive ([this] { source.saveAsPreset(); }); });
         NSButton* saveButton = [NSButton buttonWithTitle: @"Save..." target: save action: @selector (perform:)];
         [saveButton setBezelStyle: NSBezelStyleInline];
         [saveButton setControlSize: NSControlSizeSmall];
@@ -882,10 +906,13 @@ private:
 
         addFullWidth (scroll);
 
-        // Show the current preset
+        // The current preset in view, once the panel's been laid out (see rebuild())
         for (int i = 0; i < state.presets.size(); ++i)
             if (state.presets.getReference (i).isCurrent)
-                [document scrollRectToVisible: NSMakeRect (0, std::max (0.0, (double) i / columns * 40.0 - maxHeight / 2), 10, maxHeight)];
+                scrollAfterLayout = [document, y = std::max (0.0, (double) (i / columns) * 40.0 - maxHeight / 2)]
+                {
+                    [document scrollRectToVisible: NSMakeRect (0, y, 10, maxHeight)];
+                };
     }
 
     template <typename AddFn>
@@ -935,6 +962,15 @@ private:
 
         addFullWidth (makeRow (header));
 
+        // Scrolls past about ten, so a large graph can't push the rest of the panel off the screen
+        NSStackView* list = [[[NSStackView alloc] init] autorelease];
+        [list setOrientation: NSUserInterfaceLayoutOrientationVertical];
+        [list setAlignment: NSLayoutAttributeLeading];
+        [list setSpacing: 10];
+        [list setTranslatesAutoresizingMaskIntoConstraints: NO];
+
+        const CGFloat listWidth = panelWidth - 2 * margin;
+
         for (const auto& plugin : state.plugins)
         {
             const auto nodeID = plugin.id;
@@ -969,11 +1005,12 @@ private:
                 {
                     const bool on = [(NSSwitch*) sender state] == NSControlStateValueOn;
 
-                    // Muted, nothing passes either, so switching it on unmutes it
+                    // Muted, nothing passes either, so switching it on unmutes it, and turns it on if it
+                    // was bypassed too
                     if (muted && on)
                         source.setMuted (nodeID, false);
-                    else
-                        source.setBypassed (nodeID, ! on);
+
+                    source.setBypassed (nodeID, ! on);
                 });
 
                 NSSwitch* power = [[[NSSwitch alloc] init] autorelease];
@@ -1001,6 +1038,7 @@ private:
                     auto* action = makeAction ([f] (id) { f(); });
                     NSMenuItem* item = [[[NSMenuItem alloc] initWithTitle: title action: @selector (perform:) keyEquivalent: @""] autorelease];
                     [item setTarget: action];
+            [item setRepresentedObject: action]; // An item doesn't keep its target, and the panel can rebuild while its menu is open
                     [item setEnabled: enabled];
                     [menu setAutoenablesItems: NO];
                     [menu addItem: item];
@@ -1025,8 +1063,40 @@ private:
                 return menu;
             };
 
-            addFullWidth (row);
+            [list addArrangedSubview: row];
+            [[[row widthAnchor] constraintEqualToConstant: listWidth] setActive: YES];
         }
+
+        if (state.plugins.size() <= 10)
+        {
+            addFullWidth (list);
+            return;
+        }
+
+        constexpr CGFloat maxHeight = 320;
+
+        NSScrollView* scroll = [[[NSScrollView alloc] init] autorelease];
+        [scroll setHasVerticalScroller: YES];
+        [scroll setDrawsBackground: NO];
+        [scroll setAutohidesScrollers: YES];
+
+        CurvePanelView* document = [[[CurvePanelView alloc] init] autorelease]; // flipped, so the list starts at the top
+        [document setTranslatesAutoresizingMaskIntoConstraints: NO];
+        [document addSubview: list];
+        [scroll setDocumentView: document];
+
+        NSClipView* clip = [scroll contentView];
+        [NSLayoutConstraint activateConstraints: @[
+            [[list leadingAnchor] constraintEqualToAnchor: [document leadingAnchor]],
+            [[list topAnchor] constraintEqualToAnchor: [document topAnchor]],
+            [[list bottomAnchor] constraintEqualToAnchor: [document bottomAnchor]],
+            [[document leadingAnchor] constraintEqualToAnchor: [clip leadingAnchor]],
+            [[document trailingAnchor] constraintEqualToAnchor: [clip trailingAnchor]],
+            [[document topAnchor] constraintEqualToAnchor: [clip topAnchor]],
+            [[scroll heightAnchor] constraintEqualToConstant: maxHeight]
+        ]];
+
+        addFullWidth (scroll);
     }
 
     // What Curve plays out: switches for checking it and its volume, with its level at the right
@@ -1181,7 +1251,7 @@ private:
         // What the slider sets has changed, e.g. the interface or the keys' mode: rebuilt to match
         if ((int) state.volumeKind != volumeKind)
         {
-            juce::MessageManager::callAsync ([this] { if (isOpen()) rebuild(); });
+            callAsyncWhileAlive ([this] { if (isOpen()) rebuild(); });
             return;
         }
 
@@ -1197,7 +1267,7 @@ private:
 
     NSView* makeFooter (const MenuBarPanelState::State& state)
     {
-        auto* toggleEditor = makeAction ([this] (id) { close(); juce::MessageManager::callAsync ([this] { source.toggleGraphEditor(); }); });
+        auto* toggleEditor = makeAction ([this] (id) { close(); callAsyncWhileAlive ([this] { source.toggleGraphEditor(); }); });
         NSButton* editor = [NSButton buttonWithTitle: state.isEditorShowing ? @"Hide Editor" : @"Show Editor"
                                               target: toggleEditor action: @selector (perform:)];
         [editor setBezelStyle: NSBezelStyleRounded];

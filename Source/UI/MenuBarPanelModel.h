@@ -197,7 +197,7 @@ public:
             graph->setPluginWindowPositionsLocked (shouldLock);
     }
 
-    void setMetering (bool shouldMeter) override                 { OutputMeter::enabled.store (shouldMeter); }
+    void setMetering (bool shouldMeter) override                 { OutputMeter::setEnabled (shouldMeter); }
     void readOutputPeaks (float& left, float& right) override    { OutputMeter::read (left, right); }
 
     void setOutputSwitch (MenuBarPanelState::OutputSwitch which, bool on) override
