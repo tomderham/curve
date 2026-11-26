@@ -825,6 +825,12 @@ struct GraphEditorPanel::PluginComponent final : public Component,
                     }
                 });
 
+            if (proc->hasEditor() && ! PluginGraph::isConfiguredByAudioSettings (*proc))
+                menu->addItem ("Keep Plug-in Window on Top", true, graph.isWindowKeptOnTop (pluginID), [this]
+                {
+                    graph.setWindowKeptOnTop (pluginID, ! graph.isWindowKeptOnTop (pluginID));
+                });
+
             // The plug-ins the menu bar panel lists, to bypass them and open their windows
             if (PluginGraph::canBeBypassed (*proc) || proc->hasEditor())
                 menu->addItem ("Show in Menu Bar Panel", true, isShownInPanel(), [this]
@@ -2486,6 +2492,7 @@ void GraphDocumentComponent::init()
     graphPanel->midiEngine = midiEngine.get();
     midiEngine->setGraph (graph.get());
     midiEngine->onStatusMessage = [this] (const String& message) { showStatusMessage (message); };
+    midiEngine->onTogglePluginWindows = [this] { if (graph != nullptr) graph->togglePluginWindows(); };
     midiEngine->onLearnStateChanged = [this]
     {
         if (graph != nullptr)
@@ -2635,6 +2642,7 @@ void GraphDocumentComponent::releaseGraph()
     midiEngine->setLearning (false);
     midiEngine->setGraph (nullptr);
     midiEngine->onStatusMessage = nullptr;
+    midiEngine->onTogglePluginWindows = nullptr;
     midiEngine->onLearnStateChanged = nullptr;
 
     if (graphPanel != nullptr)

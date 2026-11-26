@@ -114,6 +114,13 @@ MidiMappingTarget MidiMappingTarget::forPresetStep (bool next)
     return t;
 }
 
+MidiMappingTarget MidiMappingTarget::forPluginWindows()
+{
+    MidiMappingTarget t;
+    t.kind = Kind::pluginWindows;
+    return t;
+}
+
 AudioProcessorParameter* MidiMappingTarget::findParameter (AudioProcessor& processor) const
 {
     const auto& params = processor.getParameters();
@@ -204,6 +211,7 @@ static const char* toString (MidiMappingTarget::Kind k)
         case MidiMappingTarget::Kind::transport:        return "transport";
         case MidiMappingTarget::Kind::nextPreset:       return "nextPreset";
         case MidiMappingTarget::Kind::previousPreset:   return "previousPreset";
+        case MidiMappingTarget::Kind::pluginWindows:    return "pluginWindows";
     }
 
     return "parameter";
@@ -266,7 +274,8 @@ std::optional<MidiMapping> MidiMapping::fromXml (const XmlElement& e)
                                   { MidiMappingTarget::Kind::parameter, MidiMappingTarget::Kind::bypass,
                                     MidiMappingTarget::Kind::nextPreset, MidiMappingTarget::Kind::previousPreset,
                                     MidiMappingTarget::Kind::mute, MidiMappingTarget::Kind::tempo,
-                                    MidiMappingTarget::Kind::tapTempo, MidiMappingTarget::Kind::transport });
+                                    MidiMappingTarget::Kind::tapTempo, MidiMappingTarget::Kind::transport,
+                                    MidiMappingTarget::Kind::pluginWindows });
 
     if (! type.has_value() || ! kind.has_value())
         return std::nullopt;

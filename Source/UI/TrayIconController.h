@@ -317,6 +317,7 @@ public:
 
   ~TrayIconController() override {
     GlobalShortcutManager::unregisterGlobalShortcut();
+    GlobalShortcutManager::unregisterGlobalShortcut(GlobalShortcutManager::Shortcut::pluginWindows);
     if (activeMenuKeyMonitor != nullptr) {
       GlobalShortcutManager::removeMenuKeyMonitor(activeMenuKeyMonitor);
       activeMenuKeyMonitor = nullptr;
@@ -412,6 +413,26 @@ public:
     return activePresetItemId;
   }
 
+  void initWindowsShortcut() {
+    auto *settings = getAppProperties().getUserSettings();
+
+    if (settings == nullptr || !settings->getBoolValue("windowsShortcutEnabled", false)) {
+      GlobalShortcutManager::unregisterGlobalShortcut(GlobalShortcutManager::Shortcut::pluginWindows);
+      return;
+    }
+
+    juce::Component::SafePointer<MainHostWindow> safeWindow(&mainWindow);
+    GlobalShortcutManager::registerGlobalShortcut(
+        static_cast<uint32_t>(settings->getIntValue("windowsShortcutKeyCode", 0)),
+        static_cast<uint32_t>(settings->getIntValue("windowsShortcutModifiers", 0)),
+        [safeWindow] {
+          if (auto *w = safeWindow.getComponent())
+            if (w->graphHolder != nullptr && w->graphHolder->graph != nullptr)
+              w->graphHolder->graph->togglePluginWindows();
+        },
+        GlobalShortcutManager::Shortcut::pluginWindows);
+  }
+
   static juce::String getGlobalShortcutDisplayString() {
     if (auto *settings = getAppProperties().getUserSettings()) {
       if (!settings->getBoolValue("globalShortcutEnabled", false))
@@ -430,6 +451,16 @@ public:
           self->showGlobalShortcutDialog();
       };
       callbacks.describeGlobalShortcut = [] { return getGlobalShortcutDisplayString(); };
+      callbacks.changeWindowsShortcut = [safeSelf] {
+        if (auto *self = safeSelf.getComponent())
+          self->showWindowsShortcutDialog();
+      };
+      callbacks.describeWindowsShortcut = [] {
+        if (auto *settings = getAppProperties().getUserSettings())
+          if (settings->getBoolValue("windowsShortcutEnabled", false))
+            return settings->getValue("windowsShortcutText");
+        return juce::String("(Disabled)");
+      };
       preferencesWindow = std::make_unique<PreferencesWindow>(mainWindow, gitHubUpdater, std::move(callbacks));
     }
 
@@ -467,7 +498,40 @@ public:
       });
   }
 
+  // Showing and hiding the plug-in windows: off until set, as it has no default
+  void showWindowsShortcutDialog() {
+    bool enabled = false;
+    uint32_t keyCode = 0, modifiers = 0;
+    juce::String text;
+
+    if (auto *settings = getAppProperties().getUserSettings()) {
+      enabled = settings->getBoolValue("windowsShortcutEnabled", false);
+      keyCode = static_cast<uint32_t>(settings->getIntValue("windowsShortcutKeyCode", 0));
+      modifiers = static_cast<uint32_t>(settings->getIntValue("windowsShortcutModifiers", 0));
+      text = settings->getValue("windowsShortcutText");
+    }
+
+    juce::Component::SafePointer<TrayIconController> safeSelf(this);
+    GlobalShortcutDialog::showDialog(enabled, keyCode, modifiers, text,
+      [safeSelf](bool newEnabled, uint32_t newKeyCode, uint32_t newMods, const juce::String &newText) {
+        if (auto *self = safeSelf.getComponent()) {
+          if (auto *settings = getAppProperties().getUserSettings()) {
+            // Enabled without recording one keeps nothing to register
+            settings->setValue("windowsShortcutEnabled", newEnabled && newText.isNotEmpty());
+            settings->setValue("windowsShortcutKeyCode", (int) newKeyCode);
+            settings->setValue("windowsShortcutModifiers", (int) newMods);
+            settings->setValue("windowsShortcutText", newText);
+            settings->saveIfNeeded();
+          }
+          self->initGlobalShortcut();
+        }
+      },
+      GlobalShortcutDialog::pluginWindowsPurpose());
+  }
+
   void initGlobalShortcut() {
+    initWindowsShortcut();
+
     bool enabled = false;
     uint32_t keyCode = GlobalShortcutManager::defaultCarbonKeyCode;
     uint32_t modifiers = GlobalShortcutManager::defaultCarbonModifiers;

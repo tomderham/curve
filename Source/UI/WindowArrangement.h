@@ -38,6 +38,9 @@ namespace WindowArrangement
     /** Shows the window on every Space, or only on the one it's on. */
     void setOnAllSpaces (juce::Component&, bool shouldBeOnAll);
 
+    /** Whether the window can be dragged by its title bar. It can still be moved from code. */
+    void setMovable (juce::Component&, bool canMove);
+
     /** Whether a mouse button is down anywhere, e.g. dragging a window by its title bar, which
         macOS handles without telling the window's view. */
     bool isMouseButtonDown();

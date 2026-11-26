@@ -372,6 +372,7 @@ void MidiControlEngine::applyMapping (const MidiMapping& m, int controlValue)
     {
         case MidiMappingTarget::Kind::nextPreset:
         case MidiMappingTarget::Kind::previousPreset:
+        case MidiMappingTarget::Kind::pluginWindows:
         {
             if (m.trigger.type == MidiTrigger::Type::controller)
             {
@@ -391,8 +392,19 @@ void MidiControlEngine::applyMapping (const MidiMapping& m, int controlValue)
                 heldPresetStepControls.push_back (m.trigger);
             }
 
-            if (pressed)
+            if (! pressed)
+                return;
+
+            if (m.target.kind == MidiMappingTarget::Kind::pluginWindows)
+            {
+                if (onTogglePluginWindows != nullptr)
+                    onTogglePluginWindows();
+            }
+            else
+            {
                 stepPreset (m.target.kind == MidiMappingTarget::Kind::nextPreset ? 1 : -1);
+            }
+
             return;
         }
 
@@ -710,6 +722,14 @@ void MidiControlEngine::learnPresetStep (bool next, std::function<void (const Mi
     updateCapturing();
 }
 
+void MidiControlEngine::learnPluginWindowsControl (std::function<void (const MidiTrigger&)> onLearned)
+{
+    presetStepTarget = MidiMappingTarget::forPluginWindows();
+    heldPresetStepControls.clear();
+    onPresetStepLearned = std::move (onLearned);
+    updateCapturing();
+}
+
 void MidiControlEngine::cancelPresetStepLearn()
 {
     presetStepTarget.reset();
@@ -761,6 +781,15 @@ void MidiControlEngine::showLearnStatus (const String& detail)
 }
 
 //==============================================================================
+void MidiControlEngine::clearGlobalMapping (const MidiMappingTarget& target)
+{
+    if (globalMappings.removeFor (target))
+    {
+        saveGlobalMappings();
+        rebuildTable();
+    }
+}
+
 void MidiControlEngine::clearGlobalMappings()
 {
     globalMappings.clear();

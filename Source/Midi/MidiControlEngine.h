@@ -45,6 +45,7 @@ public:
     std::function<void (const File&)> onLoadPreset;
     std::function<void (const String&)> onStatusMessage;    // an empty string clears it
     std::function<void()> onLearnStateChanged;
+    std::function<void()> onTogglePluginWindows;            // from an app-wide control
 
     //==============================================================================
     bool isLearning() const                                     { return learnMode; }
@@ -57,12 +58,18 @@ public:
 
     /** Waits for one MIDI control and assigns it to next/previous preset. */
     void learnPresetStep (bool next, std::function<void (const MidiTrigger&)> onLearned);
+
+    /** Waits for one MIDI control and assigns it to showing and hiding the plug-in windows. */
+    void learnPluginWindowsControl (std::function<void (const MidiTrigger&)> onLearned);
+
+    /** Stops waiting for either. */
     void cancelPresetStepLearn();
 
     //==============================================================================
     // App-wide controls, kept in user settings rather than in presets
     const MidiMappingSet& getGlobalMappings() const             { return globalMappings; }
     void clearGlobalMappings();
+    void clearGlobalMapping (const MidiMappingTarget&);
 
     static bool isProgramChangePresetSelectEnabled();
     void setProgramChangePresetSelectEnabled (bool);

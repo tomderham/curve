@@ -211,6 +211,9 @@ public:
         if (isShownOnAllSpaces())
             WindowArrangement::setOnAllSpaces (*this, true);
 
+        if (arePositionsLocked())
+            WindowArrangement::setMovable (*this, false);
+
         isPlacing = false;
 
         // Where it opened, if nothing was saved, or where a preset saved before displays were
@@ -321,6 +324,26 @@ public:
 
     static constexpr const char* onAllSpacesSetting = "pluginWindowsOnAllSpaces";
 
+    /** Whether plug-in windows can't be dragged, so a layout can't be knocked out of place on stage */
+    static bool arePositionsLocked()
+    {
+        if (auto* settings = getAppProperties().getUserSettings())
+            return settings->getBoolValue (positionsLockedSetting, false);
+
+        return false;
+    }
+
+    static void setPositionsLocked (bool shouldLock)
+    {
+        if (auto* settings = getAppProperties().getUserSettings())
+        {
+            settings->setValue (positionsLockedSetting, shouldLock);
+            settings->saveIfNeeded();
+        }
+    }
+
+    static constexpr const char* positionsLockedSetting = "pluginWindowPositionsLocked";
+
     /** The node properties, saved in presets as node attributes, that say how its window of this
         type was arranged. Each window type's own, so a node's generic editor has its own place. */
     static String getOpenProp        (Type type)    { return "uiopen_"     + getTypeName (type); }
@@ -332,13 +355,17 @@ public:
     static String getDisplayXProp    (Type type)    { return "uiDisplayX_" + getTypeName (type); }
     static String getDisplayYProp    (Type type)    { return "uiDisplayY_" + getTypeName (type); }
     static String getStackProp       (Type type)    { return "uiStack_"    + getTypeName (type); }
+    static String getOnTopProp       (Type type)    { return "uiOnTop_"    + getTypeName (type); }
+
+    /** Kept above other apps' windows, e.g. a score or a meter on a stage */
+    bool isKeptOnTop() const        { return node != nullptr && (bool) node->properties[getOnTopProp (type)]; }
 
     static StringArray getArrangementProps (Type type)
     {
         return { getOpenProp (type), getLastXProp (type), getLastYProp (type),
                  getLastWidthProp (type), getLastHeightProp (type),
                  getDisplayProp (type), getDisplayXProp (type), getDisplayYProp (type),
-                 getStackProp (type) };
+                 getStackProp (type), getOnTopProp (type) };
     }
 
     /** Sets a node's window properties from its saved attributes, removing any it doesn't have

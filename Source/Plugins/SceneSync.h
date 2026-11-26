@@ -55,7 +55,7 @@ inline void removeDescriptionTimes (juce::XmlElement& node)
 inline bool isWindowAttribute (const juce::String& name)
 {
     for (const auto* prefix : { "uiopen_", "uiLastX_", "uiLastY_", "uiLastW_", "uiLastH_",
-                                "uiDisplay_", "uiDisplayX_", "uiDisplayY_", "uiStack_" })
+                                "uiDisplay_", "uiDisplayX_", "uiDisplayY_", "uiStack_", "uiOnTop_" })
         if (name.startsWith (prefix))
             return true;
 

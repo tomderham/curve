@@ -42,10 +42,16 @@ public:
 
     using LocalActionMap = std::unordered_map<LocalShortcutKey, std::function<void()>, LocalShortcutKeyHash>;
 
-    // Global Hotkey Management (Carbon RegisterEventHotKey)
-    static bool registerGlobalShortcut(uint32_t carbonKeyCode, uint32_t carbonModifiers, std::function<void()> callback);
-    static void unregisterGlobalShortcut();
-    static bool isGlobalShortcutRegistered();
+    // Global Hotkey Management (Carbon RegisterEventHotKey). Each shortcut is registered on its own
+    enum class Shortcut : uint32_t {
+        menu = 1,          // opens the menu bar panel (or menu)
+        pluginWindows = 2  // shows or hides the plug-in windows
+    };
+
+    static bool registerGlobalShortcut(uint32_t carbonKeyCode, uint32_t carbonModifiers, std::function<void()> callback,
+                                       Shortcut = Shortcut::menu);
+    static void unregisterGlobalShortcut(Shortcut = Shortcut::menu);
+    static bool isGlobalShortcutRegistered(Shortcut = Shortcut::menu);
 
     // Key Conversion Helpers
     static bool juceKeyPressToCarbon(const juce::KeyPress& keyPress, uint32_t& outCarbonKeyCode, uint32_t& outCarbonModifiers);

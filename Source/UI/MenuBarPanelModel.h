@@ -90,6 +90,9 @@ public:
             state.isPresetModified = graph->hasChangedSinceSaved();
             addPlugins (state, *graph);
             state.latencySamples = graph->graph.getLatencySamples();
+            state.numPluginWindows = graph->getNumPluginWindows();
+            state.arePluginWindowsHidden = graph->arePluginWindowsHidden();
+            state.arePluginWindowPositionsLocked = PluginWindow::arePositionsLocked();
         }
 
         if (auto* device = mainWindow.getDeviceManager().getCurrentAudioDevice())
@@ -154,6 +157,26 @@ public:
     }
 
     void setVolume (int steps, bool muted) override  { VolumeKeyManager::setVolume (steps, muted); }
+
+    void setWindowKeptOnTop (juce::uint32 id, bool shouldKeepOnTop) override
+    {
+        if (auto* graph = getGraph())
+            graph->setWindowKeptOnTop (NodeID (id), shouldKeepOnTop);
+    }
+
+    void setPluginWindowPositionsLocked (bool shouldLock) override
+    {
+        if (auto* graph = getGraph())
+            graph->setPluginWindowPositionsLocked (shouldLock);
+        else
+            PluginWindow::setPositionsLocked (shouldLock);
+    }
+
+    void togglePluginWindows() override
+    {
+        if (auto* graph = getGraph())
+            graph->togglePluginWindows();
+    }
 
     void toggleGraphEditor() override
     {
@@ -238,6 +261,7 @@ private:
             plugin.isMuted = graph.isNodeMuted (node->nodeID);
             plugin.hasEditor = processor->hasEditor() && ! PluginGraph::isConfiguredByAudioSettings (*processor);
             plugin.isWindowOpen = graph.hasWindowFor (*node, PluginWindow::Type::normal);
+            plugin.isWindowKeptOnTop = graph.isWindowKeptOnTop (node->nodeID);
 
             // The graph's I/O and the loopback nodes are set up in Audio Settings, not here
             const bool isIO = dynamic_cast<IOProcessor*> (processor) != nullptr

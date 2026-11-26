@@ -499,6 +499,15 @@ private:
         add (@"Plug-in Manager", callbacks.showPluginManager);
         add (@"Preferences...", callbacks.showPreferences);
         [menu addItem: [NSMenuItem separatorItem]];
+
+        // Quick to reach on stage, so a layout can't be knocked out of place
+        const bool locked = source.getState().arePluginWindowPositionsLocked;
+        auto* lock = makeAction ([this, locked] (id) { source.setPluginWindowPositionsLocked (! locked); });
+        NSMenuItem* lockItem = [[[NSMenuItem alloc] initWithTitle: @"Lock Plug-in Window Positions" action: @selector (perform:) keyEquivalent: @""] autorelease];
+        [lockItem setTarget: lock];
+        [lockItem setState: locked ? NSControlStateValueOn : NSControlStateValueOff];
+        [menu addItem: lockItem];
+        [menu addItem: [NSMenuItem separatorItem]];
         add (@"Curve Help", callbacks.showHelp);
         add (@"About...", callbacks.showAbout);
         [menu addItem: [NSMenuItem separatorItem]];
@@ -690,6 +699,12 @@ private:
 
                 add (plugin.isWindowOpen ? @"Close Plug-in Window" : @"Open Plug-in Window", plugin.hasEditor, [this, nodeID] { source.toggleEditor (nodeID); });
 
+                if (plugin.hasEditor)
+                {
+                    add (@"Keep Window on Top", true, [this, nodeID, onTop = plugin.isWindowKeptOnTop] { source.setWindowKeptOnTop (nodeID, ! onTop); });
+                    [[menu itemArray].lastObject setState: plugin.isWindowKeptOnTop ? NSControlStateValueOn : NSControlStateValueOff];
+                }
+
                 if (plugin.canBypass)
                 {
                     add (plugin.isBypassed ? @"Turn On" : @"Bypass", true, [this, nodeID, b = plugin.isBypassed] { source.setBypassed (nodeID, ! b); });
@@ -756,7 +771,17 @@ private:
         [editor setBezelStyle: NSBezelStyleRounded];
         [editor setControlSize: NSControlSizeSmall];
 
-        return makeRow (@[ editor, makeSpacer() ]);
+        if (state.numPluginWindows == 0)
+            return makeRow (@[ editor, makeSpacer() ]);
+
+        // The preset's plug-in windows, as a set, e.g. to get them out of the way and back
+        auto* toggleWindows = makeAction ([this] (id) { source.togglePluginWindows(); });
+        NSButton* windows = [NSButton buttonWithTitle: state.arePluginWindowsHidden ? @"Show Plug-in Windows" : @"Hide Plug-in Windows"
+                                               target: toggleWindows action: @selector (perform:)];
+        [windows setBezelStyle: NSBezelStyleRounded];
+        [windows setControlSize: NSControlSizeSmall];
+
+        return makeRow (@[ editor, makeSpacer(), windows ]);
     }
 
     //==============================================================================

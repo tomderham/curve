@@ -15,9 +15,12 @@
 #import <Carbon/Carbon.h>
 #include "GlobalShortcutManager.h"
 
-static EventHotKeyRef sGlobalHotKeyRef = nullptr;
+#include <map>
+
+// Each shortcut's hot key and what it does, by its ID (see GlobalShortcutManager::Shortcut)
+static std::map<uint32_t, EventHotKeyRef> sGlobalHotKeyRefs;
+static std::map<uint32_t, std::function<void()>> sGlobalCallbacks;
 static EventHandlerRef sGlobalEventHandlerRef = nullptr;
-static std::function<void()> sGlobalCallback = nullptr;
 
 static OSStatus hotKeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent, void* userData)
 {
@@ -26,25 +29,24 @@ static OSStatus hotKeyHandler(EventHandlerCallRef nextHandler, EventRef theEvent
     EventHotKeyID hotKeyID;
     GetEventParameter(theEvent, kEventParamDirectObject, typeEventHotKeyID, NULL, sizeof(hotKeyID), NULL, &hotKeyID);
 
-    if (hotKeyID.signature == 'CURV' && hotKeyID.id == 1)
+    if (hotKeyID.signature == 'CURV' && sGlobalCallbacks.count(hotKeyID.id) > 0)
     {
-        if (sGlobalCallback)
-        {
-            juce::MessageManager::callAsync([] {
-                if (sGlobalCallback)
-                    sGlobalCallback();
-            });
-        }
+        const auto id = hotKeyID.id;
+        juce::MessageManager::callAsync([id] {
+            if (auto found = sGlobalCallbacks.find(id); found != sGlobalCallbacks.end() && found->second)
+                found->second();
+        });
         return noErr;
     }
     return CallNextEventHandler(nextHandler, theEvent);
 }
 
-bool GlobalShortcutManager::registerGlobalShortcut(uint32_t carbonKeyCode, uint32_t carbonModifiers, std::function<void()> callback)
+bool GlobalShortcutManager::registerGlobalShortcut(uint32_t carbonKeyCode, uint32_t carbonModifiers, std::function<void()> callback,
+                                                   Shortcut shortcut)
 {
-    unregisterGlobalShortcut();
+    unregisterGlobalShortcut(shortcut);
 
-    sGlobalCallback = std::move(callback);
+    sGlobalCallbacks[(uint32_t) shortcut] = std::move(callback);
 
     if (sGlobalEventHandlerRef == nullptr)
     {
@@ -56,24 +58,31 @@ bool GlobalShortcutManager::registerGlobalShortcut(uint32_t carbonKeyCode, uint3
 
     EventHotKeyID hotKeyID;
     hotKeyID.signature = 'CURV';
-    hotKeyID.id = 1;
+    hotKeyID.id = (uint32_t) shortcut;
 
-    OSStatus status = RegisterEventHotKey(carbonKeyCode, carbonModifiers, hotKeyID, GetApplicationEventTarget(), 0, &sGlobalHotKeyRef);
+    EventHotKeyRef ref = nullptr;
+    OSStatus status = RegisterEventHotKey(carbonKeyCode, carbonModifiers, hotKeyID, GetApplicationEventTarget(), 0, &ref);
+
+    if (status == noErr)
+        sGlobalHotKeyRefs[(uint32_t) shortcut] = ref;
+
     return status == noErr;
 }
 
-void GlobalShortcutManager::unregisterGlobalShortcut()
+void GlobalShortcutManager::unregisterGlobalShortcut(Shortcut shortcut)
 {
-    if (sGlobalHotKeyRef != nullptr)
+    if (auto found = sGlobalHotKeyRefs.find((uint32_t) shortcut); found != sGlobalHotKeyRefs.end())
     {
-        UnregisterEventHotKey(sGlobalHotKeyRef);
-        sGlobalHotKeyRef = nullptr;
+        UnregisterEventHotKey(found->second);
+        sGlobalHotKeyRefs.erase(found);
     }
+
+    sGlobalCallbacks.erase((uint32_t) shortcut);
 }
 
-bool GlobalShortcutManager::isGlobalShortcutRegistered()
+bool GlobalShortcutManager::isGlobalShortcutRegistered(Shortcut shortcut)
 {
-    return sGlobalHotKeyRef != nullptr;
+    return sGlobalHotKeyRefs.count((uint32_t) shortcut) > 0;
 }
 
 static uint32_t charToCarbonKeyCode(juce::juce_wchar ch)

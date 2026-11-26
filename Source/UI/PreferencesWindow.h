@@ -60,6 +60,8 @@ public:
     {
         std::function<void()> changeGlobalShortcut;          // opens the shortcut dialog
         std::function<juce::String()> describeGlobalShortcut; // e.g. "⌥⌘C", or "(Disabled)"
+        std::function<void()> changeWindowsShortcut;          // the same, for showing and hiding plug-in windows
+        std::function<juce::String()> describeWindowsShortcut;
     };
 
     PreferencesComponent (MainHostWindow& window, GitHubUpdater& updater, Callbacks callbacksIn)
@@ -168,6 +170,17 @@ private:
                     PluginWindow::setShownOnAllSpaces (newState);
             };
 
+            lockWindowPositions.setButtonText ("Lock plug-in window positions");
+            lockWindowPositions.onClick = [this]
+            {
+                const bool newState = lockWindowPositions.getToggleState();
+
+                if (window.graphHolder != nullptr && window.graphHolder->graph != nullptr)
+                    window.graphHolder->graph->setPluginWindowPositionsLocked (newState);
+                else
+                    PluginWindow::setPositionsLocked (newState);
+            };
+
             updatesLabel.setText ("Updates:", juce::dontSendNotification);
 
             autoCheck.setButtonText ("Auto-Check for App Updates");
@@ -193,7 +206,7 @@ private:
             };
 
             for (auto* c : std::initializer_list<juce::Component*> { &openAtLogin, &showInDock, &preventSleep, &releaseWhenIdle,
-                                                                    &pluginWindowsOnAllSpaces, &updatesLabel, &autoCheck, &checkNow })
+                                                                    &pluginWindowsOnAllSpaces, &lockWindowPositions, &updatesLabel, &autoCheck, &checkNow })
                 addAndMakeVisible (c);
         }
 
@@ -203,6 +216,7 @@ private:
             showInDock.setToggleState (DockIconManager::isShowInDockEnabled(), juce::dontSendNotification);
             releaseWhenIdle.setToggleState (IdleReleaseController::isEnabledInSettings(), juce::dontSendNotification);
             pluginWindowsOnAllSpaces.setToggleState (PluginWindow::isShownOnAllSpaces(), juce::dontSendNotification);
+            lockWindowPositions.setToggleState (PluginWindow::arePositionsLocked(), juce::dontSendNotification);
 
             if (auto* settings = getAppProperties().getUserSettings())
             {
@@ -215,7 +229,7 @@ private:
         {
             auto r = getLocalBounds().reduced (margin, 12);
 
-            for (auto* t : { &openAtLogin, &showInDock, &preventSleep, &releaseWhenIdle, &pluginWindowsOnAllSpaces })
+            for (auto* t : { &openAtLogin, &showInDock, &preventSleep, &releaseWhenIdle, &pluginWindowsOnAllSpaces, &lockWindowPositions })
                 t->setBounds (r.removeFromTop (rowHeight));
 
             r.removeFromTop (12);
@@ -228,7 +242,7 @@ private:
 
         MainHostWindow& window;
         std::shared_ptr<std::atomic<GitHubUpdater*>> updaterToken;
-        juce::ToggleButton openAtLogin, showInDock, preventSleep, releaseWhenIdle, pluginWindowsOnAllSpaces, autoCheck;
+        juce::ToggleButton openAtLogin, showInDock, preventSleep, releaseWhenIdle, pluginWindowsOnAllSpaces, lockWindowPositions, autoCheck;
         juce::Label updatesLabel;
         juce::TextButton checkNow;
     };
@@ -335,6 +349,13 @@ private:
             changeShortcut.setButtonText ("Change...");
             changeShortcut.onClick = [this] { if (callbacks.changeGlobalShortcut) callbacks.changeGlobalShortcut(); };
 
+            windowsShortcutLabel.setText ("Plug-in Windows Shortcut:", juce::dontSendNotification);
+            changeWindowsShortcut.setButtonText ("Change...");
+            changeWindowsShortcut.onClick = [this] { if (callbacks.changeWindowsShortcut) callbacks.changeWindowsShortcut(); };
+            addAndMakeVisible (windowsShortcutLabel);
+            addAndMakeVisible (windowsShortcutText);
+            addAndMakeVisible (changeWindowsShortcut);
+
             for (auto* comp : std::initializer_list<juce::Component*> { &volumeKeysLabel, &volumeKeysMode, &volumeKeysTarget,
                                                                        &overlay, &shortcutLabel, &shortcutText, &changeShortcut })
                 addAndMakeVisible (comp);
@@ -359,6 +380,8 @@ private:
 
             shortcutText.setText (callbacks.describeGlobalShortcut ? callbacks.describeGlobalShortcut() : juce::String(),
                                   juce::dontSendNotification);
+            windowsShortcutText.setText (callbacks.describeWindowsShortcut ? callbacks.describeWindowsShortcut() : juce::String(),
+                                         juce::dontSendNotification);
         }
 
         static juce::String describeVolumeStatus()
@@ -402,13 +425,19 @@ private:
             shortcutLabel.setBounds (row.removeFromLeft (labelWidth));
             changeShortcut.setBounds (row.removeFromRight (90).reduced (0, 3));
             shortcutText.setBounds (row);
+
+            row = r.removeFromTop (rowHeight);
+            windowsShortcutLabel.setBounds (row.removeFromLeft (labelWidth));
+            changeWindowsShortcut.setBounds (row.removeFromRight (90).reduced (0, 3));
+            windowsShortcutText.setBounds (row);
         }
 
         const Callbacks& callbacks;
         juce::Label volumeKeysLabel, volumeStatus, shortcutLabel, shortcutText;
+        juce::Label windowsShortcutLabel, windowsShortcutText;
         juce::ComboBox volumeKeysMode, volumeKeysTarget;
         juce::ToggleButton overlay;
-        juce::TextButton allowAccessibility, changeShortcut;
+        juce::TextButton allowAccessibility, changeShortcut, changeWindowsShortcut;
     };
 
     //==============================================================================
@@ -433,14 +462,30 @@ private:
 
                 auto& learn = next ? learnNext : learnPrevious;
                 learn.setButtonText ("MIDI Learn...");
-                learn.onClick = [this, next] { learnPresetStep (next); };
+                learn.onClick = [this, next] { learnControl (next); };
             }
 
             clear.setButtonText ("Clear Preset Controls");
             clear.onClick = [this]
             {
                 if (auto* engine = getEngine())
-                    engine->clearGlobalMappings();
+                {
+                    engine->clearGlobalMapping (MidiMappingTarget::forPresetStep (true));
+                    engine->clearGlobalMapping (MidiMappingTarget::forPresetStep (false));
+                }
+                refresh();
+            };
+
+            windowsHeader.setText ("Plug-in Windows", juce::dontSendNotification);
+            windowsHeader.setFont (juce::FontOptions (14.0f, juce::Font::bold));
+            windowsLabel.setText ("Show/Hide Control:", juce::dontSendNotification);
+            learnWindows.setButtonText ("MIDI Learn...");
+            learnWindows.onClick = [this] { learnControl (std::nullopt); };
+            clearWindows.setButtonText ("Clear");
+            clearWindows.onClick = [this]
+            {
+                if (auto* engine = getEngine())
+                    engine->clearGlobalMapping (MidiMappingTarget::forPluginWindows());
                 refresh();
             };
 
@@ -448,7 +493,9 @@ private:
             styleNote (note);
 
             for (auto* c : std::initializer_list<juce::Component*> { &switchingHeader, &programChange, &nextLabel, &nextControl, &learnNext,
-                                                                    &previousLabel, &previousControl, &learnPrevious, &clear, &note })
+                                                                    &previousLabel, &previousControl, &learnPrevious, &clear,
+                                                                    &windowsHeader, &windowsLabel, &windowsControl, &learnWindows,
+                                                                    &clearWindows, &note })
                 addAndMakeVisible (c);
         }
 
@@ -475,17 +522,27 @@ private:
                 (next ? nextControl : previousControl).setText (text, juce::dontSendNotification);
             }
 
-            clear.setEnabled (engine != nullptr && ! engine->getGlobalMappings().isEmpty());
+            const auto& global = engine != nullptr ? engine->getGlobalMappings() : MidiMappingSet();
+            clear.setEnabled (global.findFor (MidiMappingTarget::forPresetStep (true)) != nullptr
+                           || global.findFor (MidiMappingTarget::forPresetStep (false)) != nullptr);
+
+            const auto* windows = global.findFor (MidiMappingTarget::forPluginWindows());
+            windowsControl.setText (windows != nullptr ? windows->trigger.describe() : juce::String ("None"), juce::dontSendNotification);
+            clearWindows.setEnabled (windows != nullptr);
         }
 
-        // Waits for the next MIDI control, with a window the user can cancel
-        void learnPresetStep (bool next)
+        // Waits for the next MIDI control, with a window the user can cancel: for the next or previous
+        // preset, or without either, for showing and hiding the plug-in windows
+        void learnControl (std::optional<bool> next)
         {
             auto* engine = getEngine();
             if (engine == nullptr)
                 return;
 
-            auto* alert = new juce::AlertWindow (next ? "Next Preset Control" : "Previous Preset Control",
+            const auto title = ! next.has_value() ? "Show/Hide Plug-in Windows Control"
+                             : *next ? "Next Preset Control" : "Previous Preset Control";
+
+            auto* alert = new juce::AlertWindow (title,
                                                  "Press a button or pad on your MIDI controller.\n\n"
                                                  "Controllers must be enabled under MIDI Inputs in Audio Settings.",
                                                  juce::MessageBoxIconType::NoIcon);
@@ -494,11 +551,16 @@ private:
             juce::Component::SafePointer<juce::AlertWindow> safeAlert (alert);
             juce::Component::SafePointer<MidiPage> safeThis (this);
 
-            engine->learnPresetStep (next, [safeAlert] (const MidiTrigger&)
+            const auto onLearned = [safeAlert] (const MidiTrigger&)
             {
                 if (auto* a = safeAlert.getComponent())
                     a->exitModalState (1);
-            });
+            };
+
+            if (next.has_value())
+                engine->learnPresetStep (*next, onLearned);
+            else
+                engine->learnPluginWindowsControl (onLearned);
 
             alert->enterModalState (true, juce::ModalCallbackFunction::create ([safeThis] (int result)
             {
@@ -532,14 +594,25 @@ private:
             r.removeFromTop (4);
             clear.changeWidthToFitText (26);
             clear.setTopLeftPosition (r.getX(), r.getY());
-            r.removeFromTop (rowHeight + 12);
+            r.removeFromTop (rowHeight + 8);
+
+            windowsHeader.setBounds (r.removeFromTop (24));
+            auto row = r.removeFromTop (rowHeight);
+            windowsLabel.setBounds (row.removeFromLeft (labelWidth));
+            clearWindows.setBounds (row.removeFromRight (60).reduced (0, 3));
+            row.removeFromRight (6);
+            learnWindows.setBounds (row.removeFromRight (110).reduced (0, 3));
+            windowsControl.setBounds (row);
+
+            r.removeFromTop (8);
             note.setBounds (r.removeFromTop (rowHeight));
         }
 
         juce::Component::SafePointer<MainHostWindow> window;
         juce::ToggleButton programChange;
-        juce::TextButton learnNext, learnPrevious, clear;
+        juce::TextButton learnNext, learnPrevious, clear, learnWindows, clearWindows;
         juce::Label switchingHeader, nextLabel, nextControl, previousLabel, previousControl, note;
+        juce::Label windowsHeader, windowsLabel, windowsControl;
     };
 
     //==============================================================================

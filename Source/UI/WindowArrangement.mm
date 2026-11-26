@@ -153,6 +153,12 @@ void setOnAllSpaces (juce::Component& component, bool shouldBeOnAll)
     [window setCollectionBehavior: behaviour];
 }
 
+void setMovable (juce::Component& component, bool canMove)
+{
+    if (NSWindow* window = getWindow (component))
+        [window setMovable: canMove];
+}
+
 bool isMouseButtonDown()
 {
     return [NSEvent pressedMouseButtons] != 0;

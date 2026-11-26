@@ -21,12 +21,30 @@ class GlobalShortcutDialog : public juce::Component {
 public:
     using SaveCallback = std::function<void(bool enabled, uint32_t keyCode, uint32_t modifiers, const juce::String& text)>;
 
+    /** Which shortcut the dialog sets */
+    struct Purpose {
+        juce::String title, description;
+        bool hasDefault = true; // ⌥⇧C, the menu shortcut's
+    };
+
+    static Purpose menuPurpose() {
+        return { "Global Menu Shortcut",
+                 "Open Curve's menu bar panel from anywhere on macOS, even when running in the background.", true };
+    }
+
+    static Purpose pluginWindowsPurpose() {
+        return { "Plug-in Windows Shortcut",
+                 "Show or hide the current preset's plug-in windows from anywhere on macOS.", false };
+    }
+
     GlobalShortcutDialog(bool initialEnabled,
                          uint32_t initialKeyCode,
                          uint32_t initialModifiers,
                          const juce::String& initialText,
-                         SaveCallback onSaveCallback)
-        : isEnabled(initialEnabled),
+                         SaveCallback onSaveCallback,
+                         Purpose purposeToUse = menuPurpose())
+        : purpose(std::move(purposeToUse)),
+          isEnabled(initialEnabled),
           currentKeyCode(initialKeyCode),
           currentModifiers(initialModifiers),
           currentText(initialText),
@@ -34,14 +52,13 @@ public:
     {
         setSize(420, 260);
 
-        titleLabel.setText("Global Menu Shortcut", juce::dontSendNotification);
+        titleLabel.setText(purpose.title, juce::dontSendNotification);
         titleLabel.setFont(juce::FontOptions(18.0f, juce::Font::bold));
         titleLabel.setColour(juce::Label::textColourId, juce::Colours::white);
         titleLabel.setJustificationType(juce::Justification::centred);
         addAndMakeVisible(titleLabel);
 
-        descLabel.setText("Open Curve's menu bar popup from anywhere on macOS, even when running in the background.",
-                          juce::dontSendNotification);
+        descLabel.setText(purpose.description, juce::dontSendNotification);
         descLabel.setFont(juce::FontOptions(12.0f));
         descLabel.setColour(juce::Label::textColourId, Curve::Colours::text);
         descLabel.setJustificationType(juce::Justification::centred);
@@ -76,7 +93,8 @@ public:
             hintLabel.setText("Reset to default (⌥⇧C).", juce::dontSendNotification);
             updateShortcutDisplay();
         };
-        addAndMakeVisible(resetButton);
+        if (purpose.hasDefault)
+            addAndMakeVisible(resetButton);
 
         disableButton.setButtonText("Disable");
         disableButton.onClick = [this] {
@@ -158,11 +176,16 @@ public:
 
         r.removeFromTop(12);
         auto actionRow = r.removeFromTop(28);
-        int actionBtnW = (actionRow.getWidth() - 16) / 3;
+        const int numButtons = purpose.hasDefault ? 3 : 2;
+        int actionBtnW = (actionRow.getWidth() - 8 * (numButtons - 1)) / numButtons;
         recordButton.setBounds(actionRow.removeFromLeft(actionBtnW));
         actionRow.removeFromLeft(8);
-        resetButton.setBounds(actionRow.removeFromLeft(actionBtnW));
-        actionRow.removeFromLeft(8);
+
+        if (purpose.hasDefault) {
+            resetButton.setBounds(actionRow.removeFromLeft(actionBtnW));
+            actionRow.removeFromLeft(8);
+        }
+
         disableButton.setBounds(actionRow);
 
         r.removeFromTop(14);
@@ -172,11 +195,13 @@ public:
         saveButton.setBounds(bottomRow.removeFromRight(80));
     }
 
-    static void showDialog(bool enabled, uint32_t keyCode, uint32_t modifiers, const juce::String& text, SaveCallback onSave) {
-        auto* dialogComp = new GlobalShortcutDialog(enabled, keyCode, modifiers, text, std::move(onSave));
+    static void showDialog(bool enabled, uint32_t keyCode, uint32_t modifiers, const juce::String& text, SaveCallback onSave,
+                           Purpose purpose = menuPurpose()) {
+        const auto title = purpose.title;
+        auto* dialogComp = new GlobalShortcutDialog(enabled, keyCode, modifiers, text, std::move(onSave), std::move(purpose));
 
         juce::DialogWindow::LaunchOptions options;
-        options.dialogTitle = "Global Menu Shortcut";
+        options.dialogTitle = title;
         options.content.setOwned(dialogComp);
         options.dialogBackgroundColour = Curve::Colours::surface;
         options.escapeKeyTriggersCloseButton = true;
@@ -203,6 +228,7 @@ private:
             dw->exitModalState(0);
     }
 
+    Purpose purpose;
     bool isEnabled = true;
     uint32_t currentKeyCode = GlobalShortcutManager::defaultCarbonKeyCode;
     uint32_t currentModifiers = GlobalShortcutManager::defaultCarbonModifiers;

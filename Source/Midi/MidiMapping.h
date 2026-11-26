@@ -45,7 +45,7 @@ struct MidiTrigger
 /** What a mapping controls. */
 struct MidiMappingTarget
 {
-    enum class Kind { parameter, bypass, nextPreset, previousPreset, mute, tempo, tapTempo, transport };
+    enum class Kind { parameter, bypass, nextPreset, previousPreset, mute, tempo, tapTempo, transport, pluginWindows };
 
     Kind kind = Kind::parameter;
     AudioProcessorGraph::NodeID nodeID;
@@ -56,6 +56,7 @@ struct MidiMappingTarget
     static MidiMappingTarget forBypass (AudioProcessorGraph::NodeID);
     static MidiMappingTarget forMute (AudioProcessorGraph::NodeID);
     static MidiMappingTarget forPresetStep (bool next);
+    static MidiMappingTarget forPluginWindows();  // shows or hides them, app-wide like the preset steps
     static MidiMappingTarget forHost (Kind);   // tempo, tapTempo or transport
 
     bool isNodeTarget() const { return kind == Kind::parameter || kind == Kind::bypass || kind == Kind::mute; }

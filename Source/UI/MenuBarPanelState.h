@@ -34,7 +34,7 @@ namespace MenuBarPanelState
         juce::uint32 id = 0; // The node's ID
         juce::String label;
         bool canBypass = false, isBypassed = false, isMuted = false;
-        bool hasEditor = false, isWindowOpen = false;
+        bool hasEditor = false, isWindowOpen = false, isWindowKeptOnTop = false;
     };
 
     struct State
@@ -54,6 +54,10 @@ namespace MenuBarPanelState
         juce::String volumeDescription; // e.g. "-11.9 dB"
 
         bool isEditorShowing = false;
+
+        int numPluginWindows = 0;          // Open, shown or hidden
+        bool arePluginWindowsHidden = false;
+        bool arePluginWindowPositionsLocked = false;
     };
 
     class Source
@@ -75,5 +79,8 @@ namespace MenuBarPanelState
         virtual void hideFromPanel (juce::uint32 nodeID) = 0;
         virtual void setVolume (int steps, bool muted) = 0;
         virtual void toggleGraphEditor() = 0;
+        virtual void togglePluginWindows() = 0;
+        virtual void setWindowKeptOnTop (juce::uint32 nodeID, bool) = 0;
+        virtual void setPluginWindowPositionsLocked (bool) = 0;
     };
 }

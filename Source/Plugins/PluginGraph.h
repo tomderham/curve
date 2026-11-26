@@ -120,8 +120,22 @@ public:
     // in, without making Curve the active app
     void bringPluginWindowsToFront();
 
+    // Hides the open plug-in windows, or shows and brings them to the front if they're all hidden,
+    // from the menu bar panel, a shortcut or a MIDI control. They stay open while hidden
+    void togglePluginWindows();
+    void showPluginWindows();
+    bool arePluginWindowsHidden() const;
+    int getNumPluginWindows() const   { return activePluginWindows.size(); }
+
     // Shows plug-in windows on every Space, or each only on its own, and remembers the choice
     void setPluginWindowsOnAllSpaces (bool shouldBeOnAll);
+
+    // Keeps a node's plug-in window above other apps' windows. Saved with the preset, as its place is
+    void setWindowKeptOnTop (NodeID, bool shouldKeepOnTop);
+    bool isWindowKeptOnTop (NodeID) const;
+
+    // Stops plug-in windows being dragged, and remembers the choice
+    void setPluginWindowPositionsLocked (bool shouldLock);
 
     bool hasWindowFor (const AudioProcessorGraph::Node&, PluginWindow::Type) const;
     void closeWindowFor (const AudioProcessorGraph::Node&, PluginWindow::Type);

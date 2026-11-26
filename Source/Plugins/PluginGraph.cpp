@@ -352,9 +352,17 @@ PluginWindow* PluginGraph::getOrCreateWindowFor (AudioProcessorGraph::Node* node
 {
     jassert (node != nullptr);
 
+    // One already open, which may be hidden with the others (see togglePluginWindows())
     for (auto* w : activePluginWindows)
+    {
         if (w->node.get() == node && w->type == type)
+        {
+            if (! w->isVisible())
+                w->setVisible (true);
+
             return w;
+        }
+    }
 
     if (auto* processor = node->getProcessor())
     {
@@ -370,7 +378,7 @@ PluginWindow* PluginGraph::getOrCreateWindowFor (AudioProcessorGraph::Node* node
                                                                       type,
                                                                       activePluginWindows,
                                                                       getCommandManager().getKeyMappings()));
-            window->setAlwaysOnTop (pluginWindowsFloating);
+            window->setAlwaysOnTop (pluginWindowsFloating || window->isKeptOnTop());
 
             // As its node is named, so a renamed one matches. Its format is in the node's tooltip
             window->setName (getNodeDisplayName (node->nodeID));
@@ -422,7 +430,49 @@ void PluginGraph::openPresetPluginWindows()
         if (node->properties[openWithPresetProp])
             getOrCreateWindowFor (node, PluginWindow::Type::normal);
 
-    // Those already open too: a scene switch keeps them, wherever they've got to behind other apps
+    // Those already open too: a scene switch keeps them, wherever they've got to behind other apps,
+    // or hidden
+    showPluginWindows();
+}
+
+void PluginGraph::togglePluginWindows()
+{
+    if (activePluginWindows.isEmpty())
+        return;
+
+    const auto anyShowing = std::any_of (activePluginWindows.begin(), activePluginWindows.end(),
+                                         [] (PluginWindow* w) { return w->isVisible() && ! w->isMinimised(); });
+
+    if (anyShowing)
+    {
+        for (auto* w : activePluginWindows)
+            w->setVisible (false);
+    }
+    else
+    {
+        showPluginWindows();
+    }
+
+    sendChangeMessage();
+}
+
+bool PluginGraph::arePluginWindowsHidden() const
+{
+    return ! activePluginWindows.isEmpty()
+        && std::none_of (activePluginWindows.begin(), activePluginWindows.end(),
+                         [] (PluginWindow* w) { return w->isVisible() && ! w->isMinimised(); });
+}
+
+void PluginGraph::showPluginWindows()
+{
+    for (auto* w : activePluginWindows)
+    {
+        if (w->isMinimised())
+            w->setMinimised (false);
+
+        w->setVisible (true);
+    }
+
     bringPluginWindowsToFront();
 }
 
@@ -460,6 +510,41 @@ void PluginGraph::closeWindowFor (const AudioProcessorGraph::Node& node, PluginW
             activePluginWindows.remove (i);
 }
 
+void PluginGraph::setWindowKeptOnTop (NodeID nodeID, bool shouldKeepOnTop)
+{
+    if (auto* node = graph.getNodeForId (nodeID))
+    {
+        const auto prop = PluginWindow::getOnTopProp (PluginWindow::Type::normal);
+
+        if (shouldKeepOnTop)
+            node->properties.set (prop, true);
+        else
+            node->properties.remove (prop);
+
+        for (auto* w : activePluginWindows)
+            if (w->node.get() == node)
+                w->setAlwaysOnTop (pluginWindowsFloating || w->isKeptOnTop());
+
+        sendChangeMessage();
+    }
+}
+
+bool PluginGraph::isWindowKeptOnTop (NodeID nodeID) const
+{
+    if (auto* node = graph.getNodeForId (nodeID))
+        return node->properties[PluginWindow::getOnTopProp (PluginWindow::Type::normal)];
+
+    return false;
+}
+
+void PluginGraph::setPluginWindowPositionsLocked (bool shouldLock)
+{
+    PluginWindow::setPositionsLocked (shouldLock);
+
+    for (auto* w : activePluginWindows)
+        WindowArrangement::setMovable (*w, ! shouldLock);
+}
+
 void PluginGraph::setPluginWindowsOnAllSpaces (bool shouldBeOnAll)
 {
     PluginWindow::setShownOnAllSpaces (shouldBeOnAll);
@@ -474,7 +559,7 @@ void PluginGraph::setPluginWindowsFloating (bool shouldFloat)
 
     for (auto* w : activePluginWindows)
     {
-        w->setAlwaysOnTop (shouldFloat);
+        w->setAlwaysOnTop (shouldFloat || w->isKeptOnTop());
 
         // Bring back any that the editor covered when learning was switched on
         if (shouldFloat)
@@ -561,6 +646,7 @@ String PluginGraph::describeMidiMappingTarget (const MidiMappingTarget& target) 
         case MidiMappingTarget::Kind::transport:        return "Start/Stop";
         case MidiMappingTarget::Kind::nextPreset:       return "Next Preset";
         case MidiMappingTarget::Kind::previousPreset:   return "Previous Preset";
+        case MidiMappingTarget::Kind::pluginWindows:    return "Show/Hide Plug-in Windows";
         case MidiMappingTarget::Kind::parameter:        break;
     }
 
