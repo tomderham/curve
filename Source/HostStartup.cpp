@@ -248,6 +248,10 @@ public:
     {
         namespace C = Curve::Colours;
 
+        // The system's font, San Francisco, as AppKit's own controls and Curve's menu bar panel use,
+        // rather than JUCE's default on macOS, Lucida Grande
+        setDefaultSansSerifTypefaceName (".AppleSystemUIFont");
+
         setColourScheme ({ C::canvas,   // window background
                            C::control,  // widget background
                            C::menu,     // menu background
@@ -503,6 +507,9 @@ public:
 
     // Early initialization of audio diagnostics on the message thread before any audio hardware or devices start
     AudioDiagnostics::initializeEarly();
+
+    // Text that doesn't fit is cut short, with an ellipsis, rather than squashed narrower
+    juce::Font::setDefaultMinimumHorizontalScaleFactor (1.0f);
 
     customLookAndFeel = std::make_unique<CurveLookAndFeel>();
     juce::LookAndFeel::setDefaultLookAndFeel (customLookAndFeel.get());
