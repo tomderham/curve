@@ -8,6 +8,7 @@
 
 #include "OnlineCalibrationDialog.h"
 #include "CurveColours.h"
+#include <array>
 #include <cmath>
 #include <complex>
 
@@ -370,14 +371,10 @@ OnlineCalibrationDialog::OnlineCalibrationDialog (Mode dialogMode)
 
     addAndMakeVisible (curveVisualizer);
 
-    filterSummaryEditor.setMultiLine (true);
-    filterSummaryEditor.setReadOnly (true);
-    filterSummaryEditor.setCaretVisible (false);
-    filterSummaryEditor.setColour (juce::TextEditor::backgroundColourId, Curve::Colours::surface);
-    filterSummaryEditor.setColour (juce::TextEditor::outlineColourId, Curve::Colours::edge);
-    filterSummaryEditor.setColour (juce::TextEditor::textColourId, Curve::Colours::text);
-    filterSummaryEditor.setFont (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(), 11.0f, juce::Font::plain));
-    addAndMakeVisible (filterSummaryEditor);
+    filterViewport.setViewedComponent (&filterTable, false);
+    filterViewport.setScrollBarsShown (true, false);
+    filterViewport.setScrollBarThickness (10);
+    addAndMakeVisible (filterViewport);
 
     cancelButton.onClick = [this] { closeDialog(); };
     addAndMakeVisible (cancelButton);
@@ -552,7 +549,15 @@ void OnlineCalibrationDialog::resized()
     rightArea.removeFromTop (8);
     curveVisualizer.setBounds (rightArea.removeFromTop (160));
     rightArea.removeFromTop (8);
-    filterSummaryEditor.setBounds (rightArea);
+    filterViewport.setBounds (rightArea);
+    updateFilterTableSize();
+}
+
+void OnlineCalibrationDialog::updateFilterTableSize()
+{
+    // At least the viewport's height, so the message or background fills it
+    filterTable.setSize (filterViewport.getMaximumVisibleWidth(),
+                         juce::jmax (filterViewport.getHeight(), filterTable.getIdealHeight()));
 }
 
 void OnlineCalibrationDialog::refreshSourceDropdown()
@@ -662,7 +667,7 @@ void OnlineCalibrationDialog::loadSelectedProfile()
         selectedModelLabel.setText ("No headphone selected", juce::dontSendNotification);
         statusLabel.setText ({}, juce::dontSendNotification);
         curveVisualizer.setProfile (std::nullopt);
-        filterSummaryEditor.setText ({});
+        filterTable.setProfile (std::nullopt);
         actionButton.setEnabled (false);
         loadedProfile = std::nullopt;
         isLoadingProfile = false;
@@ -678,7 +683,8 @@ void OnlineCalibrationDialog::loadSelectedProfile()
     // Immediately clear previous profile, curve, and summary text so load state is obvious
     loadedProfile = std::nullopt;
     curveVisualizer.setProfile (std::nullopt);
-    filterSummaryEditor.setText ({});
+    filterTable.setProfile (std::nullopt);
+    updateFilterTableSize();
     actionButton.setEnabled (false);
     isLoadingProfile = true;
 
@@ -704,30 +710,9 @@ void OnlineCalibrationDialog::loadSelectedProfile()
             safeThis->statusLabel.setText ("Profile loaded.", juce::dontSendNotification);
             safeThis->curveVisualizer.setProfile (profile);
 
-            juce::String summary;
-            summary << "Headphone: " << profile->name << "\n";
-            summary << "Source:    " << profile->source << "\n";
-            summary << "Target:    " << profile->target << "\n";
-            summary << "Preamp:    " << juce::String (profile->preampGainDb, 1) << " dB\n";
-            summary << "Filters:   " << (int) profile->bands.size() << " bands\n\n";
+            safeThis->filterTable.setProfile (profile);
+            safeThis->updateFilterTableSize();
 
-            for (const auto& band : profile->bands)
-            {
-                juce::String typeStr = "PK ";
-                if (band.type == CalibrationFilterType::lowShelf)  typeStr = "LSC";
-                if (band.type == CalibrationFilterType::highShelf) typeStr = "HSC";
-                if (band.type == CalibrationFilterType::lowPass)   typeStr = "LP ";
-                if (band.type == CalibrationFilterType::highPass)  typeStr = "HP ";
-
-                summary << (band.enabled ? "[ON] " : "[OFF]")
-                        << typeStr
-                        << " | " << juce::String ((int) band.frequencyHz).paddedLeft (' ', 5) << " Hz"
-                        << " | " << (band.gainDb >= 0 ? "+" : "") << juce::String (band.gainDb, 1).paddedLeft (' ', 5) << " dB"
-                        << " | Q: " << juce::String (band.qFactor, 2)
-                        << " (Width: " << juce::String (band.bandwidthOctaves, 2) << " oct)\n";
-            }
-
-            safeThis->filterSummaryEditor.setText (summary);
             safeThis->actionButton.setEnabled (true);
 
             // Instant Audition: update the active EQ node in real-time
@@ -739,7 +724,8 @@ void OnlineCalibrationDialog::loadSelectedProfile()
             safeThis->loadedProfile = std::nullopt;
             safeThis->statusLabel.setText ("Could not load EQ profile.", juce::dontSendNotification);
             safeThis->curveVisualizer.setProfile (std::nullopt);
-            safeThis->filterSummaryEditor.setText (err.isNotEmpty() ? err : "Failed to load parametric EQ parameters.");
+            safeThis->filterTable.setMessage (err.isNotEmpty() ? err : "Failed to load parametric EQ parameters.");
+            safeThis->updateFilterTableSize();
             safeThis->actionButton.setEnabled (false);
         }
     });
@@ -801,3 +787,105 @@ void OnlineCalibrationDialog::notifyCompletion (bool confirmed)
     }
 }
 
+
+//==============================================================================
+void CalibrationFilterTable::setProfile (const std::optional<CalibrationProfile>& profile)
+{
+    bands = profile.has_value() ? profile->bands : std::vector<CalibrationFilterBand>();
+    message = {};
+    repaint();
+}
+
+void CalibrationFilterTable::setMessage (const juce::String& newMessage)
+{
+    bands.clear();
+    message = newMessage;
+    repaint();
+}
+
+int CalibrationFilterTable::getIdealHeight() const
+{
+    return bands.empty() ? 0 : rowHeight * ((int) bands.size() + 1) + 4;
+}
+
+void CalibrationFilterTable::paint (juce::Graphics& g)
+{
+    g.fillAll (Curve::Colours::surface);
+
+    if (bands.empty())
+    {
+        if (message.isNotEmpty())
+        {
+            g.setColour (Curve::Colours::dimText);
+            g.setFont (juce::FontOptions (12.0f));
+            g.drawFittedText (message, getLocalBounds().reduced (10), juce::Justification::centred, 4);
+        }
+
+        return;
+    }
+
+    // Type, then the numbers, right-aligned so their digits line up
+    const float columns[] = { 0.24f, 0.22f, 0.2f, 0.14f, 0.2f };
+    const auto columnAreas = [&] (juce::Rectangle<int> row)
+    {
+        std::array<juce::Rectangle<int>, 5> areas;
+        const auto width = (float) row.getWidth();
+
+        for (size_t i = 0; i < areas.size(); ++i)
+            areas[i] = row.removeFromLeft (i + 1 == areas.size() ? row.getWidth() : juce::roundToInt (width * columns[i]));
+
+        return areas;
+    };
+
+    auto area = getLocalBounds().reduced (10, 2);
+    const auto header = columnAreas (area.removeFromTop (rowHeight));
+
+    g.setColour (Curve::Colours::dimText);
+    g.setFont (juce::FontOptions (10.5f, juce::Font::bold));
+    g.drawText ("TYPE", header[0], juce::Justification::centredLeft);
+    g.drawText ("FREQUENCY", header[1], juce::Justification::centredRight);
+    g.drawText ("GAIN", header[2], juce::Justification::centredRight);
+    g.drawText ("Q", header[3], juce::Justification::centredRight);
+    g.drawText ("WIDTH", header[4], juce::Justification::centredRight);
+
+    g.setFont (juce::FontOptions (12.0f));
+
+    for (size_t i = 0; i < bands.size(); ++i)
+    {
+        const auto& band = bands[i];
+        const auto rowArea = area.removeFromTop (rowHeight);
+
+        if (i % 2 == 0)
+        {
+            g.setColour (juce::Colours::white.withAlpha (0.03f));
+            g.fillRoundedRectangle (rowArea.toFloat().expanded (6.0f, 0.0f), 4.0f);
+        }
+
+        const auto cells = columnAreas (rowArea);
+
+        juce::String type = "Peak";
+        switch (band.type)
+        {
+            case CalibrationFilterType::lowShelf:  type = "Low shelf";  break;
+            case CalibrationFilterType::highShelf: type = "High shelf"; break;
+            case CalibrationFilterType::lowPass:   type = "Low-pass";   break;
+            case CalibrationFilterType::highPass:  type = "High-pass";  break;
+            case CalibrationFilterType::bandPass:  type = "Band-pass";  break;
+            case CalibrationFilterType::notch:     type = "Notch";      break;
+            case CalibrationFilterType::peaking:
+            case CalibrationFilterType::unknown:
+            default: break;
+        }
+
+        const auto frequency = band.frequencyHz >= 1000.0 ? juce::String (band.frequencyHz / 1000.0, 2) + " kHz"
+                                                          : juce::String (juce::roundToInt (band.frequencyHz)) + " Hz";
+        const auto gain = (band.gainDb > 0.0 ? "+" : "") + juce::String (band.gainDb, 1) + " dB";
+
+        g.setColour (band.enabled ? Curve::Colours::text : Curve::Colours::dimText.withAlpha (0.6f));
+        g.drawText (band.enabled ? type : type + " (off)", cells[0], juce::Justification::centredLeft);
+        g.drawText (frequency, cells[1], juce::Justification::centredRight);
+        g.drawText (gain, cells[2], juce::Justification::centredRight);
+        g.drawText (juce::String (band.qFactor, 2), cells[3], juce::Justification::centredRight);
+        g.drawText (juce::String (band.bandwidthOctaves, 2) + " oct", cells[4], juce::Justification::centredRight);
+    }
+}

@@ -37,6 +37,24 @@ private:
 };
 
 //==============================================================================
+/** A profile's filter bands as a table, or a message in its place. */
+class CalibrationFilterTable final : public juce::Component
+{
+public:
+    void setProfile (const std::optional<CalibrationProfile>&);
+    void setMessage (const juce::String&);
+
+    int getIdealHeight() const;
+    void paint (juce::Graphics&) override;
+
+private:
+    std::vector<CalibrationFilterBand> bands;
+    juce::String message;
+
+    static constexpr int rowHeight = 22;
+};
+
+//==============================================================================
 /**
     Modal dialog allowing users to search and select AutoEQ headphone calibration profiles.
 */
@@ -81,6 +99,7 @@ public:
 private:
     void applyFilter();
     void refreshSourceDropdown();
+    void updateFilterTableSize();
     void loadSelectedProfile();
     void confirmSelection();
     void closeDialog();
@@ -110,7 +129,8 @@ private:
     // Right details pane
     juce::Label selectedModelLabel;
     OnlineCalibrationCurveComponent curveVisualizer;
-    juce::TextEditor filterSummaryEditor;
+    CalibrationFilterTable filterTable;
+    juce::Viewport filterViewport;
 
     juce::TextButton cancelButton { "Cancel" };
     juce::TextButton actionButton { "Use this EQ" };

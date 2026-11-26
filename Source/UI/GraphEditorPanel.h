@@ -156,6 +156,7 @@ private:
 
     bool draggingNode = false;
     Image gridTile;
+    bool gridTileForDragging = false;
 
     struct SavedNodePosition
     {

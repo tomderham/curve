@@ -300,6 +300,141 @@ public:
             g.fillRoundedRectangle ((float) area.getX() + 1.0f, (float) area.getY() + 4.0f, 2.5f, (float) area.getHeight() - 8.0f, 1.25f);
         }
     }
+
+    //==============================================================================
+    // Controls: flat and rounded, with a quiet edge, and the accent for what's on or focused
+
+    static constexpr float corner = 6.0f;
+
+    void drawButtonBackground (juce::Graphics& g, juce::Button& button, const juce::Colour& background,
+                               bool isHighlighted, bool isDown) override
+    {
+        const auto r = button.getLocalBounds().toFloat().reduced (0.5f);
+        auto fill = background.withMultipliedAlpha (button.isEnabled() ? 1.0f : 0.5f);
+
+        if (isDown)
+            fill = fill.brighter (0.18f);
+        else if (isHighlighted)
+            fill = fill.brighter (0.09f);
+
+        g.setColour (fill);
+        g.fillRoundedRectangle (r, corner);
+
+        // A coloured button, e.g. a dialog's default action, needs no edge
+        if (background == findColour (juce::TextButton::buttonColourId))
+        {
+            g.setColour (Curve::Colours::edge);
+            g.drawRoundedRectangle (r, corner, 1.0f);
+        }
+    }
+
+    // A switch, rather than a tick box
+    void drawToggleButton (juce::Graphics& g, juce::ToggleButton& button, bool isHighlighted, bool) override
+    {
+        const auto bounds = button.getLocalBounds().toFloat();
+        const float height = 14.0f, width = 24.0f;
+        const auto track = juce::Rectangle<float> (bounds.getX() + 2.0f, bounds.getCentreY() - height * 0.5f, width, height);
+        const bool on = button.getToggleState();
+        const float alpha = button.isEnabled() ? 1.0f : 0.45f;
+
+        g.setColour ((on ? Curve::Colours::accent : Curve::Colours::control.brighter (isHighlighted ? 0.2f : 0.1f)).withMultipliedAlpha (alpha));
+        g.fillRoundedRectangle (track, height * 0.5f);
+
+        if (! on)
+        {
+            g.setColour (Curve::Colours::edge.withMultipliedAlpha (alpha));
+            g.drawRoundedRectangle (track.reduced (0.5f), height * 0.5f, 1.0f);
+        }
+
+        const float knob = height - 4.0f;
+        const auto knobArea = juce::Rectangle<float> (knob, knob).withCentre ({ on ? track.getRight() - height * 0.5f : track.getX() + height * 0.5f,
+                                                                                track.getCentreY() });
+        g.setColour (juce::Colours::white.withAlpha (alpha * (on ? 1.0f : 0.85f)));
+        g.fillEllipse (knobArea);
+
+        g.setColour (button.findColour (juce::ToggleButton::textColourId).withMultipliedAlpha (alpha));
+        g.setFont (juce::FontOptions (13.5f));
+        g.drawFittedText (button.getButtonText(),
+                          button.getLocalBounds().withTrimmedLeft (juce::roundToInt (track.getRight()) + 7).withTrimmedRight (2),
+                          juce::Justification::centredLeft, 10);
+    }
+
+    void drawComboBox (juce::Graphics& g, int width, int height, bool, int, int, int, int, juce::ComboBox& box) override
+    {
+        const auto r = juce::Rectangle<float> (0.0f, 0.0f, (float) width, (float) height).reduced (0.5f);
+
+        g.setColour (box.findColour (juce::ComboBox::backgroundColourId).withMultipliedAlpha (box.isEnabled() ? 1.0f : 0.5f));
+        g.fillRoundedRectangle (r, corner);
+        g.setColour (box.hasKeyboardFocus (false) ? Curve::Colours::accent : Curve::Colours::edge);
+        g.drawRoundedRectangle (r, corner, 1.0f);
+
+        // A chevron
+        const auto centre = juce::Point<float> ((float) width - 13.0f, (float) height * 0.5f);
+        juce::Path chevron;
+        chevron.startNewSubPath (centre.translated (-4.0f, -2.0f));
+        chevron.lineTo (centre.translated (0.0f, 2.0f));
+        chevron.lineTo (centre.translated (4.0f, -2.0f));
+
+        g.setColour (box.findColour (juce::ComboBox::arrowColourId).withAlpha (box.isEnabled() ? 0.8f : 0.3f));
+        g.strokePath (chevron, juce::PathStrokeType (1.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    }
+
+    void drawScrollbar (juce::Graphics& g, juce::ScrollBar& bar, int x, int y, int width, int height, bool isVertical,
+                        int thumbStart, int thumbSize, bool isMouseOver, bool isMouseDown) override
+    {
+        auto thumb = isVertical ? juce::Rectangle<float> ((float) x, (float) thumbStart, (float) width, (float) thumbSize)
+                                : juce::Rectangle<float> ((float) thumbStart, (float) y, (float) thumbSize, (float) height);
+
+        // Slim, and wider while in use
+        const float across = isMouseOver || isMouseDown ? 7.0f : 5.0f;
+        thumb = isVertical ? thumb.withSizeKeepingCentre (across, thumb.getHeight() - 4.0f)
+                           : thumb.withSizeKeepingCentre (thumb.getWidth() - 4.0f, across);
+
+        g.setColour (bar.findColour (juce::ScrollBar::thumbColourId).withMultipliedAlpha (isMouseOver || isMouseDown ? 1.6f : 1.0f));
+        g.fillRoundedRectangle (thumb, across * 0.5f);
+    }
+
+    void fillTextEditorBackground (juce::Graphics& g, int width, int height, juce::TextEditor& editor) override
+    {
+        g.setColour (editor.findColour (juce::TextEditor::backgroundColourId));
+        g.fillRoundedRectangle (juce::Rectangle<float> ((float) width, (float) height), 5.0f);
+    }
+
+    void drawTextEditorOutline (juce::Graphics& g, int width, int height, juce::TextEditor& editor) override
+    {
+        if (! editor.isEnabled())
+            return;
+
+        const auto focused = editor.hasKeyboardFocus (true) && ! editor.isReadOnly();
+        g.setColour (editor.findColour (focused ? juce::TextEditor::focusedOutlineColourId : juce::TextEditor::outlineColourId));
+        g.drawRoundedRectangle (juce::Rectangle<float> ((float) width, (float) height).reduced (0.5f), 5.0f, focused ? 1.5f : 1.0f);
+    }
+
+    // Tabs as a segmented control: the front one raised, the others plain text
+    void drawTabButton (juce::TabBarButton& button, juce::Graphics& g, bool isMouseOver, bool) override
+    {
+        const auto area = button.getActiveArea().toFloat().reduced (2.0f, 3.0f);
+
+        if (button.isFrontTab())
+        {
+            g.setColour (Curve::Colours::control.brighter (0.08f));
+            g.fillRoundedRectangle (area, corner);
+            g.setColour (Curve::Colours::edge);
+            g.drawRoundedRectangle (area.reduced (0.5f), corner, 1.0f);
+        }
+        else if (isMouseOver)
+        {
+            g.setColour (juce::Colours::white.withAlpha (0.05f));
+            g.fillRoundedRectangle (area, corner);
+        }
+
+        g.setColour (button.isFrontTab() ? Curve::Colours::text : Curve::Colours::dimText);
+        g.setFont (juce::FontOptions (13.0f, button.isFrontTab() ? juce::Font::bold : juce::Font::plain));
+        g.drawFittedText (button.getButtonText().trim(), area.toNearestInt(), juce::Justification::centred, 1);
+    }
+
+    void drawTabbedButtonBarBackground (juce::TabbedButtonBar&, juce::Graphics&) override {}
+    void drawTabAreaBehindFrontButton (juce::TabbedButtonBar&, juce::Graphics&, int, int) override {}
 };
 
 //==============================================================================

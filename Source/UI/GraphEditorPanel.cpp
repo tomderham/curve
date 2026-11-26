@@ -306,6 +306,35 @@ private:
 };
 
 //==============================================================================
+// A window glyph that opens the node's plug-in window, shown while the pointer is over the node,
+// so the window can be found without knowing to double-click
+class NodeWindowButton final : public Button
+{
+public:
+    NodeWindowButton() : Button ("Open Window")
+    {
+        setWantsKeyboardFocus (false);
+        setTooltip ("Open the plug-in's window (or double-click the node)");
+    }
+
+    void paintButton (Graphics& g, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override
+    {
+        const auto textColour = findColour (TextEditor::textColourId);
+
+        if (shouldDrawButtonAsHighlighted || shouldDrawButtonAsDown)
+        {
+            g.setColour (textColour.withAlpha (shouldDrawButtonAsDown ? 0.22f : 0.12f));
+            g.fillRoundedRectangle (getLocalBounds().toFloat().reduced (1.0f), 4.0f);
+        }
+
+        const auto window = getLocalBounds().toFloat().withSizeKeepingCentre (13.0f, 11.0f);
+        g.setColour (textColour.withAlpha (shouldDrawButtonAsHighlighted ? 0.95f : 0.65f));
+        g.drawRoundedRectangle (window, 2.0f, 1.2f);
+        g.fillRoundedRectangle (window.withHeight (3.0f), 1.5f);
+    }
+};
+
+//==============================================================================
 struct GraphEditorPanel::PluginComponent final : public Component,
                                                  public SettableTooltipClient,
                                                  public Timer,
@@ -335,6 +364,14 @@ struct GraphEditorPanel::PluginComponent final : public Component,
                                                                        [this] { return isMidiLearning(); });
                     bypassButton->onClick = [this] { bypassButtonClicked(); };
                     addAndMakeVisible (bypassButton.get());
+
+                    // In the slot opposite, which only nodes with a bypass button keep free
+                    if (processor->hasEditor() && ! PluginGraph::isConfiguredByAudioSettings (*processor))
+                    {
+                        windowButton = std::make_unique<NodeWindowButton>();
+                        windowButton->onClick = [this] { showWindow (PluginWindow::Type::normal); };
+                        addChildComponent (windowButton.get());
+                    }
                 }
             }
         }
@@ -495,7 +532,7 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         auto textArea = bypassButton != nullptr ? boxArea.reduced (bypassSlot + bypassMargin, 0) : boxArea;
 
         // The slot opposite the bypass button shows whether the node has MIDI mappings
-        if (bypassButton != nullptr && graph.getMidiMappings().hasMappingsForNode (pluginID))
+        if (bypassButton != nullptr && ! isShowingWindowButton() && graph.getMidiMappings().hasMappingsForNode (pluginID))
             drawMidiBadge (g, boxArea.removeFromRight (bypassSlot + bypassMargin)
                                      .withSizeKeepingCentre (bypassSlot, bypassSlot).toFloat());
 
@@ -526,6 +563,11 @@ struct GraphEditorPanel::PluginComponent final : public Component,
             bypassButton->setBounds (boxArea.withWidth (bypassSlot)
                                             .withSizeKeepingCentre (bypassSlot, bypassSlot)
                                             .translated (bypassMargin, 0));
+
+            if (windowButton != nullptr)
+                windowButton->setBounds (boxArea.withLeft (boxArea.getRight() - bypassSlot)
+                                                .withSizeKeepingCentre (bypassSlot, bypassSlot)
+                                                .translated (-bypassMargin, 0));
         }
 
         if (auto f = graph.graph.getNodeForId (pluginID))
@@ -1082,6 +1124,21 @@ struct GraphEditorPanel::PluginComponent final : public Component,
     static constexpr int bypassMargin = 6;
     static constexpr float cornerSize = 6.0f;
     std::unique_ptr<NodeBypassButton> bypassButton;
+    std::unique_ptr<NodeWindowButton> windowButton;
+
+public:
+    // While the pointer is over the node (see GraphEditorPanel::setHoverTarget())
+    void setHovered (bool isHovered)
+    {
+        if (windowButton != nullptr && windowButton->isVisible() != isHovered)
+        {
+            windowButton->setVisible (isHovered);
+            repaint();
+        }
+    }
+
+    bool isShowingWindowButton() const { return windowButton != nullptr && windowButton->isVisible(); }
+
     Colour kindColour = Curve::Colours::nodeInternal;
 };
 
@@ -1653,26 +1710,25 @@ void GraphEditorPanel::paint (Graphics& g)
 {
     g.fillAll (getLookAndFeel().findColour (ResizableWindow::backgroundColourId));
 
-    if (draggingNode)
+    // The grid the nodes snap to: faint, and clearer while dragging a node. A cached tile at
+    // device resolution, as this redraws throughout a drag
+    const auto scale = g.getInternalContext().getPhysicalPixelScaleFactor();
+    const auto tileSize = roundToInt ((float) graphGridSize * scale);
+
+    if (gridTile.getWidth() != tileSize || gridTileForDragging != draggingNode)
     {
-        // A cached tile at device resolution, as this redraws throughout a drag
-        const auto scale = g.getInternalContext().getPhysicalPixelScaleFactor();
-        const auto tileSize = roundToInt ((float) graphGridSize * scale);
-
-        if (gridTile.getWidth() != tileSize)
-        {
-            gridTile = Image (Image::ARGB, tileSize, tileSize, true);
-            Graphics tile (gridTile);
-            tile.setColour (Colours::white.withAlpha (0.16f));
-            tile.fillEllipse (gridTile.getBounds().toFloat().withSizeKeepingCentre (2.0f * scale, 2.0f * scale));
-        }
-
-        // The dot is mid-tile, so move it onto the grid's intersections
-        const auto halfGrid = (float) graphGridSize * 0.5f;
-
-        g.setFillType (FillType (gridTile, AffineTransform::scale (1.0f / scale).translated (halfGrid, halfGrid)));
-        g.fillRect (getLocalBounds());
+        gridTile = Image (Image::ARGB, tileSize, tileSize, true);
+        gridTileForDragging = draggingNode;
+        Graphics tile (gridTile);
+        tile.setColour (Colours::white.withAlpha (draggingNode ? 0.16f : 0.06f));
+        tile.fillEllipse (gridTile.getBounds().toFloat().withSizeKeepingCentre (2.0f * scale, 2.0f * scale));
     }
+
+    // The dot is mid-tile, so move it onto the grid's intersections
+    const auto halfGrid = (float) graphGridSize * 0.5f;
+
+    g.setFillType (FillType (gridTile, AffineTransform::scale (1.0f / scale).translated (halfGrid, halfGrid)));
+    g.fillRect (getLocalBounds());
 }
 
 void GraphEditorPanel::paintOverChildren (Graphics& g)
@@ -1984,6 +2040,15 @@ void GraphEditorPanel::setHoverTarget (Component* target)
 
     if (newNode != hoveredNode || newConnector != hoveredConnector)
     {
+        if (newNode != hoveredNode)
+        {
+            if (auto* old = getComponentForPlugin (hoveredNode))
+                old->setHovered (false);
+
+            if (auto* now = getComponentForPlugin (newNode))
+                now->setHovered (true);
+        }
+
         hoveredNode = newNode;
         hoveredConnector = newConnector;
         updateConnectorStyles();
@@ -2251,32 +2316,43 @@ struct GraphDocumentComponent::TooltipBar final : public Component,
         visibilityChanged();
     }
 
+    // The audio interface and its settings, shown when there's no message or tooltip, and whether
+    // to show how to start a graph
+    std::function<String()> describeAudio;
+    std::function<bool()> isGraphEmpty;
+
     void paint (Graphics& g) override
     {
         g.fillAll (getLookAndFeel().findColour (ResizableWindow::backgroundColourId));
+        g.setColour (Curve::Colours::edge.withAlpha (0.6f));
+        g.fillRect (getLocalBounds().removeFromTop (1));
 
         auto bounds = getLocalBounds().reduced (12, 0);
+        g.setFont (FontOptions { 12.5f });
 
         if (message.isNotEmpty())
         {
             g.setColour (Curve::Colours::accent);
-            g.setFont (FontOptions { 13.0f });
             g.drawFittedText (message, bounds, Justification::centred, 1);
         }
         else if (tip.isNotEmpty())
         {
-            g.setColour (Colour (0xff93c5fd));
-            g.setFont (FontOptions { 13.0f });
+            g.setColour (Curve::Colours::link);
             g.drawFittedText (tip, bounds, Justification::centred, 1);
         }
         else
         {
-            g.setColour (Colours::white.withAlpha (0.28f));
-            g.setFont (FontOptions { 13.0f });
-            auto hintText = TRANS ("Right-click anywhere to add plug-ins")
-                            + "  " + String::charToString (0x2022) + "  "
-                            + TRANS ("Drag pins to connect audio and MIDI");
-            g.drawFittedText (hintText, bounds, Justification::centred, 1);
+            if (isGraphEmpty != nullptr && isGraphEmpty())
+            {
+                const auto hintText = TRANS ("Right-click anywhere to add plug-ins")
+                                    + "  " + String::charToString (0x2022) + "  "
+                                    + TRANS ("Drag pins to connect audio and MIDI");
+                g.setColour (Curve::Colours::dimText);
+                g.drawFittedText (hintText, bounds, Justification::centredRight, 1);
+            }
+
+            g.setColour (Curve::Colours::dimText);
+            g.drawFittedText (audio, bounds, Justification::centredLeft, 1);
         }
     }
 
@@ -2289,9 +2365,12 @@ struct GraphDocumentComponent::TooltipBar final : public Component,
                 if (! (underMouse->isMouseButtonDown() || underMouse->isCurrentlyBlockedByAnotherModalComponent()))
                     newTip = ttc->getTooltip();
 
-        if (newTip != tip)
+        const auto newAudio = describeAudio != nullptr ? describeAudio() : String();
+
+        if (newTip != tip || newAudio != audio)
         {
             tip = newTip;
+            audio = newAudio;
             repaint();
         }
 
@@ -2330,7 +2409,7 @@ struct GraphDocumentComponent::TooltipBar final : public Component,
         }
     }
 
-    String tip, message, lastingMessage, transientMessage;
+    String tip, message, lastingMessage, transientMessage, audio;
     int64 transientExpiryMs = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TooltipBar)
@@ -2363,6 +2442,29 @@ void GraphDocumentComponent::init()
 
     statusBar.reset (new TooltipBar());
     addAndMakeVisible (statusBar.get());
+
+    statusBar->describeAudio = [this]
+    {
+        auto* device = deviceManager.getCurrentAudioDevice();
+
+        if (device == nullptr)
+            return String ("No audio interface");
+
+        const auto rate = device->getCurrentSampleRate();
+        const auto dot = "  " + String::fromUTF8 ("\xc2\xb7") + "  ";
+        String text = device->getName() + dot
+                    + String (rate / 1000.0, roundToInt (rate) % 1000 == 0 ? 0 : 1) + " kHz" + dot
+                    + String (device->getCurrentBufferSizeSamples()) + " samples";
+
+        if (graph != nullptr && rate > 0.0)
+            if (const auto latency = graph->graph.getLatencySamples(); latency > 0)
+                text << dot << "Plug-in latency " << String (1000.0 * latency / rate, 1) << " ms";
+
+        return text;
+    };
+
+    // Only the default nodes: Audio Input, Interface Loopback (In) and Audio Output
+    statusBar->isGraphEmpty = [this] { return graph != nullptr && graph->graph.getNumNodes() <= 3; };
 
     graphPlayer.setProcessor (&graph->graph);
 
