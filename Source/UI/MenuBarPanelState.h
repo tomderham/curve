@@ -64,6 +64,7 @@ namespace MenuBarPanelState
         juce::String volumeDescription; // e.g. "-11.9 dB", "60%"
 
         bool isEditorShowing = false;
+        bool isEditorInView = false; // Showing, and not on another Space or mostly behind other windows
 
         // The preset's tempo and transport (see HostTransport)
         double tempo = 120.0;

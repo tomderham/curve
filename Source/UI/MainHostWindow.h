@@ -108,6 +108,9 @@ public:
     std::unique_ptr<GraphDocumentComponent> graphHolder;
 
     void showWindow();
+
+    /** Shows it and brings it to the front, without waiting for a Dock icon (see showWindow()). */
+    void showNow();
     void hideWindow();
     void showAudioSettings();
     void saveAsPreset();

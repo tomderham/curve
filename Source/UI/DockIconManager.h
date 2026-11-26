@@ -23,12 +23,21 @@ namespace DockIconManager
         While the Dock icon is shown, the menu bar icon's menu can close straight
         away when clicked from another app; see TrayIconController::showTrayMenuWhenActive.
     */
-    void setShowInDock (bool showInDock);
+    void setShowInDock (bool showInDock, std::function<void()> onceDone = nullptr);
 
-    /** Returns true if the user has opted to show Curve in the Dock.
-        Defaults to false (menu bar only).
-    */
-    bool isShowInDockEnabled();
+    /** When Curve has a Dock icon: never (menu bar only), while its editor is open, so the editor
+        can be found with the Dock and Cmd-Tab, or always. */
+    enum class Mode { never = 0, whileEditorOpen, always };
+
+    /** As set in Preferences. Defaults to while the editor is open; before there was a choice,
+        Show in Dock on was always. */
+    Mode getMode();
+    void setMode (Mode);
+
+    /** Told as the editor opens and closes, for whileEditorOpen. onceDone runs when Curve is ready
+        for the editor to be shown: at once, or once a Dock icon's been added, which hands the focus
+        to the Dock and back, and would leave a window shown meanwhile behind other apps'. */
+    void setEditorOpen (bool isOpen, std::function<void()> onceDone = nullptr);
 
     /** Applies the current setting from user preferences. */
     void applyCurrentSetting();

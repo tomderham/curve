@@ -21,6 +21,7 @@
 #include "OutputMeter.h"
 #include "OutputMonitor.h"
 #include "PresetSlots.h"
+#include "WindowArrangement.h"
 #include "../Plugins/MeterNode.h"
 
 //==============================================================================
@@ -132,6 +133,7 @@ public:
         state.isVolumeMuted = VolumeKeyManager::isVolumeMuted();
         state.maxVolumeSteps = OutputVolume::maxSteps;
         state.isEditorShowing = mainWindow.isVisible();
+        state.isEditorInView = state.isEditorShowing && WindowArrangement::isInView (mainWindow);
 
         if (graph != nullptr)
         {
@@ -324,9 +326,11 @@ public:
             graph->togglePluginWindows();
     }
 
+    // Hidden if it's in view; brought to the front if it's open but behind other windows, or on
+    // another Space, which is easy to lose with no Dock icon to click
     void toggleGraphEditor() override
     {
-        if (mainWindow.isVisible())
+        if (mainWindow.isVisible() && WindowArrangement::isInView (mainWindow))
             mainWindow.hideWindow();
         else
             mainWindow.showWindow();

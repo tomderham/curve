@@ -153,6 +153,59 @@ void setOnAllSpaces (juce::Component& component, bool shouldBeOnAll)
     [window setCollectionBehavior: behaviour];
 }
 
+bool isInView (juce::Component& component)
+{
+    NSWindow* window = getWindow (component);
+
+    if (window == nil || ! [window isVisible] || [window isMiniaturized] || ! [window isOnActiveSpace])
+        return false;
+
+    const auto number = (CGWindowID) [window windowNumber];
+    CGRect own = CGRectNull;
+
+    if (CFArrayRef self = CGWindowListCopyWindowInfo (kCGWindowListOptionIncludingWindow, number))
+    {
+        if (CFArrayGetCount (self) > 0)
+            CGRectMakeWithDictionaryRepresentation ((CFDictionaryRef) CFDictionaryGetValue ((CFDictionaryRef) CFArrayGetValueAtIndex (self, 0),
+                                                                                         kCGWindowBounds), &own);
+        CFRelease (self);
+    }
+
+    if (CGRectIsNull (own) || own.size.width <= 0 || own.size.height <= 0)
+        return true;
+
+    // The ordinary windows in front of it, of any app (not the menu bar, the Dock, or Curve's panel,
+    // which are on higher layers), and how much of it they cover. Overlaps are added up, so it's an
+    // overestimate where they overlap each other, which is fine for "mostly behind"
+    CGFloat covered = 0;
+
+    if (CFArrayRef above = CGWindowListCopyWindowInfo (kCGWindowListOptionOnScreenAboveWindow | kCGWindowListExcludeDesktopElements, number))
+    {
+        for (CFIndex i = 0; i < CFArrayGetCount (above); ++i)
+        {
+            auto info = (CFDictionaryRef) CFArrayGetValueAtIndex (above, i);
+            int layer = 0;
+
+            if (auto layerNumber = (CFNumberRef) CFDictionaryGetValue (info, kCGWindowLayer))
+                CFNumberGetValue (layerNumber, kCFNumberIntType, &layer);
+
+            CGRect bounds;
+
+            if (layer != 0 || ! CGRectMakeWithDictionaryRepresentation ((CFDictionaryRef) CFDictionaryGetValue (info, kCGWindowBounds), &bounds))
+                continue;
+
+            const auto overlap = CGRectIntersection (own, bounds);
+
+            if (! CGRectIsNull (overlap))
+                covered += overlap.size.width * overlap.size.height;
+        }
+
+        CFRelease (above);
+    }
+
+    return covered < 0.5 * own.size.width * own.size.height;
+}
+
 void setMovable (juce::Component& component, bool canMove)
 {
     if (NSWindow* window = getWindow (component))

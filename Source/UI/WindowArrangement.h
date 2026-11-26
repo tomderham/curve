@@ -31,6 +31,10 @@ namespace WindowArrangement
     /** Whether the window is on the Space being shown, or on every Space. */
     bool isOnActiveSpace (juce::Component&);
 
+    /** Whether the window can be seen: shown, on this Space, not in the Dock, and not mostly behind
+        other windows, of any app. */
+    bool isInView (juce::Component&);
+
     /** Moves the window onto the Space being shown, so it isn't left on another while windows
         opened with it appear on this one, which is where macOS opens new windows. */
     void moveToActiveSpace (juce::Component&);

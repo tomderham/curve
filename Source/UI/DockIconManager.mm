@@ -87,7 +87,7 @@ static void installReopenHandler()
 
 namespace DockIconManager
 {
-    void setShowInDock (bool showInDock)
+    void setShowInDock (bool showInDock, std::function<void()> onceDone)
     {
         // Retained: the block below runs after this returns, and Curve is built without ARC
         NSArray<NSWindow*>* windows = [getVisibleWindows() retain];
@@ -97,6 +97,10 @@ namespace DockIconManager
         {
             [windows release];
             [keyWindow release];
+
+            if (onceDone)
+                onceDone();
+
             return;
         }
 
@@ -108,10 +112,16 @@ namespace DockIconManager
             if (auto* dock = [[NSRunningApplication runningApplicationsWithBundleIdentifier: @"com.apple.dock"] firstObject])
                 [dock activateWithOptions: 0];
 
+            // Copied, as a block keeps a copy of what it uses
+            auto done = std::make_shared<std::function<void()>> (std::move (onceDone));
+
             dispatch_after (dispatch_time (DISPATCH_TIME_NOW, (int64_t) (0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
                 reactivate (windows, keyWindow);
                 [windows release];
                 [keyWindow release];
+
+                if (*done)
+                    (*done)();
             });
         }
         else
@@ -121,22 +131,66 @@ namespace DockIconManager
             reactivate (windows, keyWindow);
             [windows release];
             [keyWindow release];
+
+            if (onceDone)
+                onceDone();
         }
     }
 
-    bool isShowInDockEnabled()
+    static bool editorOpen = false;
+
+    Mode getMode()
     {
         if (auto* settings = getUserSettings())
-            return settings->getBoolValue ("showInDock", false);
+        {
+            if (settings->containsKey ("dockIcon"))
+                return (Mode) juce::jlimit (0, 2, settings->getIntValue ("dockIcon"));
 
-        return false;
+            if (settings->getBoolValue ("showInDock", false))
+                return Mode::always;
+        }
+
+        return Mode::whileEditorOpen;
+    }
+
+    static bool isWanted()
+    {
+        const auto mode = getMode();
+        return mode == Mode::always || (mode == Mode::whileEditorOpen && editorOpen);
+    }
+
+    void setMode (Mode mode)
+    {
+        if (auto* settings = getUserSettings())
+        {
+            settings->setValue ("dockIcon", (int) mode);
+            settings->saveIfNeeded();
+        }
+
+        setShowInDock (isWanted());
+    }
+
+    void setEditorOpen (bool isOpen, std::function<void()> onceDone)
+    {
+        if (editorOpen == isOpen || getMode() != Mode::whileEditorOpen)
+        {
+            editorOpen = isOpen;
+
+            if (onceDone)
+                onceDone();
+
+            return;
+        }
+
+        editorOpen = isOpen;
+        setShowInDock (isWanted(), std::move (onceDone));
     }
 
     void applyCurrentSetting()
     {
         // Called at launch, before AppKit finishes launching: setting the policy now
         // is enough, and Curve shouldn't take focus when it opens at login.
-        setActivationPolicy (isShowInDockEnabled());
+        setActivationPolicy (isWanted());
     }
 
     void setReopenCallback (std::function<void()> onReopen)

@@ -81,7 +81,28 @@ static NSColor* toNS (juce::Colour c)
 @end
 
 //==============================================================================
-/** A preset, as a tile: its name, its key, and its scene group's colour as a stripe. */
+// The panel's controls act on the first click, as the preset rows do, even when the panel isn't the
+// key window yet, e.g. while Curve is still becoming active: otherwise that click only focuses it
+@interface CurvePanelButton : NSButton
+@end
+@implementation CurvePanelButton
+- (BOOL) acceptsFirstMouse: (NSEvent*) event { return YES; }
+@end
+
+@interface CurvePanelSwitch : NSSwitch
+@end
+@implementation CurvePanelSwitch
+- (BOOL) acceptsFirstMouse: (NSEvent*) event { return YES; }
+@end
+
+@interface CurvePanelSlider : NSSlider
+@end
+@implementation CurvePanelSlider
+- (BOOL) acceptsFirstMouse: (NSEvent*) event { return YES; }
+@end
+
+//==============================================================================
+/** A preset, as a row: its name, its key, and whether it's the current one. */
 @interface CurvePresetTile : NSView
 {
 @public
@@ -984,7 +1005,15 @@ private:
 
         const auto mask = NSEventMaskLeftMouseDown | NSEventMaskRightMouseDown | NSEventMaskOtherMouseDown;
 
-        globalMonitor = [[NSEvent addGlobalMonitorForEventsMatchingMask: mask handler: ^(NSEvent*) { close(); }] retain];
+        globalMonitor = [[NSEvent addGlobalMonitorForEventsMatchingMask: mask handler: ^(NSEvent* e)
+        {
+            // A click on the panel itself, said to be another app's, e.g. just after Curve's Dock icon
+            // has gone, as macOS catches up with that: not outside it, so it stays open
+            if (NSPointInRect ([NSEvent mouseLocation], [[root window] frame]))
+                return;
+
+            close();
+        }] retain];
 
         localMonitor = [[NSEvent addLocalMonitorForEventsMatchingMask: mask handler: ^NSEvent* (NSEvent* e)
         {
@@ -1083,7 +1112,7 @@ private:
     {
         NSImage* image = [NSImage imageWithSystemSymbolName: symbol accessibilityDescription: description];
         auto* action = makeAction (std::move (f));
-        NSButton* button = [NSButton buttonWithImage: image target: action action: @selector (perform:)];
+        NSButton* button = [CurvePanelButton buttonWithImage: image target: action action: @selector (perform:)];
         [button setBordered: NO];
         [button setToolTip: description];
         [button setContentTintColor: [NSColor secondaryLabelColor]];
@@ -1313,7 +1342,7 @@ private:
         [header setToolTip: state.isPresetModified ? @"The current preset has changes that aren't saved" : nil];
 
         auto* save = makeAction ([this] (id) { close(); callAsyncWhileAlive ([this] { source.saveAsPreset(); }); });
-        NSButton* saveButton = [NSButton buttonWithTitle: @"Save..." target: save action: @selector (perform:)];
+        NSButton* saveButton = [CurvePanelButton buttonWithTitle: @"Save..." target: save action: @selector (perform:)];
         [saveButton setBezelStyle: NSBezelStyleInline];
         [saveButton setControlSize: NSControlSizeSmall];
         [saveButton setToolTip: @"Save As Preset..."];
@@ -1562,7 +1591,7 @@ private:
                     source.setBypassed (nodeID, ! on);
                 });
 
-                NSSwitch* power = [[[NSSwitch alloc] init] autorelease];
+                NSSwitch* power = [[[CurvePanelSwitch alloc] init] autorelease];
                 [power setControlSize: NSControlSizeMini];
                 [power setState: active ? NSControlStateValueOn : NSControlStateValueOff];
                 [power setTarget: toggle];
@@ -1579,7 +1608,7 @@ private:
                     source.setMuted (nodeID, [(NSSwitch*) sender state] != NSControlStateValueOn);
                 });
 
-                NSSwitch* power = [[[NSSwitch alloc] init] autorelease];
+                NSSwitch* power = [[[CurvePanelSwitch alloc] init] autorelease];
                 [power setControlSize: NSControlSizeMini];
                 [power setState: plugin.isMuted ? NSControlStateValueOff : NSControlStateValueOn];
                 [power setTarget: toggle];
@@ -1768,7 +1797,7 @@ private:
             updateVolume (source.getState());
         });
 
-        volumeSlider = [NSSlider sliderWithValue: 0 minValue: 0 maxValue: isInterface ? 1.0 : state.maxVolumeSteps
+        volumeSlider = [CurvePanelSlider sliderWithValue: 0 minValue: 0 maxValue: isInterface ? 1.0 : state.maxVolumeSteps
                                           target: change action: @selector (perform:)];
         [volumeSlider setContinuous: YES];
         [volumeSlider setControlSize: NSControlSizeSmall];
@@ -1867,7 +1896,7 @@ private:
             updateTempo (source.getState());
         });
 
-        NSButton* tap = [NSButton buttonWithTitle: @"Tap" target: tapped action: @selector (perform:)];
+        NSButton* tap = [CurvePanelButton buttonWithTitle: @"Tap" target: tapped action: @selector (perform:)];
         [tap setBezelStyle: NSBezelStyleRounded];
         [tap setControlSize: NSControlSizeSmall];
         [tap setToolTip: @"Tap in time, twice or more, to set the tempo"];
@@ -1925,7 +1954,8 @@ private:
     NSView* makeFooter (const MenuBarPanelState::State& state)
     {
         auto* toggleEditor = makeAction ([this] (id) { close(); callAsyncWhileAlive ([this] { source.toggleGraphEditor(); }); });
-        NSButton* editor = [NSButton buttonWithTitle: state.isEditorShowing ? @"Hide Editor" : @"Show Editor"
+        NSButton* editor = [CurvePanelButton buttonWithTitle: ! state.isEditorShowing ? @"Show Editor"
+                                                   : state.isEditorInView ? @"Hide Editor" : @"Bring Editor to Front"
                                               target: toggleEditor action: @selector (perform:)];
         [editor setBezelStyle: NSBezelStyleRounded];
         [editor setControlSize: NSControlSizeSmall];
@@ -1935,7 +1965,7 @@ private:
 
         // The preset's plug-in windows, as a set, e.g. to get them out of the way and back
         auto* toggleWindows = makeAction ([this] (id) { source.togglePluginWindows(); });
-        NSButton* windows = [NSButton buttonWithTitle: state.arePluginWindowsHidden ? @"Show Plug-in Windows" : @"Hide Plug-in Windows"
+        NSButton* windows = [CurvePanelButton buttonWithTitle: state.arePluginWindowsHidden ? @"Show Plug-in Windows" : @"Hide Plug-in Windows"
                                                target: toggleWindows action: @selector (perform:)];
         [windows setBezelStyle: NSBezelStyleRounded];
         [windows setControlSize: NSControlSizeSmall];

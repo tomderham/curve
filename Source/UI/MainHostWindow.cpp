@@ -46,6 +46,7 @@
 
 #include <JuceHeader.h>
 #include "MainHostWindow.h"
+#include "DockIconManager.h"
 #include "CurveColours.h"
 #include "AudioResilienceManager.h"
 #include "IdleReleaseController.h"
@@ -2143,6 +2144,18 @@ void MainHostWindow::showAboutBox()
 
 void MainHostWindow::showWindow()
 {
+    // A Dock icon first, while it's open, if that's set, so it can be found again. Adding one hands
+    // the focus to the Dock and back, so the editor's shown once that's done, or it'd be left behind
+    // other apps' windows
+    DockIconManager::setEditorOpen (true, [safeThis = SafePointer<MainHostWindow> (this)]
+    {
+        if (safeThis != nullptr)
+            safeThis->showNow();
+    });
+}
+
+void MainHostWindow::showNow()
+{
     juce::Process::makeForegroundProcess();
 
     if (! isOnDesktop())
@@ -2170,6 +2183,7 @@ void MainHostWindow::hideWindow()
     getAppProperties().getUserSettings()->setValue ("mainWindowPos", getWindowStateAsString());
     getAppProperties().getUserSettings()->saveIfNeeded();
     setVisible (false);
+    DockIconManager::setEditorOpen (false);
 }
 
 void MainHostWindow::showUpdateBanner (const juce::String& version, const juce::String& downloadUrl)

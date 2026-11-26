@@ -135,16 +135,14 @@ private:
                 refresh();
             };
 
-            showInDock.setButtonText ("Show in Dock");
-            showInDock.onClick = [this]
+            dockLabel.setText ("Dock Icon:", juce::dontSendNotification);
+            dockMode.addItem ("Never", 1);
+            dockMode.addItem ("While the Editor Is Open", 2);
+            dockMode.addItem ("Always", 3);
+            dockMode.setTooltip ("While the editor is open, a Dock icon and a place in Cmd-Tab make it easy to find");
+            dockMode.onChange = [this]
             {
-                const bool newState = showInDock.getToggleState();
-                if (auto* settings = getAppProperties().getUserSettings())
-                {
-                    settings->setValue ("showInDock", newState);
-                    settings->saveIfNeeded();
-                }
-                DockIconManager::setShowInDock (newState);
+                DockIconManager::setMode ((DockIconManager::Mode) (dockMode.getSelectedId() - 1));
             };
 
             preventSleep.setButtonText ("Prevent macOS from automatically sleeping");
@@ -222,7 +220,7 @@ private:
                         u->checkForUpdates (true);
             };
 
-            for (auto* c : std::initializer_list<juce::Component*> { &openAtLogin, &showInDock, &preventSleep, &releaseWhenIdle,
+            for (auto* c : std::initializer_list<juce::Component*> { &openAtLogin, &dockLabel, &dockMode, &preventSleep, &releaseWhenIdle,
                                                                     &pluginWindowsOnAllSpaces, &lockedLabel, &hideTitleBars, &showBackdrop, &updatesLabel, &autoCheck, &checkNow })
                 addAndMakeVisible (c);
         }
@@ -230,7 +228,7 @@ private:
         void refresh()
         {
             openAtLogin.setToggleState (LoginItemManager::getStatus() == LoginItemManager::Status::enabled, juce::dontSendNotification);
-            showInDock.setToggleState (DockIconManager::isShowInDockEnabled(), juce::dontSendNotification);
+            dockMode.setSelectedId ((int) DockIconManager::getMode() + 1, juce::dontSendNotification);
             releaseWhenIdle.setToggleState (IdleReleaseController::isEnabledInSettings(), juce::dontSendNotification);
             pluginWindowsOnAllSpaces.setToggleState (PluginWindow::isShownOnAllSpaces(), juce::dontSendNotification);
             hideTitleBars.setToggleState (PluginWindow::areTitleBarsHiddenWhenLocked(), juce::dontSendNotification);
@@ -247,7 +245,15 @@ private:
         {
             auto r = getLocalBounds().reduced (margin, 12);
 
-            for (auto* t : { &openAtLogin, &showInDock, &preventSleep, &releaseWhenIdle, &pluginWindowsOnAllSpaces })
+            openAtLogin.setBounds (r.removeFromTop (rowHeight));
+
+            {
+                auto row = r.removeFromTop (rowHeight);
+                dockLabel.setBounds (row.removeFromLeft (80));
+                dockMode.setBounds (row.removeFromLeft (220).reduced (0, 3));
+            }
+
+            for (auto* t : { &preventSleep, &releaseWhenIdle, &pluginWindowsOnAllSpaces })
                 t->setBounds (r.removeFromTop (rowHeight));
 
             lockedLabel.setBounds (r.removeFromTop (rowHeight));
@@ -266,7 +272,9 @@ private:
 
         MainHostWindow& window;
         std::shared_ptr<std::atomic<GitHubUpdater*>> updaterToken;
-        juce::ToggleButton openAtLogin, showInDock, preventSleep, releaseWhenIdle, pluginWindowsOnAllSpaces, hideTitleBars, showBackdrop, autoCheck;
+        juce::Label dockLabel;
+        juce::ComboBox dockMode;
+        juce::ToggleButton openAtLogin, preventSleep, releaseWhenIdle, pluginWindowsOnAllSpaces, hideTitleBars, showBackdrop, autoCheck;
         juce::Label lockedLabel;
         juce::Label updatesLabel;
         juce::TextButton checkNow;

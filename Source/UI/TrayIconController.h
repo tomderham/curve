@@ -591,7 +591,13 @@ public:
     juce::PopupMenu menu;
 
     if (includeVisibilityToggle) {
-      if (mainWindow.isVisible())
+      // Open but out of sight, e.g. behind other windows: brought to the front, rather than hidden
+      if (mainWindow.isVisible() && ! WindowArrangement::isInView(mainWindow))
+        menu.addItem("Bring Editor to Front", [safeWindow] {
+          if (auto* w = safeWindow.getComponent())
+            w->showWindow();
+        });
+      else if (mainWindow.isVisible())
         menu.addItem("Hide Editor", [safeWindow] {
           if (auto* w = safeWindow.getComponent())
             w->hideWindow();
