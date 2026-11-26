@@ -646,10 +646,13 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         const auto left = p.x * getParentWidth() - w * 0.5;
         const auto top = p.y * getParentHeight() - h * 0.5;
 
-        if (graph.isNodePositionFree (pluginID))
-            return { roundToInt (left), roundToInt (top), w, h };
+        // Below the top bar's buttons, whatever its position says, e.g. the inputs' default near the top
+        constexpr int belowTopBar = 36;
 
-        return { snapToGraphGrid (left), snapToGraphGrid (top), w, h };
+        if (graph.isNodePositionFree (pluginID))
+            return { roundToInt (left), jmax (belowTopBar, roundToInt (top)), w, h };
+
+        return { snapToGraphGrid (left), jmax (belowTopBar, snapToGraphGrid (top)), w, h };
     }
 
     Point<float> getPinPos (int index, bool isInput) const
@@ -1570,14 +1573,16 @@ private:
 
     static void drawLock (Graphics& g, Rectangle<float> r, Colour c, bool closed)
     {
-        const auto body = r.removeFromBottom (8.0f);
+        // A body no wider than a padlock's, whatever room it's given, so it isn't stretched
+        auto body = r.removeFromBottom (8.0f);
+        body = body.withSizeKeepingCentre (jmin (body.getWidth(), 10.0f), body.getHeight());
         g.setColour (c);
         g.fillRoundedRectangle (body, 1.5f);
 
         // The shackle, open to the right when unlocked
         Path shackle;
         const auto w = body.getWidth() - 5.0f;
-        const auto x = body.getX() + 2.5f + (closed ? 0.0f : 3.0f);
+        const auto x = body.getX() + 2.5f + (closed ? 0.0f : 2.5f);
         shackle.startNewSubPath (x, body.getY());
         shackle.lineTo (x, r.getY() + 3.0f);
         shackle.addCentredArc (x + w * 0.5f, r.getY() + 3.0f, w * 0.5f, 3.0f, 0.0f,
@@ -1680,8 +1685,9 @@ private:
                             : Colours::white.withAlpha (down ? 0.22f : highlighted ? 0.14f : 0.07f));
             g.fillRoundedRectangle (area, 5.0f);
 
-            g.setColour (on ? Colours::white : Colours::white.withAlpha (highlighted ? 0.95f : 0.75f));
-            g.setFont (FontOptions (12.0f, Font::bold));
+            // As Tap's beside them, and Curve's other buttons
+            g.setColour (on ? Colours::white : Colours::white.withAlpha (highlighted ? 1.0f : 0.85f));
+            g.setFont (FontOptions (jmin (14.0f, (float) getHeight() * 0.6f)));
             g.drawText (getButtonText(), area, Justification::centred);
         }
     };

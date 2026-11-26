@@ -274,8 +274,8 @@ public:
         getAppProperties().getUserSettings()->setValue (scanModeKey, juce::var (1));
 
         getTableListBox().setModel (&rowsModel);
-        // JUCE draws the text at 70% of the row height: about 13 pt, as Curve's other windows have
-        getTableListBox().setRowHeight (19);
+        // 13 pt text, as Curve's other windows have (see FailedPluginRowsModel::paintCell())
+        getTableListBox().setRowHeight (22);
         getTableListBox().getHeader().setSize (getTableListBox().getHeader().getWidth(), 24);
         getTableListBox().getHeader().setStretchToFitActive (true);
 
@@ -434,21 +434,52 @@ private:
             owner.updateControls();
         }
 
-        void paintCell (Graphics& g, int row, int columnId, int width, int height, bool selected) override
+        // In Curve's own text, regular rather than JUCE's bold: the name bright, the rest dimmer
+        void paintCell (Graphics& g, int row, int columnId, int width, int height, bool) override
         {
-            const auto identifier = getFailedPlugin (toListRow (row));
+            const auto listRow = toListRow (row);
+            const auto identifier = getFailedPlugin (listRow);
+            const auto types = list.getTypes();
+            String text;
 
-            if (identifier.isEmpty())
+            if (identifier.isNotEmpty())
             {
-                juceModel.paintCell (g, toListRow (row), columnId, width, height, selected);
-                return;
+                text = getCellText (identifier, columnId);
+                g.setColour (Curve::Colours::danger);
+            }
+            else if (isPositiveAndBelow (listRow, types.size()))
+            {
+                const auto& desc = types.getReference (listRow);
+
+                // Column IDs as PluginListComponent's: name, format, category, manufacturer, description
+                switch (columnId)
+                {
+                    case 1: text = desc.name; break;
+                    case 2: text = desc.pluginFormatName; break;
+                    case 3: text = desc.category.isNotEmpty() ? desc.category : "-"; break;
+                    case 4: text = desc.manufacturerName; break;
+                    case 5:
+                    {
+                        StringArray items;
+
+                        if (desc.descriptiveName != desc.name)
+                            items.add (desc.descriptiveName);
+
+                        items.add (desc.version);
+                        items.removeEmptyStrings();
+                        text = items.joinIntoString (" - ");
+                        break;
+                    }
+                    default: break;
+                }
+
+                g.setColour (columnId == 1 ? Curve::Colours::text : Curve::Colours::dimText);
             }
 
-            if (const auto text = getCellText (identifier, columnId); text.isNotEmpty())
+            if (text.isNotEmpty())
             {
-                g.setColour (Curve::Colours::danger);
-                g.setFont (owner.withDefaultMetrics (FontOptions ((float) height * 0.7f, Font::bold)));
-                g.drawFittedText (text, 4, 0, width - 6, height, Justification::centredLeft, 1, 0.9f);
+                g.setFont (FontOptions (13.0f));
+                g.drawText (text, 6, 0, width - 8, height, Justification::centredLeft, true);
             }
         }
 
@@ -1101,7 +1132,8 @@ void MainHostWindow::addPluginsToMenu (PopupMenu& m)
         PopupMenu midiIOMenu;
         PopupMenu pluginsMenu;
 
-        // Group 1: Parametric EQ items (First 2)
+        // By what they're for, each group under its name, so related ones are found together
+        pluginsMenu.addSectionHeader ("EQ");
         auto auDesc = AUNBandEQConverter::findAUNBandEQ (knownPluginList);
 
         if (auDesc.has_value())
@@ -1116,9 +1148,6 @@ void MainHostWindow::addPluginsToMenu (PopupMenu& m)
         }
         pluginsMenu.addItem (onlineCalibrationCreateMenuID, "Parametric EQ (import from AutoEQ...)", true, false);
         pluginsMenu.addItem (importCalibrationCreateMenuID, "Parametric EQ (import from file...)", true, false);
-
-        // Separator 1: separates first 2 from next 2
-        pluginsMenu.addSeparator();
 
         std::set<size_t> addedInternalIndices;
 
@@ -1136,35 +1165,24 @@ void MainHostWindow::addPluginsToMenu (PopupMenu& m)
             }
         };
 
-        // Group 2: Headphone Processing items (Next 2)
-        addInternalByName ("Headphone Crossfeed");
-        addInternalByName ("Headphone Speaker Emulation");
+        // StringArrays, which own their names (an initializer_list in a pair wouldn't outlive the line)
+        const std::vector<std::pair<juce::String, juce::StringArray>> groups {
+            { "Headphones",      { "Headphone Crossfeed", "Headphone Speaker Emulation" } },
+            { "Level",           { "Gain", "Clipper", "Meter" } },
+            { "Stereo",          { "Pan", "Stereo Utility", "Mid/Side Encoder", "Mid/Side Decoder" } },
+            { "Time and Phase",  { "Delay", "Invert Phase" } },
+            { "Record and Play", { "Audio Recorder", "Looper", "Player" } },
+            { "Performance",     { "Score Viewer", "Music" } },
+        };
 
-        pluginsMenu.addSeparator();
+        for (const auto& [header, names] : groups)
+        {
+            pluginsMenu.addSeparator();
+            pluginsMenu.addSectionHeader (header);
 
-        // Group 3: Level and safety utilities
-        addInternalByName ("Gain");
-        addInternalByName ("Clipper");
-        addInternalByName ("Invert Phase");
-
-        pluginsMenu.addSeparator();
-
-        // Group 4: Metering
-        addInternalByName ("Meter");
-
-        pluginsMenu.addSeparator();
-
-        // Group 5: Routing and stereo utilities
-        addInternalByName ("Pan");
-        addInternalByName ("Stereo Utility");
-        addInternalByName ("Mid/Side Encoder");
-        addInternalByName ("Mid/Side Decoder");
-        addInternalByName ("Delay");
-
-        pluginsMenu.addSeparator();
-
-        // Group 6: Recording
-        addInternalByName ("Audio Recorder");
+            for (const auto& name : names)
+                addInternalByName (name);
+        }
 
         // Catch-all: add any future internal plugins not explicitly categorized
         bool addedExtra = false;

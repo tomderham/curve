@@ -1335,32 +1335,25 @@ private:
             [menu addItem: item];
         };
 
-        add (@"Audio Settings", callbacks.showAudioSettings);
+        add (@"Audio Settings...", callbacks.showAudioSettings);
         add (@"Plug-in Manager", callbacks.showPluginManager);
         add (@"Preferences...", callbacks.showPreferences);
         [menu addItem: [NSMenuItem separatorItem]];
 
         const auto panelState = source.getState();
 
-        auto* arrange = makeAction ([this] (id) { source.arrangePluginWindows(); });
-        NSMenuItem* arrangeItem = [[[NSMenuItem alloc] initWithTitle: @"Arrange Plug-in Windows" action: @selector (perform:) keyEquivalent: @""] autorelease];
-        [arrangeItem setTarget: arrange];
-        [arrangeItem setRepresentedObject: arrange];
-        [arrangeItem setEnabled: panelState.numPluginWindows > 0];
-        [menu setAutoenablesItems: NO];
-        [menu addItem: arrangeItem];
-
-        // Quick to reach on stage, so a layout can't be knocked out of place
+        // Quick to reach on stage, so a layout can't be knocked out of place. Arranging them is set-up,
+        // so it's in the editor's menu
         const bool locked = panelState.arePluginWindowPositionsLocked;
         auto* lock = makeAction ([this, locked] (id) { source.setPluginWindowPositionsLocked (! locked); });
-        NSMenuItem* lockItem = [[[NSMenuItem alloc] initWithTitle: @"Lock Plug-in Windows (This Scene)" action: @selector (perform:) keyEquivalent: @""] autorelease];
+        NSMenuItem* lockItem = [[[NSMenuItem alloc] initWithTitle: @"Lock Plug-in Windows for This Preset" action: @selector (perform:) keyEquivalent: @""] autorelease];
         [lockItem setTarget: lock];
         [lockItem setRepresentedObject: lock];
         [lockItem setState: locked ? NSControlStateValueOn : NSControlStateValueOff];
         [menu addItem: lockItem];
         [menu addItem: [NSMenuItem separatorItem]];
         add (@"Curve Help", callbacks.showHelp);
-        add (@"About...", callbacks.showAbout);
+        add (@"About Curve", callbacks.showAbout);
         [menu addItem: [NSMenuItem separatorItem]];
         add (@"Quit Curve", callbacks.quit);
 

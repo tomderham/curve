@@ -314,12 +314,6 @@ public:
         triggerAsyncUpdate();
     }
 
-    void arrangePluginWindows() override
-    {
-        if (auto* graph = getGraph())
-            graph->arrangePluginWindows();
-    }
-
     void togglePluginWindows() override
     {
         if (auto* graph = getGraph())

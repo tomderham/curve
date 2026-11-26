@@ -316,6 +316,13 @@ public:
         return juce::FontOptions (juce::jmin (14.0f, (float) buttonHeight * 0.6f));
     }
 
+    // As switches' text, rather than JUCE's 85% of the box's height, which is larger than the text
+    // around it
+    juce::Font getComboBoxFont (juce::ComboBox& box) override
+    {
+        return juce::FontOptions (juce::jmin (13.5f, (float) box.getHeight() * 0.6f));
+    }
+
     void drawButtonBackground (juce::Graphics& g, juce::Button& button, const juce::Colour& background,
                                bool isHighlighted, bool isDown) override
     {

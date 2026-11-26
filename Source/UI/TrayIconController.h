@@ -562,7 +562,7 @@ public:
     juce::Component::SafePointer<MainHostWindow> safeWindow (&mainWindow);
 
     juce::PopupMenu settingsmenu;
-    settingsmenu.addItem("Audio Settings", [safeWindow] {
+    settingsmenu.addItem("Audio Settings...", [safeWindow] {
       if (auto* w = safeWindow.getComponent())
         w->showAudioSettings();
     });
@@ -579,12 +579,12 @@ public:
     settingsmenu.addItem("Curve Help", [] {
       HelpBookManager::showHelp();
     });
-    settingsmenu.addItem("About...", [safeWindow] {
+    settingsmenu.addItem("About Curve", [safeWindow] {
       if (auto* w = safeWindow.getComponent())
         w->showAboutBox();
     });
     settingsmenu.addSeparator();
-    settingsmenu.addItem("Quit", [] {
+    settingsmenu.addItem("Quit Curve", [] {
       juce::JUCEApplication::getInstance()->systemRequestedQuit();
     });
 
@@ -640,17 +640,20 @@ public:
           w->showMidiMappingsWindow();
       });
     }
-    // The preset's plug-in windows, tidied into rows
+    // The preset's plug-in windows, tidied into rows: set-up, so only in the editor's menu, as in
+    // the menu bar panel. Locking them is quick to reach in both, for the stage
     {
       auto *graph = mainWindow.graphHolder != nullptr ? mainWindow.graphHolder->graph.get() : nullptr;
-      menu.addItem("Arrange Plug-in Windows", graph != nullptr && graph->getNumPluginWindows() > 0, false, [safeWindow] {
-        if (auto *w = safeWindow.getComponent())
-          if (w->graphHolder != nullptr && w->graphHolder->graph != nullptr)
-            w->graphHolder->graph->arrangePluginWindows();
-      });
+
+      if (!includeVisibilityToggle)
+        menu.addItem("Arrange Plug-in Windows", graph != nullptr && graph->getNumPluginWindows() > 0, false, [safeWindow] {
+          if (auto *w = safeWindow.getComponent())
+            if (w->graphHolder != nullptr && w->graphHolder->graph != nullptr)
+              w->graphHolder->graph->arrangePluginWindows();
+        });
 
       // Saved with the scene, as its window layout is
-      menu.addItem("Lock Plug-in Windows (This Scene)", graph != nullptr, PluginWindow::arePositionsLocked(), [safeWindow] {
+      menu.addItem("Lock Plug-in Windows for This Preset", graph != nullptr, PluginWindow::arePositionsLocked(), [safeWindow] {
         if (auto *w = safeWindow.getComponent())
           if (w->graphHolder != nullptr && w->graphHolder->graph != nullptr)
             w->graphHolder->graph->setPluginWindowPositionsLocked(!PluginWindow::arePositionsLocked());

@@ -81,10 +81,26 @@ public:
 
         refresh();
         startTimer (500);
+        // Labels left at JUCE's default size, 15 pt, at the size of the switches and drop-downs
+        // beside them instead
+        for (auto* page : std::initializer_list<juce::Component*> { &general, &menuBar, &files, &keyboard, &midi })
+            matchLabelSizes (*page);
+
         setSize (560, 450);
     }
 
     void resized() override { tabs.setBounds (getLocalBounds().reduced (8)); }
+
+    static void matchLabelSizes (juce::Component& c)
+    {
+        for (auto* child : c.getChildren())
+        {
+            if (auto* label = dynamic_cast<juce::Label*> (child); label != nullptr && std::abs (label->getFont().getHeight() - 15.0f) < 0.01f)
+                label->setFont (juce::FontOptions (13.5f));
+
+            matchLabelSizes (*child);
+        }
+    }
 
 private:
     //==============================================================================
@@ -135,7 +151,7 @@ private:
                 refresh();
             };
 
-            dockLabel.setText ("Dock Icon:", juce::dontSendNotification);
+            dockLabel.setText ("Show Dock Icon:", juce::dontSendNotification);
             dockMode.addItem ("Never", 1);
             dockMode.addItem ("While the Editor Is Open", 2);
             dockMode.addItem ("Always", 3);
@@ -193,8 +209,8 @@ private:
                     PluginWindow::setBackdropShownWhenLocked (newState);
             };
 
-            // Locking is per scene, from the editor and the menus; this is how it looks
-            lockedLabel.setText ("When a scene's plug-in windows are locked:", juce::dontSendNotification);
+            // Locking is per preset, from the editor and the menus; this is how it looks
+            lockedLabel.setText ("When a preset's plug-in windows are locked:", juce::dontSendNotification);
 
             updatesLabel.setText ("Updates:", juce::dontSendNotification);
 
@@ -245,16 +261,14 @@ private:
         {
             auto r = getLocalBounds().reduced (margin, 12);
 
-            openAtLogin.setBounds (r.removeFromTop (rowHeight));
+            for (auto* t : { &openAtLogin, &preventSleep, &releaseWhenIdle, &pluginWindowsOnAllSpaces })
+                t->setBounds (r.removeFromTop (rowHeight));
 
             {
                 auto row = r.removeFromTop (rowHeight);
-                dockLabel.setBounds (row.removeFromLeft (80));
+                dockLabel.setBounds (row.removeFromLeft (120));
                 dockMode.setBounds (row.removeFromLeft (220).reduced (0, 3));
             }
-
-            for (auto* t : { &preventSleep, &releaseWhenIdle, &pluginWindowsOnAllSpaces })
-                t->setBounds (r.removeFromTop (rowHeight));
 
             lockedLabel.setBounds (r.removeFromTop (rowHeight));
 
@@ -286,13 +300,11 @@ private:
     {
         FilesPage()
         {
-            addRow (CurveFolders::Kind::recordings, "Recordings:");
-            addRow (CurveFolders::Kind::media, "Scores and Backing Tracks:");
-
-            styleNote (note);
-            note.setText ("The Audio Recorder saves here, and the Score Viewer opens files from here first.",
-                          juce::dontSendNotification);
-            addAndMakeVisible (note);
+            // Each with what uses it beneath
+            addRow (CurveFolders::Kind::recordings, "Recordings:",
+                    "Where the Audio Recorder saves recordings, and the Looper first offers to save loops.");
+            addRow (CurveFolders::Kind::media, "Scores and Backing Tracks:",
+                    "Where the Score Viewer and the Player look first when you open or add files.");
         }
 
         void refresh()
@@ -305,32 +317,39 @@ private:
         {
             auto r = getLocalBounds().reduced (margin, 12);
 
+            // Wide enough for "Scores and Backing Tracks:"
+            constexpr int folderLabelWidth = 190;
+
             for (auto* row : rows)
             {
                 auto area = r.removeFromTop (rowHeight);
-                row->label.setBounds (area.removeFromLeft (labelWidth));
+                row->label.setBounds (area.removeFromLeft (folderLabelWidth));
                 row->choose.setBounds (area.removeFromRight (90).reduced (0, 3));
                 area.removeFromRight (6);
                 row->path.setBounds (area);
-            }
 
-            r.removeFromTop (12);
-            note.setBounds (r.removeFromTop (40));
+                // Two lines, to wrap onto
+                row->hint.setBounds (r.removeFromTop (36).withTrimmedLeft (folderLabelWidth));
+                r.removeFromTop (8);
+            }
         }
 
     private:
         struct Row
         {
             CurveFolders::Kind kind;
-            juce::Label label, path;
+            juce::Label label, path, hint;
             juce::TextButton choose;
         };
 
-        void addRow (CurveFolders::Kind kind, const juce::String& name)
+        void addRow (CurveFolders::Kind kind, const juce::String& name, const juce::String& hint)
         {
             auto* row = rows.add (new Row());
             row->kind = kind;
             row->label.setText (name, juce::dontSendNotification);
+            row->hint.setText (hint, juce::dontSendNotification);
+            styleNote (row->hint);
+            row->hint.setJustificationType (juce::Justification::topLeft);
             row->path.setMinimumHorizontalScale (1.0f);
             row->path.setColour (juce::Label::textColourId, Curve::Colours::dimText);
             row->choose.setButtonText ("Choose...");
@@ -347,12 +366,11 @@ private:
                                       });
             };
 
-            for (auto* c : std::initializer_list<juce::Component*> { &row->label, &row->path, &row->choose })
+            for (auto* c : std::initializer_list<juce::Component*> { &row->label, &row->path, &row->choose, &row->hint })
                 addAndMakeVisible (c);
         }
 
         juce::OwnedArray<Row> rows;
-        juce::Label note;
         std::unique_ptr<juce::FileChooser> chooser;
     };
 
@@ -362,121 +380,92 @@ private:
     {
         MenuBarPage()
         {
-            opensLabel.setText ("Clicking the Icon Opens:", juce::dontSendNotification);
-            opens.addItem ("The Panel", 1);
-            opens.addItem ("A Menu", 2);
-            opens.onChange = [this]
+            useMenu.setButtonText ("Use legacy menu");
+            useMenu.setTooltip ("Clicking the menu bar icon opens Curve's menu rather than the panel");
+            useMenu.onClick = [this]
             {
-                MenuBarPanel::setSetting (MenuBarPanel::useMenuSetting, opens.getSelectedId() == 2);
+                MenuBarPanel::setSetting (MenuBarPanel::useMenuSetting, useMenu.getToggleState());
                 refresh();
             };
 
-            showsLabel.setText ("The Panel Shows:", juce::dontSendNotification);
+            showsLabel.setText ("Menu Bar Panel Shows:", juce::dontSendNotification);
 
-            showPlugins.setButtonText ("Plug-ins, to bypass them and open their windows");
-            showPlugins.onClick = [this] { MenuBarPanel::setSetting (MenuBarPanel::showPluginsSetting, showPlugins.getToggleState()); };
+            const auto setUp = [] (juce::ToggleButton& b, const char* text, const char* key)
+            {
+                b.setButtonText (text);
+                b.onClick = [&b, key] { MenuBarPanel::setSetting (key, b.getToggleState()); };
+            };
 
-            showVolume.setButtonText ("Output volume: the interface's, or Curve's if it has none");
-            showVolume.onClick = [this] { MenuBarPanel::setSetting (MenuBarPanel::showVolumeSetting, showVolume.getToggleState()); };
+            setUp (showPlugins, "Plug-ins",            MenuBarPanel::showPluginsSetting);
+            setUp (showOutput,  "Output controls",     MenuBarPanel::showOutputSetting);
+            setUp (showVolume,  "Output volume",       MenuBarPanel::showVolumeSetting);
+            setUp (showMeter,   "Output level meter",  MenuBarPanel::showMeterSetting);
+            setUp (showTempo,   "Tempo and transport", MenuBarPanel::showTempoSetting);
 
-            showOutput.setButtonText ("Output switches: Mono, Dim and Mute");
-            showOutput.onClick = [this] { MenuBarPanel::setSetting (MenuBarPanel::showOutputSetting, showOutput.getToggleState()); };
-
-            backgroundLabel.setText ("Background:", juce::dontSendNotification);
-            background.addItem ("Frosted, as macOS's menus", 1);
+            backgroundLabel.setText ("Panel Background:", juce::dontSendNotification);
+            background.addItem ("Frosted (same as macOS menus)", 1);
             background.addItem ("Clear glass", 2);
             background.addItem ("Solid", 3);
             background.setTooltip ("Frosted stays light over dark windows, as the Wi-Fi and other menu bar panels do. "
                                    "Clear glass takes on more of what's behind it");
             background.onChange = [this] { MenuBarPanel::setBackground ((MenuBarPanel::Background) (background.getSelectedId() - 1)); };
 
-            appearanceLabel.setText ("Appearance:", juce::dontSendNotification);
+            appearanceLabel.setText ("Panel Appearance:", juce::dontSendNotification);
             appearance.addItem ("Follow System", 1);
             appearance.addItem ("Light", 2);
             appearance.addItem ("Dark", 3);
-            appearance.setTooltip ("The panel's, light or dark, or as macOS is set. Curve's own windows are always dark");
+            appearance.setTooltip ("Light or dark, or as macOS is set. Curve's own windows are always dark");
             appearance.onChange = [this] { MenuBarPanel::setAppearance ((MenuBarPanel::Appearance) (appearance.getSelectedId() - 1)); };
 
-            showMeter.setButtonText ("Output level meter");
-            showMeter.onClick = [this] { MenuBarPanel::setSetting (MenuBarPanel::showMeterSetting, showMeter.getToggleState()); };
-
-            showTempo.setButtonText ("Tempo, with Tap and Play/Stop, for tempo-synced plug-ins");
-            showTempo.onClick = [this] { MenuBarPanel::setSetting (MenuBarPanel::showTempoSetting, showTempo.getToggleState()); };
-
-            styleNote (note);
-            note.setText ("The panel always shows the presets. Right-click or Control-click the icon for the menu.",
-                          juce::dontSendNotification);
-
-            for (auto* c : std::initializer_list<juce::Component*> { &opensLabel, &opens, &showsLabel, &showPlugins, &showOutput, &showVolume, &showMeter, &showTempo, &backgroundLabel, &background, &appearanceLabel, &appearance, &note })
+            for (auto* c : std::initializer_list<juce::Component*> { &useMenu, &showsLabel, &showPlugins, &showOutput, &showVolume, &showMeter,
+                                                                    &showTempo, &backgroundLabel, &background, &appearanceLabel, &appearance })
                 addAndMakeVisible (c);
         }
 
         void refresh()
         {
             const bool usesMenu = MenuBarPanel::getSetting (MenuBarPanel::useMenuSetting, false);
-            opens.setSelectedId (usesMenu ? 2 : 1, juce::dontSendNotification);
+            useMenu.setToggleState (usesMenu, juce::dontSendNotification);
             showPlugins.setToggleState (MenuBarPanel::getSetting (MenuBarPanel::showPluginsSetting, true), juce::dontSendNotification);
+            showOutput.setToggleState (MenuBarPanel::getSetting (MenuBarPanel::showOutputSetting, true), juce::dontSendNotification);
             showVolume.setToggleState (MenuBarPanel::getSetting (MenuBarPanel::showVolumeSetting, true), juce::dontSendNotification);
             showMeter.setToggleState (MenuBarPanel::getSetting (MenuBarPanel::showMeterSetting, true), juce::dontSendNotification);
             showTempo.setToggleState (MenuBarPanel::getSetting (MenuBarPanel::showTempoSetting, false), juce::dontSendNotification);
-            showTempo.setEnabled (! usesMenu);
-            showOutput.setToggleState (MenuBarPanel::getSetting (MenuBarPanel::showOutputSetting, true), juce::dontSendNotification);
-            showOutput.setEnabled (! usesMenu);
             background.setSelectedId ((int) MenuBarPanel::getBackground() + 1, juce::dontSendNotification);
-            background.setEnabled (! usesMenu);
             appearance.setSelectedId ((int) MenuBarPanel::getAppearance() + 1, juce::dontSendNotification);
-            appearance.setEnabled (! usesMenu);
-            showPlugins.setEnabled (! usesMenu);
-            showVolume.setEnabled (! usesMenu);
-            showMeter.setEnabled (! usesMenu);
+
+            // The panel's options, which the legacy menu doesn't have
+            for (auto* c : std::initializer_list<juce::Component*> { &showsLabel, &showPlugins, &showOutput, &showVolume, &showMeter, &showTempo,
+                                                                    &backgroundLabel, &background, &appearanceLabel, &appearance })
+                c->setEnabled (! usesMenu);
         }
 
         void resized() override
         {
             auto r = getLocalBounds().reduced (margin, 12);
 
-            auto row = r.removeFromTop (rowHeight);
-            opensLabel.setBounds (row.removeFromLeft (labelWidth));
-            opens.setBounds (row.removeFromLeft (160).reduced (0, 3));
-
+            useMenu.setBounds (r.removeFromTop (rowHeight));
             r.removeFromTop (8);
-            row = r.removeFromTop (rowHeight);
+
+            auto row = r.removeFromTop (rowHeight);
             showsLabel.setBounds (row.removeFromLeft (labelWidth));
             showPlugins.setBounds (row);
 
-            row = r.removeFromTop (rowHeight);
-            row.removeFromLeft (labelWidth);
-            showOutput.setBounds (row);
-
-            row = r.removeFromTop (rowHeight);
-            row.removeFromLeft (labelWidth);
-            showVolume.setBounds (row);
-
-            row = r.removeFromTop (rowHeight);
-            row.removeFromLeft (labelWidth);
-            showMeter.setBounds (row);
-
-            row = r.removeFromTop (rowHeight);
-            row.removeFromLeft (labelWidth);
-            showTempo.setBounds (row);
+            for (auto* t : { &showOutput, &showVolume, &showMeter, &showTempo })
+                t->setBounds (r.removeFromTop (rowHeight).withTrimmedLeft (labelWidth));
 
             r.removeFromTop (8);
             row = r.removeFromTop (rowHeight);
             backgroundLabel.setBounds (row.removeFromLeft (labelWidth));
-            background.setBounds (row.removeFromLeft (230).reduced (0, 3));
+            background.setBounds (row.removeFromLeft (250).reduced (0, 3));
 
             row = r.removeFromTop (rowHeight);
             appearanceLabel.setBounds (row.removeFromLeft (labelWidth));
-            appearance.setBounds (row.removeFromLeft (230).reduced (0, 3));
-
-            r.removeFromTop (12);
-            note.setBounds (r.removeFromTop (40));
+            appearance.setBounds (row.removeFromLeft (250).reduced (0, 3));
         }
 
-        juce::Label opensLabel, showsLabel, note;
-        juce::ComboBox opens;
-        juce::ToggleButton showPlugins, showOutput, showVolume, showMeter, showTempo;
-        juce::Label backgroundLabel, appearanceLabel;
+        juce::ToggleButton useMenu, showPlugins, showOutput, showVolume, showMeter, showTempo;
+        juce::Label showsLabel, backgroundLabel, appearanceLabel;
         juce::ComboBox background, appearance;
     };
 
