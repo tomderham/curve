@@ -24,6 +24,7 @@
 #include "IdleReleaseController.h"
 #include "VolumeKeyManager.h"
 #include "MenuBarPanel.h"
+#include "CurveFolders.h"
 
 inline bool attemptToEnableLoginItem()
 {
@@ -70,6 +71,7 @@ public:
         const auto background = getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId);
         tabs.addTab ("General", background, &general, false);
         tabs.addTab ("Menu Bar", background, &menuBar, false);
+        tabs.addTab ("Files", background, &files, false);
         tabs.addTab ("Keyboard", background, &keyboard, false);
         tabs.addTab ("MIDI", background, &midi, false);
         tabs.setTabBarDepth (30);
@@ -267,6 +269,82 @@ private:
         juce::Label lockedLabel;
         juce::Label updatesLabel;
         juce::TextButton checkNow;
+    };
+
+    //==============================================================================
+    // The folders the recorder saves to, and scores and backing tracks are opened from first
+    struct FilesPage final : public juce::Component
+    {
+        FilesPage()
+        {
+            addRow (CurveFolders::Kind::recordings, "Recordings:");
+            addRow (CurveFolders::Kind::media, "Scores and Backing Tracks:");
+
+            styleNote (note);
+            note.setText ("The Audio Recorder saves here, and the Score Viewer opens files from here first.",
+                          juce::dontSendNotification);
+            addAndMakeVisible (note);
+        }
+
+        void refresh()
+        {
+            for (auto* row : rows)
+                row->path.setText (CurveFolders::get (row->kind).getFullPathName(), juce::dontSendNotification);
+        }
+
+        void resized() override
+        {
+            auto r = getLocalBounds().reduced (margin, 12);
+
+            for (auto* row : rows)
+            {
+                auto area = r.removeFromTop (rowHeight);
+                row->label.setBounds (area.removeFromLeft (labelWidth));
+                row->choose.setBounds (area.removeFromRight (90).reduced (0, 3));
+                area.removeFromRight (6);
+                row->path.setBounds (area);
+            }
+
+            r.removeFromTop (12);
+            note.setBounds (r.removeFromTop (40));
+        }
+
+    private:
+        struct Row
+        {
+            CurveFolders::Kind kind;
+            juce::Label label, path;
+            juce::TextButton choose;
+        };
+
+        void addRow (CurveFolders::Kind kind, const juce::String& name)
+        {
+            auto* row = rows.add (new Row());
+            row->kind = kind;
+            row->label.setText (name, juce::dontSendNotification);
+            row->path.setMinimumHorizontalScale (1.0f);
+            row->path.setColour (juce::Label::textColourId, Curve::Colours::dimText);
+            row->choose.setButtonText ("Choose...");
+            row->choose.onClick = [this, kind]
+            {
+                chooser = std::make_unique<juce::FileChooser> ("Choose a Folder", CurveFolders::get (kind));
+                chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories,
+                                      [this, kind] (const juce::FileChooser& fc)
+                                      {
+                                          if (fc.getResult().isDirectory())
+                                              CurveFolders::set (kind, fc.getResult());
+
+                                          refresh();
+                                      });
+            };
+
+            for (auto* c : std::initializer_list<juce::Component*> { &row->label, &row->path, &row->choose })
+                addAndMakeVisible (c);
+        }
+
+        juce::OwnedArray<Row> rows;
+        juce::Label note;
+        std::unique_ptr<juce::FileChooser> chooser;
     };
 
     //==============================================================================
@@ -691,6 +769,7 @@ private:
     {
         general.refresh();
         menuBar.refresh();
+        files.refresh();
         keyboard.refresh();
         midi.refresh();
     }
@@ -704,6 +783,7 @@ private:
     Callbacks callbacks; // before the pages, which refer to it
     GeneralPage general;
     MenuBarPage menuBar;
+    FilesPage files;
     KeyboardPage keyboard;
     MidiPage midi;
     juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };

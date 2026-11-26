@@ -13,6 +13,7 @@
 */
 
 #include "AudioRecorderNode.h"
+#include "../UI/CurveFolders.h"
 #include "../UI/CurveColours.h"
 
 //==============================================================================
@@ -134,7 +135,8 @@ private:
         }
         else
         {
-            fileLabel.setText ("Audio will save to Desktop as 32-bit Float WAV", juce::dontSendNotification);
+            fileLabel.setText ("Audio will save to " + CurveFolders::get (CurveFolders::Kind::recordings).getFileName()
+                                 + " as 32-bit Float WAV", juce::dontSendNotification);
             revealButton.setEnabled (false);
         }
 
@@ -235,9 +237,10 @@ void AudioRecorderNode::startRecording()
     fifoBuffer.clear();
     samplesRecorded.store (0, std::memory_order_release);
 
-    auto desktopDir = juce::File::getSpecialLocation (juce::File::userDesktopDirectory);
+    // The folder chosen in Preferences > Files, by default the Desktop
+    auto folder = CurveFolders::get (CurveFolders::Kind::recordings);
     auto timeString = juce::Time::getCurrentTime().formatted ("%Y-%m-%d_%H%M%S");
-    lastRecordedFile = desktopDir.getChildFile ("Curve_Capture_" + juce::String ((int) currentSampleRate) + "Hz_" + timeString + ".wav");
+    lastRecordedFile = folder.getChildFile ("Curve_Capture_" + juce::String ((int) currentSampleRate) + "Hz_" + timeString + ".wav");
 
     if (lastRecordedFile.existsAsFile())
         lastRecordedFile.deleteFile();

@@ -16,6 +16,7 @@
 #include "PdfView.h"
 #include "../UI/CurveColours.h"
 #include "../UI/WindowLock.h"
+#include "../UI/CurveFolders.h"
 
 juce::PropertiesFile* getUserSettings();
 
@@ -193,7 +194,11 @@ private:
 
     void chooseFile()
     {
-        chooser = std::make_unique<juce::FileChooser> ("Open a Score", node.getFile().getParentDirectory(),
+        // Where the last one was, or the folder chosen in Preferences > Files
+        const auto start = node.getFile().getParentDirectory().isDirectory() ? node.getFile().getParentDirectory()
+                                                                             : CurveFolders::get (CurveFolders::Kind::media);
+
+        chooser = std::make_unique<juce::FileChooser> ("Open a Score", start,
                                                        "*.pdf;*.png;*.jpg;*.jpeg;*.tif;*.tiff;*.gif;*.heic");
 
         chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
