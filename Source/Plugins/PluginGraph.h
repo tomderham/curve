@@ -116,6 +116,10 @@ public:
     // Doesn't take keyboard focus from the current app.
     void openPresetPluginWindows();
 
+    // While set, plug-ins that finish loading in the background don't open the preset's windows, as
+    // MainHostWindow opens them once quick switching between presets has settled
+    void setPresetWindowsDeferred (bool shouldDefer)  { arePresetWindowsDeferred = shouldDefer; }
+
     // Brings the open plug-in windows in front of other apps' windows, in the order they were last
     // in, without making Curve the active app
     void bringPluginWindowsToFront();
@@ -322,6 +326,7 @@ private:
 
     std::set<uint32> bypassedForComparison; // by setBypassingAll(), to turn back on
     bool isApplyingComparison = false;      // while setBypassingAll() sets them
+    bool arePresetWindowsDeferred = false;
 
     WindowArrangement::Backdrop backdrop;
     void applyWindowLock (bool shouldLock); // As a scene has it, without changing the preset

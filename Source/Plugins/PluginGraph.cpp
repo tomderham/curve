@@ -1585,8 +1585,10 @@ void PluginGraph::asyncNodeRestoreFinished (std::unique_ptr<AudioPluginInstance>
     {
         showRestoreFailures();
 
-        // Their nodes didn't exist yet when MainHostWindow::loadPreset() opened the others
-        openPresetPluginWindows();
+        // Their nodes didn't exist yet when MainHostWindow::loadPreset() opened the others. Unless
+        // it's holding them back while presets are switched quickly, and opens them all later
+        if (! arePresetWindowsDeferred)
+            openPresetPluginWindows();
     }
 }
 

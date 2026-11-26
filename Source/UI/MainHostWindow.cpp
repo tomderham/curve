@@ -1502,8 +1502,97 @@ void MainHostWindow::filesDropped (const StringArray& files, int x, int y)
     }
 }
 
-void MainHostWindow::loadPreset(juce::File file)
+// Loads at most this often. Flipping through presets faster than this loads the first and then the
+// last, not every one between: plug-ins created and destroyed in quick succession can be destroyed
+// with work still queued on the message thread, which some (e.g. Two Notes Genome) then crash running
+static constexpr juce::uint32 minPresetLoadIntervalMs = 250;
+
+// While switching quickly, a preset's windows open once it has settled for this long, rather than
+// each preset's plug-in editors opening and closing in turn
+static constexpr juce::uint32 rapidSwitchingMs = 1000, windowsSettleMs = 500;
+
+void MainHostWindow::loadPreset (juce::File file)
 {
+    pendingPresetFile = file;
+
+    // A load in progress, e.g. a plug-in running the event loop as it loads, takes this on after
+    if (isLoadingPreset || isPresetLoadScheduled)
+        return;
+
+    const auto sinceLast = juce::Time::getMillisecondCounter() - lastPresetLoadTime;
+
+    if (lastPresetLoadTime != 0 && sinceLast < minPresetLoadIntervalMs)
+    {
+        isPresetLoadScheduled = true;
+
+        juce::Timer::callAfterDelay ((int) (minPresetLoadIntervalMs - sinceLast), [safeThis = SafePointer<MainHostWindow> (this)]
+        {
+            if (safeThis != nullptr)
+            {
+                safeThis->isPresetLoadScheduled = false;
+                safeThis->loadPendingPreset();
+            }
+        });
+
+        return;
+    }
+
+    loadPendingPreset();
+}
+
+void MainHostWindow::loadPendingPreset()
+{
+    const auto file = std::exchange (pendingPresetFile, juce::File());
+
+    if (file == juce::File())
+        return;
+
+    const auto now = juce::Time::getMillisecondCounter();
+    const bool switchingQuickly = lastPresetLoadTime != 0 && now - lastPresetLoadTime < rapidSwitchingMs;
+
+    {
+        const juce::ScopedValueSetter<bool> loading (isLoadingPreset, true);
+        loadPresetNow (file, switchingQuickly);
+    }
+
+    lastPresetLoadTime = juce::Time::getMillisecondCounter();
+
+    // Asked for while it loaded: the latest, in its turn
+    if (pendingPresetFile != juce::File())
+        loadPreset (pendingPresetFile);
+}
+
+void MainHostWindow::openPresetPluginWindows (bool afterSettling)
+{
+    if (graphHolder == nullptr || graphHolder->graph == nullptr)
+        return;
+
+    graphHolder->graph->setPresetWindowsDeferred (afterSettling);
+
+    if (! afterSettling)
+    {
+        graphHolder->graph->openPresetPluginWindows();
+        return;
+    }
+
+    const auto generation = ++windowsOpenGeneration;
+
+    juce::Timer::callAfterDelay ((int) windowsSettleMs, [safeThis = SafePointer<MainHostWindow> (this), generation]
+    {
+        // Only for the last preset loaded, once nothing else has loaded since
+        if (safeThis != nullptr && safeThis->windowsOpenGeneration == generation
+            && safeThis->graphHolder != nullptr && safeThis->graphHolder->graph != nullptr)
+        {
+            safeThis->graphHolder->graph->setPresetWindowsDeferred (false);
+            safeThis->graphHolder->graph->openPresetPluginWindows();
+        }
+    });
+}
+
+void MainHostWindow::loadPresetNow (juce::File file, bool switchingQuickly)
+{
+    ++windowsOpenGeneration; // A preset's windows waiting to open no longer will
+
     // Another scene with the live graph's structure: its plug-ins are set as it has them, without loading them
     String whyLoadedInFull;
 
@@ -1519,7 +1608,7 @@ void MainHostWindow::loadPreset(juce::File file)
                 graphHolder->propagateDeviceSettingsToNodes();
             });
 
-            graphHolder->graph->openPresetPluginWindows();
+            openPresetPluginWindows (switchingQuickly);
             return;
         }
     }
@@ -1545,8 +1634,7 @@ void MainHostWindow::loadPreset(juce::File file)
         }
     });
 
-    if (graphHolder != nullptr && graphHolder->graph != nullptr)
-        graphHolder->graph->openPresetPluginWindows();
+    openPresetPluginWindows (switchingQuickly);
 
     // A scene of the loaded group that couldn't switch in place: say why, as it's slower
     if (loaded && whyLoadedInFull.isNotEmpty() && graphHolder != nullptr)

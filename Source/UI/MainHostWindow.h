@@ -131,6 +131,15 @@ public:
     static constexpr int importCalibrationCreateMenuID = 0x50001;
 
 private:
+    // Loading presets: coalesced when they're asked for faster than plug-ins can safely be created and
+    // destroyed, and never one inside another (see loadPreset())
+    juce::File pendingPresetFile;
+    bool isLoadingPreset = false, isPresetLoadScheduled = false;
+    juce::uint32 lastPresetLoadTime = 0, windowsOpenGeneration = 0;
+    void loadPendingPreset();
+    void loadPresetNow (juce::File, bool switchingQuickly);
+    void openPresetPluginWindows (bool afterSettling);
+
 
     //==============================================================================
     CurveAudioDeviceManager deviceManager;
