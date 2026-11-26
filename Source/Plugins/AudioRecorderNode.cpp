@@ -35,13 +35,12 @@ namespace
 
 //==============================================================================
 /*  The recorder's window: a record button, what it's doing and for how long, a scrolling waveform of
-    what it hears, its options as a form, a line saying what the next recording will be, and the
-    recordings made, to open, drag out, rename, show or move to the Trash.
+    what it hears, its options as a form, and the last recording, to open, drag out, rename, show or
+    move to the Trash.
 */
 class AudioRecorderEditor final : public juce::AudioProcessorEditor,
                                   public juce::DragAndDropContainer,
-                                  private juce::Timer,
-                                  private juce::ListBoxModel
+                                  private juce::Timer
 {
 public:
     explicit AudioRecorderEditor (AudioRecorderNode& owner)
@@ -88,7 +87,7 @@ public:
         nameEditor.setIndents (8, 5);
         nameEditor.setTooltip ("What recordings are called. With a name, e.g. Verse, they're numbered: Verse 1, Verse 2...");
         nameEditor.setText (recorder.getFileName(), juce::dontSendNotification);
-        nameEditor.onTextChange = [this] { recorder.setFileName (nameEditor.getText()); updateSummary(); };
+        nameEditor.onTextChange = [this] { recorder.setFileName (nameEditor.getText()); };
         nameEditor.onReturnKey = [this] { unfocusAllComponents(); };
         addAndMakeVisible (nameEditor);
 
@@ -97,7 +96,6 @@ public:
         formatBox.onChange = [this]
         {
             recorder.setFormat ((AudioRecorderNode::Format) formatBox.getSelectedItemIndex());
-            updateSummary();
         };
         addAndMakeVisible (formatBox);
 
@@ -111,7 +109,6 @@ public:
         {
             static const int seconds[] = { 0, 10, 30, 60 };
             recorder.setHistorySeconds (seconds[juce::jlimit (0, 3, includeBox.getSelectedItemIndex())]);
-            updateSummary();
         };
         addAndMakeVisible (includeBox);
 
@@ -141,42 +138,39 @@ public:
         silenceLabel.setFont (juce::FontOptions (13.0f));
         addAndMakeVisible (silenceLabel);
 
-        summaryLabel.setFont (juce::FontOptions (12.5f));
-        summaryLabel.setColour (juce::Label::textColourId, Curve::Colours::dimText);
-        summaryLabel.setBorderSize ({});
-        addAndMakeVisible (summaryLabel);
-
-        recentHeader.setText ("RECORDINGS", juce::dontSendNotification);
+        recentHeader.setText ("LAST RECORDING", juce::dontSendNotification);
         recentHeader.setFont (juce::FontOptions (11.0f, juce::Font::bold));
         recentHeader.setColour (juce::Label::textColourId, Curve::Colours::dimText);
         recentHeader.setBorderSize ({});
         addAndMakeVisible (recentHeader);
 
         revealFolder.setButtonText ("Show in Finder");
-        revealFolder.setTooltip ("The recordings folder, chosen in Preferences > Files");
-        revealFolder.onClick = [] { CurveFolders::get (CurveFolders::Kind::recordings).revealToUser(); };
+        revealFolder.setTooltip ("The last recording in the Finder, or the recordings folder, chosen in Preferences > Files");
+        revealFolder.onClick = [this]
+        {
+            if (lastRow.file.existsAsFile())
+                lastRow.file.revealToUser();
+            else
+                CurveFolders::get (CurveFolders::Kind::recordings).revealToUser();
+        };
         addAndMakeVisible (revealFolder);
 
-        recentList.setModel (this);
-        recentList.setRowHeight (34);
-        recentList.setOutlineThickness (0);
-        recentList.setColour (juce::ListBox::backgroundColourId, Curve::Colours::surface);
-        addAndMakeVisible (recentList);
+        lastRow.setTooltip ("Double-click to open it, drag it into another app, or right-click for more");
+        addAndMakeVisible (lastRow);
 
         refreshOptions();
         refreshRecent();
         update();
 
         setResizable (true, false);
-        setResizeLimits (440, 520, 1200, 1400);
-        setSize (500, 580);
+        setResizeLimits (440, 440, 1200, 900);
+        setSize (500, 440);
         startTimerHz (30);
     }
 
     ~AudioRecorderEditor() override
     {
         stopTimer();
-        recentList.setModel (nullptr);
         recorder.editorBeingDeleted (this);
     }
 
@@ -233,7 +227,7 @@ public:
         waveformArea = r.removeFromTop (60);
 
         r.removeFromTop (14);
-        formArea = r.removeFromTop (4 * rowHeight + 46);
+        formArea = r.removeFromTop (4 * rowHeight + 20);
         auto form = formArea.reduced (14, 10);
 
         const auto row = [&form] (juce::Label& label)
@@ -255,15 +249,12 @@ public:
         autoRow.removeFromLeft (6);
         silenceLabel.setBounds (autoRow);
 
-        form.removeFromTop (8);
-        summaryLabel.setBounds (form.withTrimmedLeft (labelWidth + 10));
-
         r.removeFromTop (16);
         auto header = r.removeFromTop (26);
         revealFolder.setBounds (header.removeFromRight (116));
         recentHeader.setBounds (header);
         r.removeFromTop (6);
-        recentList.setBounds (r);
+        lastRow.setBounds (r.removeFromTop (40));
     }
 
 private:
@@ -316,12 +307,9 @@ private:
         update();
         repaint (waveformArea);
 
-        // A recording just started or finished: the next one's name has changed, and it's in the list
+        // A recording just finished: it's the last one
         if (wasRecording != recorder.isRecording())
-        {
             refreshRecent();
-            updateSummary();
-        }
 
         wasRecording = recorder.isRecording();
     }
@@ -351,19 +339,6 @@ private:
             c->setEnabled (! rec);
     }
 
-    // What the next recording will be, in a line
-    void updateSummary()
-    {
-        const auto next = recorder.getNextFile();
-        juce::String text = "Next: " + next.getFileName() + ", in " + next.getParentDirectory().getFileName();
-
-        if (const auto seconds = recorder.getHistorySeconds(); seconds > 0)
-            text << ", starting " << seconds << " s before Record";
-
-        summaryLabel.setText (text, juce::dontSendNotification);
-        summaryLabel.setTooltip (next.getFullPathName());
-    }
-
     void refreshOptions()
     {
         static const int historyChoices[] = { 0, 10, 30, 60 };
@@ -378,32 +353,40 @@ private:
                 silenceBox.setSelectedItemIndex (i, juce::dontSendNotification);
 
         formatBox.setSelectedItemIndex ((int) recorder.getFormat(), juce::dontSendNotification);
-        updateSummary();
     }
 
+    // The last recording made, by any recorder, even before Curve was last opened
     void refreshRecent()
     {
-        recent = AudioRecorderNode::getRecentRecordings();
-        recentList.updateContent();
-        recentList.repaint();
+        lastRow.file = AudioRecorderNode::getRecentRecordings()[0];
+        lastRow.repaint();
     }
 
     //==============================================================================
-    // A recording in the list, to open, drag into another app, rename, show, or move to the Trash
-    struct RecordingRow final : public juce::Component
+    // The last recording, to open, drag into another app, rename, show, or move to the Trash
+    struct RecordingRow final : public juce::Component,
+                                public juce::SettableTooltipClient
     {
         explicit RecordingRow (AudioRecorderEditor& e) : editor (e) {}
 
         AudioRecorderEditor& editor;
         juce::File file;
-        bool selected = false;
 
         void paint (juce::Graphics& g) override
         {
-            if (selected)
-                g.fillAll (Curve::Colours::accent.withAlpha (0.22f));
+            g.setColour (Curve::Colours::surface);
+            g.fillRoundedRectangle (getLocalBounds().toFloat(), 8.0f);
 
             auto r = getLocalBounds().reduced (12, 0);
+
+            if (! file.existsAsFile())
+            {
+                g.setFont (juce::FontOptions (13.0f));
+                g.setColour (Curve::Colours::dimText);
+                g.drawText ("None yet", r, juce::Justification::centredLeft);
+                return;
+            }
+
             const auto modified = file.getLastModificationTime();
             const auto isToday = modified.toString (true, false) == juce::Time::getCurrentTime().toString (true, false);
 
@@ -420,9 +403,7 @@ private:
 
         void mouseDown (const juce::MouseEvent& e) override
         {
-            editor.selectRecording (file);
-
-            if (e.mods.isPopupMenu())
+            if (e.mods.isPopupMenu() && file.existsAsFile())
                 editor.showRecordingMenu (file);
         }
 
@@ -448,39 +429,6 @@ private:
         bool dragging = false;
     };
 
-    int getNumRows() override { return recent.size(); }
-
-    void paintListBoxItem (int, juce::Graphics&, int, int, bool) override {}
-
-    juce::Component* refreshComponentForRow (int row, bool isSelected, juce::Component* existing) override
-    {
-        auto* r = dynamic_cast<RecordingRow*> (existing);
-
-        if (r == nullptr)
-        {
-            delete existing;
-            r = new RecordingRow (*this);
-        }
-
-        r->file = recent[row];
-        r->selected = isSelected || recent[row] == selectedFile;
-        r->repaint();
-        return r;
-    }
-
-    void selectRecording (const juce::File& file)
-    {
-        selectedFile = file;
-        recentList.repaint();
-
-        for (int i = 0; i < recentList.getNumRowsOnScreen() + 1; ++i)
-            if (auto* row = dynamic_cast<RecordingRow*> (recentList.getComponentForRowNumber (recentList.getRowContainingPosition (0, 0) + i)))
-            {
-                row->selected = row->file == selectedFile;
-                row->repaint();
-            }
-    }
-
     void showRecordingMenu (const juce::File& file)
     {
         juce::PopupMenu menu;
@@ -491,11 +439,6 @@ private:
         menu.addItem ("Move to Trash", file.existsAsFile(), false, [this, file]
         {
             file.moveToTrash();
-            AudioRecorderNode::forgetRecording (file);
-            refreshRecent();
-        });
-        menu.addItem ("Remove from List", [this, file]
-        {
             AudioRecorderNode::forgetRecording (file);
             refreshRecent();
         });
@@ -522,10 +465,7 @@ private:
                 return;
 
             if (AudioRecorderNode::renameRecording (file, name))
-            {
-                safeThis->selectedFile = file.getSiblingFile (juce::File::createLegalFileName (name.trim()) + file.getFileExtension());
                 safeThis->refreshRecent();
-            }
             else
             {
                 juce::NativeMessageBox::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon, "Couldn't Rename the Recording",
@@ -537,14 +477,12 @@ private:
     AudioRecorderNode& recorder;
     RecordButton recordButton;
     juce::Label statusLabel, timeLabel, detailLabel, recentHeader;
-    juce::Label nameLabel, formatLabel, includeLabel, autoLabel, silenceLabel, summaryLabel;
+    juce::Label nameLabel, formatLabel, includeLabel, autoLabel, silenceLabel;
     juce::TextEditor nameEditor;
     juce::ComboBox includeBox, silenceBox, formatBox;
     juce::ToggleButton autoSwitch;
     juce::TextButton revealFolder;
-    juce::ListBox recentList;
-    juce::Array<juce::File> recent;
-    juce::File selectedFile;
+    RecordingRow lastRow { *this };
     std::unique_ptr<juce::AlertWindow> renameWindow;
 
     juce::Rectangle<int> waveformArea, formArea;

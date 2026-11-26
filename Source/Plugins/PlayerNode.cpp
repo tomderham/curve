@@ -105,7 +105,7 @@ public:
         levelSlider.onDragStart = [this] { player.getLevelParameter().beginChangeGesture(); };
         levelSlider.onValueChange = [this] { player.getLevelParameter().set ((float) levelSlider.getValue()); };
         levelSlider.onDragEnd = [this] { player.getLevelParameter().endChangeGesture(); };
-        levelSlider.setTooltip ("How loud the tracks are, over what comes in");
+        levelSlider.setTooltip ("How loud the tracks are");
         addAndMakeVisible (levelSlider);
 
         volumeLabel.setText ("Volume", juce::dontSendNotification);
@@ -502,8 +502,7 @@ private:
 
 //==============================================================================
 PlayerNode::PlayerNode()
-    : AudioPluginInstance (BusesProperties().withInput ("Input", juce::AudioChannelSet::stereo(), true)
-                                            .withOutput ("Output", juce::AudioChannelSet::stereo(), true))
+    : AudioPluginInstance (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true))
 {
     formatManager.registerBasicFormats();
 
@@ -751,6 +750,9 @@ void PlayerNode::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffe
     juce::ScopedNoDenormals noDenormals;
     const auto numSamples = buffer.getNumSamples();
 
+    // Nothing comes in: what's in the buffer is left from elsewhere in the graph
+    buffer.clear();
+
     // A bigger block than it was prepared for is played in parts
     for (int done = 0; done < numSamples;)
     {
@@ -815,8 +817,9 @@ void PlayerNode::setStateInformation (const void* data, int sizeInBytes)
 
 bool PlayerNode::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
-    const auto in = layouts.getMainInputChannelSet(), out = layouts.getMainOutputChannelSet();
-    return in == out && (in == juce::AudioChannelSet::mono() || in == juce::AudioChannelSet::stereo());
+    const auto out = layouts.getMainOutputChannelSet();
+    return layouts.getMainInputChannelSet().isDisabled()
+        && (out == juce::AudioChannelSet::mono() || out == juce::AudioChannelSet::stereo());
 }
 
 juce::AudioProcessorEditor* PlayerNode::createEditor()
@@ -833,6 +836,6 @@ void PlayerNode::describe (juce::PluginDescription& description)
     description.fileOrIdentifier = "Player";
     description.uniqueId = 0x504C4159; // "PLAY"
     description.isInstrument = false;
-    description.numInputChannels = 2;
+    description.numInputChannels = 0;
     description.numOutputChannels = 2;
 }

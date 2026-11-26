@@ -305,6 +305,25 @@ public:
         }
     }
 
+    // A menu's section headings small and quiet, in capitals, as the menu bar panel's are, so a menu
+    // of several sections, e.g. Curve Plugins, isn't made much taller by them
+    void getIdealPopupMenuSectionHeaderSizeWithOptions (const juce::String& text, int standardMenuItemHeight,
+                                                        int& idealWidth, int& idealHeight,
+                                                        const juce::PopupMenu::Options& options) override
+    {
+        getIdealPopupMenuItemSizeWithOptions (text, false, standardMenuItemHeight, idealWidth, idealHeight, options);
+        idealHeight = 19;
+    }
+
+    void drawPopupMenuSectionHeaderWithOptions (juce::Graphics& g, const juce::Rectangle<int>& area,
+                                                const juce::String& sectionName, const juce::PopupMenu::Options&) override
+    {
+        g.setColour (findColour (juce::PopupMenu::headerTextColourId));
+        g.setFont (juce::FontOptions (10.5f, juce::Font::bold));
+        g.drawText (sectionName.toUpperCase(), area.withTrimmedLeft (12).withTrimmedRight (8).withTrimmedBottom (2),
+                    juce::Justification::bottomLeft, true);
+    }
+
     //==============================================================================
     // Controls: flat and rounded, with a quiet edge, and the accent for what's on or focused
 

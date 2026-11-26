@@ -1172,12 +1172,12 @@ void MainHostWindow::addPluginsToMenu (PopupMenu& m)
             { "Stereo",          { "Pan", "Stereo Utility", "Mid/Side Encoder", "Mid/Side Decoder" } },
             { "Time and Phase",  { "Delay", "Invert Phase" } },
             { "Record and Play", { "Audio Recorder", "Looper", "Player" } },
-            { "Performance",     { "Score Viewer", "Music" } },
+            { "Performance",     { "Score Viewer", "Music Remote" } },
         };
 
+        // Each heading starts its group, so no line between them
         for (const auto& [header, names] : groups)
         {
-            pluginsMenu.addSeparator();
             pluginsMenu.addSectionHeader (header);
 
             for (const auto& name : names)

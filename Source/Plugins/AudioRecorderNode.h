@@ -29,7 +29,7 @@
     - WAV (16 or 24-bit, or 32-bit float), FLAC (16 or 24-bit) or AIFF (24-bit)
 
     Record and Auto are parameters, so MIDI Learn maps controls to them. The options are its state,
-    saved with the preset; the recordings it made are kept app-wide, for its window to list.
+    saved with the preset; the recordings made are kept app-wide, so its window can show the last.
 */
 class AudioRecorderNode : public juce::AudioPluginInstance,
                           private juce::Thread,

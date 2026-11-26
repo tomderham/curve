@@ -19,9 +19,9 @@
 
 //==============================================================================
 /**
-    Plays backing tracks from a playlist, over what comes in, which passes through, so it can go
-    anywhere in a chain. Files are read ahead on a thread of their own, so the audio thread never
-    waits on the disk.
+    Plays backing tracks from a playlist. It has outputs only, as an instrument does: connected to the
+    output alongside a chain, the graph adds the two together. Files are read ahead on a thread of
+    their own, so the audio thread never waits on the disk.
 
     Play/Pause, Stop, Next and Previous are parameters that act each time they're set on, so MIDI
     Learn maps controls to them. The playlist and the track it's on are its state, so a preset opens
