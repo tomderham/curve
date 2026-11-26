@@ -142,6 +142,11 @@ public:
     /** The highest absolute sample since the last call. */
     float consumePeak (int channel) noexcept        { return peaks[(size_t) channel].exchange (0.0f, std::memory_order_relaxed); }
 
+    /** As consumePeak(), for a second display, e.g. the menu bar panel, so neither takes the
+        other's peaks. */
+    float consumeSecondPeak (int channel) noexcept  { return secondPeaks[(size_t) channel].exchange (0.0f, std::memory_order_relaxed); }
+    float consumeSecondTruePeak (int channel) noexcept { return secondTruePeaks[(size_t) channel].exchange (0.0f, std::memory_order_relaxed); }
+
     /** The highest true peak since the last call. */
     float consumeTruePeak (int channel) noexcept    { return truePeaks[(size_t) channel].exchange (0.0f, std::memory_order_relaxed); }
 
@@ -275,10 +280,16 @@ private:
         if (truePeak > storedTruePeak.load (std::memory_order_relaxed))
             storedTruePeak.store (truePeak, std::memory_order_relaxed);
 
+        if (auto& second = secondTruePeaks[(size_t) ch]; truePeak > second.load (std::memory_order_relaxed))
+            second.store (truePeak, std::memory_order_relaxed);
+
         auto& storedPeak = peaks[(size_t) ch];
 
         if (peak > storedPeak.load (std::memory_order_relaxed))
             storedPeak.store (peak, std::memory_order_relaxed);
+
+        if (auto& second = secondPeaks[(size_t) ch]; peak > second.load (std::memory_order_relaxed))
+            second.store (peak, std::memory_order_relaxed);
 
         if (peak > 1.0f)
             overFlags[(size_t) ch].store (true, std::memory_order_relaxed);
@@ -445,6 +456,8 @@ private:
         for (size_t ch = 0; ch < maxChannels; ++ch)
         {
             peaks[ch].store (0.0f, std::memory_order_relaxed);
+            secondPeaks[ch].store (0.0f, std::memory_order_relaxed);
+            secondTruePeaks[ch].store (0.0f, std::memory_order_relaxed);
             truePeaks[ch].store (0.0f, std::memory_order_relaxed);
             rmsLevels[ch].store (0.0f, std::memory_order_relaxed);
             vuLevels[ch].store (0.0f, std::memory_order_relaxed);
@@ -495,7 +508,7 @@ private:
     std::uint64_t aboveAbsoluteGateCount = 0;
     double aboveAbsoluteGateEnergy = 0.0;
 
-    std::array<std::atomic<float>, maxChannels> peaks {}, truePeaks {}, rmsLevels {}, vuLevels {};
+    std::array<std::atomic<float>, maxChannels> peaks {}, secondPeaks {}, truePeaks {}, secondTruePeaks {}, rmsLevels {}, vuLevels {};
     std::array<std::atomic<bool>, maxChannels> overFlags {};
     std::atomic<float> correlation { 0.0f };
     std::atomic<float> momentary { noLoudness }, shortTerm { noLoudness }, integrated { noLoudness };

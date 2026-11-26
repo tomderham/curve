@@ -383,6 +383,229 @@ static constexpr float meterFloorDb = -60.0f, meterFallPerUpdateDb = 1.5f;
 @end
 
 //==============================================================================
+/** A Meter plug-in's measurements, under its row in the panel when it's opened up, as its window
+    shows them: levels (peak, with RMS within it, and the peak held), VU, or loudness. */
+@interface CurvePanelMeterDetail : NSView
+{
+@public
+    MenuBarPanelState::MeterReading reading;
+    float peakDb[2], heldDb[2], heldTruePeakDb;
+    int heldFor[2], truePeakHeldFor;
+}
+- (void) show: (const MenuBarPanelState::MeterReading&) newReading;
++ (CGFloat) heightFor: (MenuBarPanelState::MeterReading::Mode) mode;
+@end
+
+@implementation CurvePanelMeterDetail
+
+static constexpr float detailFloorDb = -60.0f;
+
+- (instancetype) initWithFrame: (NSRect) frame
+{
+    if ((self = [super initWithFrame: frame]))
+    {
+        for (int i = 0; i < 2; ++i)
+        {
+            peakDb[i] = heldDb[i] = detailFloorDb;
+            heldFor[i] = 0;
+        }
+
+        heldTruePeakDb = detailFloorDb;
+        truePeakHeldFor = 0;
+    }
+
+    return self;
+}
+
+- (BOOL) isFlipped { return YES; }
+
++ (CGFloat) heightFor: (MenuBarPanelState::MeterReading::Mode) mode
+{
+    using Mode = MenuBarPanelState::MeterReading::Mode;
+    return mode == Mode::loudness ? 50 : mode == Mode::vu ? 42 : 60;
+}
+
+static float toDb (float linear)
+{
+    return linear > 0.0f && std::isfinite (linear) ? 20.0f * std::log10 (linear) : -200.0f;
+}
+
+- (void) show: (const MenuBarPanelState::MeterReading&) newReading
+{
+    reading = newReading;
+
+    for (int i = 0; i < 2; ++i)
+    {
+        // Falling back gently, with the highest held for a second and a half
+        const auto db = std::max (detailFloorDb, std::min (0.0f, toDb (reading.peak[i])));
+        peakDb[i] = std::max (db, peakDb[i] - 1.5f);
+
+        if (db >= heldDb[i])
+        {
+            heldDb[i] = db;
+            heldFor[i] = 45;
+        }
+        else if (--heldFor[i] <= 0)
+        {
+            heldDb[i] = std::max (detailFloorDb, heldDb[i] - 1.5f);
+        }
+    }
+
+    // The higher side's true peak, held as the peaks are
+    const auto truePeak = std::min (6.0f, toDb (std::max (reading.truePeak[0], reading.truePeak[1])));
+
+    if (truePeak >= heldTruePeakDb)
+    {
+        heldTruePeakDb = truePeak;
+        truePeakHeldFor = 45;
+    }
+    else if (--truePeakHeldFor <= 0)
+    {
+        heldTruePeakDb = std::max (detailFloorDb, heldTruePeakDb - 1.5f);
+    }
+
+    [self setNeedsDisplay: YES];
+}
+
+static NSColor* levelColour (float db)
+{
+    return db > -1.0f ? [NSColor systemRedColor] : db > -6.0f ? [NSColor systemOrangeColor] : [NSColor systemGreenColor];
+}
+
+- (void) drawRect: (NSRect) dirty
+{
+    using Mode = MenuBarPanelState::MeterReading::Mode;
+    const NSRect bounds = [self bounds];
+
+    NSDictionary* small = @{ NSFontAttributeName: [NSFont systemFontOfSize: 9.5 weight: NSFontWeightMedium],
+                             NSForegroundColorAttributeName: [NSColor secondaryLabelColor] };
+
+    if (reading.mode == Mode::loudness)
+    {
+        // Momentary, short-term and integrated, side by side, as numbers
+        const float values[] = { reading.momentary, reading.shortTerm, reading.integrated };
+        NSString* names[] = { @"MOMENTARY", @"SHORT-TERM", @"INTEGRATED" };
+        const CGFloat left = 30, width = (bounds.size.width - left - 12) / 3;
+
+        for (int i = 0; i < 3; ++i)
+        {
+            const CGFloat x = left + i * width;
+            NSString* value = values[i] > -100.0f ? [NSString stringWithFormat: @"%.1f", values[i]] : @"–";
+            NSDictionary* big = @{ NSFontAttributeName: [NSFont monospacedDigitSystemFontOfSize: 15 weight: NSFontWeightMedium],
+                                   NSForegroundColorAttributeName: [NSColor labelColor] };
+            [value drawAtPoint: NSMakePoint (x, 6) withAttributes: big];
+            [names[i] drawAtPoint: NSMakePoint (x, 28) withAttributes: small];
+        }
+
+        [@"LUFS" drawAtPoint: NSMakePoint (bounds.size.width - 12 - [@"LUFS" sizeWithAttributes: small].width, 9) withAttributes: small];
+        return;
+    }
+
+    // Levels, or VU, as a bar for each side, with its number at the right
+    const bool isVu = reading.mode == Mode::vu;
+    const CGFloat left = 30, numberWidth = 54, barRight = bounds.size.width - 12 - numberWidth - 6;
+
+    for (int i = 0; i < 2; ++i)
+    {
+        const CGFloat y = 7 + i * 16;
+        [(i == 0 ? @"L" : @"R") drawAtPoint: NSMakePoint (left - 12, y - 1) withAttributes: small];
+
+        const NSRect track = NSMakeRect (left, y + 1, barRight - left, 8);
+        [[[NSColor labelColor] colorWithAlphaComponent: 0.08] setFill];
+        [[NSBezierPath bezierPathWithRoundedRect: track xRadius: 2 yRadius: 2] fill];
+
+        NSString* number = nil;
+        NSColor* numberColour = [NSColor labelColor];
+
+        if (isVu)
+        {
+            // -20 to +3 VU, from the reference that reads 0 VU
+            const auto vu = toDb (reading.vu[i]) - (float) reading.vuReferenceDb;
+            const auto proportion = std::clamp ((vu + 20.0f) / 23.0f, 0.0f, 1.0f);
+            const auto zero = track.origin.x + track.size.width * (20.0f / 23.0f);
+
+            [(vu > 0.0f ? [NSColor systemRedColor] : [NSColor systemGreenColor]) setFill];
+            [[NSBezierPath bezierPathWithRoundedRect: NSMakeRect (track.origin.x, track.origin.y, track.size.width * proportion, track.size.height)
+                                             xRadius: 2 yRadius: 2] fill];
+            [[[NSColor labelColor] colorWithAlphaComponent: 0.35] setFill];
+            NSRectFill (NSMakeRect (zero, track.origin.y - 1, 1, track.size.height + 2));
+
+            number = vu > -40.0f ? [NSString stringWithFormat: @"%+.1f VU", vu] : @"– VU";
+        }
+        else
+        {
+            const auto proportion = [&] (float db) { return std::clamp ((db - detailFloorDb) / -detailFloorDb, 0.0f, 1.0f); };
+            const auto rmsDb = std::max (detailFloorDb, toDb (reading.rms[i]));
+
+            // The peak, with the RMS within it darker, and the highest held as a line
+            [levelColour (peakDb[i]) setFill];
+            [[NSBezierPath bezierPathWithRoundedRect: NSMakeRect (track.origin.x, track.origin.y, track.size.width * proportion (peakDb[i]), track.size.height)
+                                             xRadius: 2 yRadius: 2] fill];
+            [[[NSColor blackColor] colorWithAlphaComponent: 0.25] setFill];
+            [[NSBezierPath bezierPathWithRoundedRect: NSMakeRect (track.origin.x, track.origin.y, track.size.width * proportion (rmsDb), track.size.height)
+                                             xRadius: 2 yRadius: 2] fill];
+
+            if (heldDb[i] > detailFloorDb)
+            {
+                [levelColour (heldDb[i]) setFill];
+                NSRectFill (NSMakeRect (track.origin.x + track.size.width * proportion (heldDb[i]) - 1, track.origin.y, 2, track.size.height));
+            }
+
+            number = heldDb[i] > detailFloorDb ? [NSString stringWithFormat: @"%.1f dB", heldDb[i]] : @"– dB";
+
+            if (reading.over[i])
+                numberColour = [NSColor systemRedColor];
+        }
+
+        NSDictionary* numberAttributes = @{ NSFontAttributeName: [NSFont monospacedDigitSystemFontOfSize: 10.5 weight: NSFontWeightRegular],
+                                            NSForegroundColorAttributeName: numberColour };
+        const NSSize size = [number sizeWithAttributes: numberAttributes];
+        [number drawAtPoint: NSMakePoint (bounds.size.width - 12 - size.width, y - 1) withAttributes: numberAttributes];
+    }
+
+    if (isVu)
+        return;
+
+    // What's worked out from them, as the meter's window has it: RMS, true peak and correlation
+    NSDictionary* value = @{ NSFontAttributeName: [NSFont monospacedDigitSystemFontOfSize: 10.5 weight: NSFontWeightMedium],
+                             NSForegroundColorAttributeName: [NSColor labelColor] };
+    NSDictionary* overValue = @{ NSFontAttributeName: [NSFont monospacedDigitSystemFontOfSize: 10.5 weight: NSFontWeightMedium],
+                                 NSForegroundColorAttributeName: [NSColor systemRedColor] };
+
+    const auto describeDb = [] (float linear)
+    {
+        const auto db = toDb (linear);
+        return db > detailFloorDb ? [NSString stringWithFormat: @"%.1f", db] : @"–";
+    };
+
+    NSString* rms = reading.numChannels > 1 ? [NSString stringWithFormat: @"%@ / %@", describeDb (reading.rms[0]), describeDb (reading.rms[1])]
+                                            : describeDb (reading.rms[0]);
+    NSString* truePeak = heldTruePeakDb > detailFloorDb ? [NSString stringWithFormat: @"%.1f", heldTruePeakDb] : @"–";
+    NSString* correlation = reading.numChannels > 1 ? [NSString stringWithFormat: @"%+.2f", reading.correlation] : @"–";
+
+    struct Item { NSString* name; NSString* text; NSDictionary* attributes; };
+    const Item items[] = { { @"RMS", rms, value },
+                           { @"TRUE PEAK", truePeak, heldTruePeakDb > -1.0f ? overValue : value },
+                           { @"CORR", correlation, reading.correlation < 0.0f && reading.numChannels > 1 ? overValue : value } };
+
+    // RMS has both sides, so the most room
+    const CGFloat y = 41, width = bounds.size.width - 18 - 12;
+    const CGFloat starts[] = { 18, 18 + width * 0.42f, 18 + width * 0.73f };
+
+    for (int i = 0; i < 3; ++i)
+    {
+        const CGFloat x = starts[i];
+        [items[i].name drawAtPoint: NSMakePoint (x, y + 1) withAttributes: small];
+        const CGFloat nameWidth = [items[i].name sizeWithAttributes: small].width;
+        [items[i].text drawAtPoint: NSMakePoint (x + nameWidth + 5, y) withAttributes: items[i].attributes];
+    }
+}
+
+- (BOOL) isAccessibilityElement { return NO; }
+
+@end
+
+//==============================================================================
 /** An output switch: an icon and a name in a pill, filled with its own colour while it's on. */
 @interface CurvePanelToggle : NSView
 {
@@ -697,7 +920,8 @@ private:
 
         for (NSUInteger i = 0; i < [rows count]; ++i)
         {
-            if (i > 0)
+            // Not between a Meter plug-in and its measurements, which belong to its row
+            if (i > 0 && ! [[rows objectAtIndex: i] isKindOfClass: [CurvePanelMeterDetail class]])
             {
                 CurvePanelRowDivider* divider = [[[CurvePanelRowDivider alloc] init] autorelease];
                 divider->inset = dividerInset;
@@ -732,7 +956,10 @@ private:
     NSButton* muteButton = nil;
     NSTextField* tempoField = nil;
     NSButton* playButton = nil;
-    std::vector<std::pair<juce::uint32, CurvePanelMeter*>> pluginMeters; // Meter plug-ins' levels
+    // Meter plug-ins' levels: a bar in the row, and the rest under it if it's opened up
+    struct PluginMeter { juce::uint32 id; CurvePanelMeter* bar; CurvePanelMeterDetail* detail; };
+    std::vector<PluginMeter> pluginMeters;
+    std::set<juce::uint32> expandedMeters; // Opened up, until Curve quits
 
     juce::Array<juce::File> presetFiles; // In the order of their keys
 
@@ -809,11 +1036,14 @@ private:
             [meter showPeaks: left right: right];
         }
 
-        for (auto& [id, pluginMeter] : pluginMeters)
+        for (auto& m : pluginMeters)
         {
-            float left = 0.0f, right = 0.0f;
-            source.readPluginLevels (id, left, right);
-            [pluginMeter showPeaks: left right: right];
+            const auto reading = source.readMeter (m.id);
+            if (m.bar != nil)
+                [m.bar showPeaks: reading.peak[0] right: reading.peak[1]];
+
+            if (m.detail != nil)
+                [m.detail show: reading];
         }
 
         // The volume can change from the volume keys while the panel is open, and the tempo and
@@ -1235,7 +1465,13 @@ private:
 
         const CGFloat pitch = pluginRowHeight + pluginRowGap;
         const CGFloat maxHeight = getListHeightLimit (0.3, 8, pitch) - pluginRowGap + 2 * cardPadding;
-        const CGFloat contentHeight = (CGFloat) state.plugins.size() * pitch - pluginRowGap + 2 * cardPadding;
+        CGFloat detailsHeight = 0; // Meter plug-ins opened up
+
+        for (const auto& p : state.plugins)
+            if (p.isMeter && expandedMeters.count (p.id) > 0)
+                detailsHeight += [CurvePanelMeterDetail heightFor: (MenuBarPanelState::MeterReading::Mode) p.meterMode];
+
+        const CGFloat contentHeight = (CGFloat) state.plugins.size() * pitch - pluginRowGap + 2 * cardPadding + detailsHeight;
 
         // Narrower when it scrolls, to leave room for the scrollbar
         const bool scrolls = contentHeight > maxHeight;
@@ -1248,7 +1484,8 @@ private:
 
             juce::String text = plugin.label;
 
-            if (plugin.isMuted)
+            // Off, for one that passes nothing on, shows by its switch
+            if (plugin.isMuted && ! plugin.canTurnOff)
                 text << "  (muted)";
 
             NSTextField* name = makeLabel (toNS (text), 12, NSFontWeightRegular,
@@ -1260,12 +1497,43 @@ private:
             // A Meter plug-in's level, wherever it is in the chain
             if (plugin.isMeter)
             {
-                CurvePanelMeter* level = [[[CurvePanelMeter alloc] initWithFrame: NSMakeRect (0, 0, 64, 6)] autorelease];
-                [[[level widthAnchor] constraintEqualToConstant: 64] setActive: YES];
-                [[[level heightAnchor] constraintEqualToConstant: 7] setActive: YES];
-                [level setToolTip: @"The level where this meter is"];
-                [views addObject: level];
-                pluginMeters.emplace_back (nodeID, level);
+                const bool expanded = expandedMeters.count (nodeID) > 0;
+
+                // A bar in the row, unless it's opened up, which shows more
+                CurvePanelMeter* level = nil;
+
+                if (! expanded)
+                {
+                    level = [[[CurvePanelMeter alloc] initWithFrame: NSMakeRect (0, 0, 64, 6)] autorelease];
+                    [[[level widthAnchor] constraintEqualToConstant: 64] setActive: YES];
+                    [[[level heightAnchor] constraintEqualToConstant: 7] setActive: YES];
+                    [level setToolTip: @"The level where this meter is"];
+                    [views addObject: level];
+                }
+
+                NSButton* disclose = makeSymbolButton (expanded ? @"chevron.down" : @"chevron.right",
+                                                       expanded ? @"Show less" : @"Show what the meter shows",
+                                                       [this, nodeID, expanded] (id)
+                                                       {
+                                                           if (expanded)
+                                                               expandedMeters.erase (nodeID);
+                                                           else
+                                                               expandedMeters.insert (nodeID);
+
+                                                           callAsyncWhileAlive ([this] { if (isOpen()) rebuild(); });
+                                                       });
+                [views addObject: disclose];
+
+                CurvePanelMeterDetail* detail = nil;
+
+                if (expanded)
+                {
+                    detail = [[[CurvePanelMeterDetail alloc] initWithFrame: NSMakeRect (0, 0, 100, 42)] autorelease];
+                    [[[detail heightAnchor] constraintEqualToConstant: [CurvePanelMeterDetail heightFor: (MenuBarPanelState::MeterReading::Mode) plugin.meterMode]] setActive: YES];
+                    [detail setToolTip: @"As the meter's window shows it: change what it shows there"];
+                }
+
+                pluginMeters.push_back ({ nodeID, level, detail });
             }
 
             if (plugin.hasEditor)
@@ -1300,6 +1568,23 @@ private:
                 [power setTarget: toggle];
                 [power setAction: @selector (perform:)];
                 [power setToolTip: active ? @"On: click to bypass" : plugin.isMuted ? @"Muted: click to unmute" : @"Bypassed: click to turn on"];
+                [power setAccessibilityLabel: toNS (plugin.label)];
+                [views addObject: power];
+            }
+            else if (plugin.canTurnOff)
+            {
+                // e.g. a Meter: nothing to bypass, so on or off, as the graph's Turn Off has it
+                auto* toggle = makeAction ([this, nodeID] (id sender)
+                {
+                    source.setMuted (nodeID, [(NSSwitch*) sender state] != NSControlStateValueOn);
+                });
+
+                NSSwitch* power = [[[NSSwitch alloc] init] autorelease];
+                [power setControlSize: NSControlSizeMini];
+                [power setState: plugin.isMuted ? NSControlStateValueOff : NSControlStateValueOn];
+                [power setTarget: toggle];
+                [power setAction: @selector (perform:)];
+                [power setToolTip: plugin.isMuted ? @"Off: click to turn on" : @"On: click to turn off"];
                 [power setAccessibilityLabel: toNS (plugin.label)];
                 [views addObject: power];
             }
@@ -1339,6 +1624,10 @@ private:
                     add (plugin.isBypassed ? @"Turn On" : @"Bypass", true, [this, nodeID, b = plugin.isBypassed] { source.setBypassed (nodeID, ! b); });
                     add (plugin.isMuted ? @"Unmute" : @"Mute", true, [this, nodeID, m = plugin.isMuted] { source.setMuted (nodeID, ! m); });
                 }
+                else if (plugin.canTurnOff)
+                {
+                    add (plugin.isMuted ? @"Turn On" : @"Turn Off", true, [this, nodeID, m = plugin.isMuted] { source.setMuted (nodeID, ! m); });
+                }
 
                 [menu addItem: [NSMenuItem separatorItem]];
                 add (@"Hide from Menu Bar Panel", true, [this, nodeID] { source.hideFromPanel (nodeID); });
@@ -1346,6 +1635,10 @@ private:
             };
 
             [rows addObject: row];
+
+            // Opened up, its measurements under it
+            if (! pluginMeters.empty() && pluginMeters.back().id == nodeID && pluginMeters.back().detail != nil)
+                [rows addObject: pluginMeters.back().detail];
         }
 
         // In a scroll view even when it fits, so it can be made shorter if the panel's too tall for the screen

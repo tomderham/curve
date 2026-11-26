@@ -782,8 +782,12 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         // Bypass passes the input straight through; mute passes on nothing
         if (auto* proc = getProcessor(); proc != nullptr && PluginGraph::canBeBypassed (*proc))
             menu->addItem ("Bypass", true, isNodeBypassed(), [this] { toggleBypass(); });
-        // In MIDI Learn, it picks mute as the target, as the bypass button does bypass
-        menu->addItem ("Mute", true, graph.isNodeMuted (pluginID), [this]
+        // In MIDI Learn, it picks mute as the target, as the bypass button does bypass. A node that
+        // passes nothing on, e.g. a Meter without outputs, has nothing to silence: muting it stops
+        // it, so it's Turn Off, as the menu bar panel's switch for it
+        const auto* proc = getProcessor();
+        const bool passesNothingOn = proc != nullptr && proc->getTotalNumOutputChannels() == 0 && ! proc->producesMidi();
+        menu->addItem (passesNothingOn ? "Turn Off" : "Mute", true, graph.isNodeMuted (pluginID), [this]
         {
             if (isMidiLearning())
                 panel.midiEngine->selectLearnTarget (MidiMappingTarget::forMute (pluginID));

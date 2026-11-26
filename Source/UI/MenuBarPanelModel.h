@@ -168,19 +168,19 @@ public:
     }
 
     // A Meter plug-in measures only while something shows it, so the panel asks it to while it's open
-    void readPluginLevels (juce::uint32 id, float& left, float& right) override
+    MenuBarPanelState::MeterReading readMeter (juce::uint32 id) override
     {
-        left = right = 0.0f;
+        MenuBarPanelState::MeterReading reading;
 
         if (! metering)
-            return;
+            return reading;
 
         auto* graph = getGraph();
         auto node = graph != nullptr ? graph->graph.getNodeForId (NodeID { id }) : nullptr;
         auto* meter = node != nullptr ? dynamic_cast<MeterNode*> (node->getProcessor()) : nullptr;
 
         if (meter == nullptr)
-            return;
+            return reading;
 
         if (std::none_of (measured.begin(), measured.end(), [&node] (const auto& n) { return n.get() == node; }))
         {
@@ -188,9 +188,38 @@ public:
             measured.push_back (node);
         }
 
-        const auto channels = meter->getTotalNumInputChannels();
-        left = meter->getDsp().getRms (0);
-        right = channels > 1 ? meter->getDsp().getRms (1) : left;
+        using Mode = MenuBarPanelState::MeterReading::Mode;
+        auto& dsp = meter->getDsp();
+        const auto channels = juce::jlimit (1, 2, meter->getTotalNumInputChannels());
+
+        reading.isValid = true;
+        reading.mode = (Mode) (int) meter->getMode();
+        reading.numChannels = channels;
+        reading.vuReferenceDb = meter->getVuReferenceDb();
+        reading.momentary = dsp.getMomentaryLufs();
+        reading.shortTerm = dsp.getShortTermLufs();
+        reading.integrated = dsp.getIntegratedLufs();
+        reading.correlation = dsp.getCorrelation();
+
+        for (int ch = 0; ch < channels; ++ch)
+        {
+            reading.peak[ch] = dsp.consumeSecondPeak (ch);
+            reading.truePeak[ch] = dsp.consumeSecondTruePeak (ch);
+            reading.rms[ch] = dsp.getRms (ch);
+            reading.vu[ch] = dsp.getVu (ch);
+            reading.over[ch] = dsp.hasOver (ch);
+        }
+
+        if (channels == 1)
+        {
+            reading.peak[1] = reading.peak[0];
+            reading.truePeak[1] = reading.truePeak[0];
+            reading.rms[1] = reading.rms[0];
+            reading.vu[1] = reading.vu[0];
+            reading.over[1] = reading.over[0];
+        }
+
+        return reading;
     }
     void saveAsPreset() override                       { mainWindow.saveAsPreset(); }
 
@@ -381,17 +410,23 @@ private:
             plugin.canBypass = PluginGraph::canBeBypassed (*processor);
             plugin.isBypassed = node->isBypassed();
             plugin.isMuted = graph.isNodeMuted (node->nodeID);
+            plugin.canTurnOff = ! plugin.canBypass && processor->getTotalNumInputChannels() > 0
+                             && processor->getTotalNumOutputChannels() == 0 && ! processor->producesMidi();
             plugin.hasEditor = processor->hasEditor() && ! PluginGraph::isConfiguredByAudioSettings (*processor);
             plugin.isWindowOpen = graph.isWindowShowing (*node, PluginWindow::Type::normal);
             plugin.isWindowKeptOnTop = graph.isWindowKeptOnTop (node->nodeID);
-            plugin.isMeter = dynamic_cast<MeterNode*> (processor) != nullptr;
+            if (auto* meter = dynamic_cast<MeterNode*> (processor))
+            {
+                plugin.isMeter = true;
+                plugin.meterMode = (int) meter->getMode();
+            }
 
             // The graph's I/O and the loopback nodes are set up in Audio Settings, not here
             const bool isIO = dynamic_cast<IOProcessor*> (processor) != nullptr
                            || PluginGraph::isConfiguredByAudioSettings (*processor);
 
             const bool listed = ! isIO && ! node->properties[PluginGraph::hiddenFromPanelProp]
-                             && (plugin.canBypass || plugin.hasEditor);
+                             && (plugin.canBypass || plugin.canTurnOff || plugin.hasEditor);
 
             nodes.push_back ({ node->nodeID.uid,
                                graph.getNodeDisplayName (node->nodeID).toStdString(),
