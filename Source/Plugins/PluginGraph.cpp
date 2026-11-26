@@ -453,6 +453,13 @@ bool PluginGraph::hasWindowFor (const AudioProcessorGraph::Node& node, PluginWin
                         [&] (const PluginWindow* w) { return w->node.get() == &node && w->type == type; });
 }
 
+void PluginGraph::closeWindowFor (const AudioProcessorGraph::Node& node, PluginWindow::Type type)
+{
+    for (int i = activePluginWindows.size(); --i >= 0;)
+        if (activePluginWindows.getUnchecked (i)->node.get() == &node && activePluginWindows.getUnchecked (i)->type == type)
+            activePluginWindows.remove (i);
+}
+
 void PluginGraph::setPluginWindowsOnAllSpaces (bool shouldBeOnAll)
 {
     PluginWindow::setShownOnAllSpaces (shouldBeOnAll);
@@ -923,6 +930,9 @@ static XmlElement* createNodeXml (AudioProcessorGraph::Node* const node, bool in
         if (node->properties[PluginGraph::freePositionProp])
             e->setAttribute (PluginGraph::freePositionProp, true);
 
+        if (node->properties[PluginGraph::hiddenFromPanelProp])
+            e->setAttribute (PluginGraph::hiddenFromPanelProp, true);
+
         if (node->properties[PluginGraph::varyBySceneProp])
             e->setAttribute (PluginGraph::varyBySceneProp, true);
 
@@ -1236,6 +1246,9 @@ bool PluginGraph::finishNodeFromXml (std::unique_ptr<AudioPluginInstance> instan
 
         if (xml.getBoolAttribute (freePositionProp))
             node->properties.set (freePositionProp, true);
+
+        if (xml.getBoolAttribute (hiddenFromPanelProp))
+            node->properties.set (hiddenFromPanelProp, true);
 
         if (xml.getBoolAttribute (varyBySceneProp))
             node->properties.set (varyBySceneProp, true);
@@ -1639,7 +1652,7 @@ void PluginGraph::switchScene (const File& file, const XmlElement& scene)
         node->properties.set ("x", jlimit (0.0, 1.0, e->hasAttribute ("x") ? e->getDoubleAttribute ("x") : 0.5));
         node->properties.set ("y", jlimit (0.0, 1.0, e->hasAttribute ("y") ? e->getDoubleAttribute ("y") : 0.5));
 
-        for (const auto& prop : { freePositionProp, varyBySceneProp })
+        for (const auto& prop : { freePositionProp, hiddenFromPanelProp, varyBySceneProp })
         {
             if (e->getBoolAttribute (prop))
                 node->properties.set (prop, true);

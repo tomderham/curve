@@ -725,6 +725,14 @@ struct GraphEditorPanel::PluginComponent final : public Component,
         return false;
     }
 
+    bool isShownInPanel() const
+    {
+        if (auto node = graph.graph.getNodeForId (pluginID))
+            return ! node->properties[PluginGraph::hiddenFromPanelProp];
+
+        return false;
+    }
+
     void showPopupMenu (Point<int> localPos)
     {
         menu.reset (new PopupMenu);
@@ -771,6 +779,21 @@ struct GraphEditorPanel::PluginComponent final : public Component,
                     if (auto* node = graph.graph.getNodeForId (pluginID))
                     {
                         node->properties.set (PluginGraph::openWithPresetProp, ! isOpenedWithPreset());
+                        graph.changed();
+                    }
+                });
+
+            // The plug-ins the menu bar panel lists, to bypass them and open their windows
+            if (PluginGraph::canBeBypassed (*proc) || proc->hasEditor())
+                menu->addItem ("Show in Menu Bar Panel", true, isShownInPanel(), [this]
+                {
+                    if (auto* node = graph.graph.getNodeForId (pluginID))
+                    {
+                        if (isShownInPanel())
+                            node->properties.set (PluginGraph::hiddenFromPanelProp, true);
+                        else
+                            node->properties.remove (PluginGraph::hiddenFromPanelProp);
+
                         graph.changed();
                     }
                 });

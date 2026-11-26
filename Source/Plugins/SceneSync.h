@@ -150,9 +150,10 @@ inline bool shareGraph (const juce::XmlElement& a, const juce::XmlElement& b)
 }
 
 /** The node attributes a scene switched to in place sets as it has them, so they needn't match:
-    where a node is on the graph, its name, and whether it varies by scene.
+    where a node is on the graph, its name, whether it's in the menu bar panel, and whether it
+    varies by scene.
 */
-inline constexpr const char* settableNodeAttributes[] = { "x", "y", "freePosition", "customNodeName", varyAttribute };
+inline constexpr const char* settableNodeAttributes[] = { "x", "y", "freePosition", "customNodeName", "hiddenFromPanel", varyAttribute };
 
 inline std::unique_ptr<juce::XmlElement> getStructure (const juce::XmlElement& graph)
 {

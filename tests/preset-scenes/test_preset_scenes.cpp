@@ -447,6 +447,11 @@ static void testShareStructureIgnoresState()
   <CONNECTION srcFilter="2" srcChannel="0" dstFilter="9" dstChannel="0"/></FILTERGRAPH>)");
     CHECK (shareStructure (*a, *moved));
     CHECK (! shareGraph (*a, *moved));
+
+    // Hidden from the menu bar panel, which a switch sets as the scene has it too
+    auto hidden = parse (R"(<FILTERGRAPH sceneGroup="g"><FILTER uid="2" x="0.5" y="0.4" hiddenFromPanel="1"><STATE>piano-A</STATE><LAYOUT>2</LAYOUT></FILTER>
+  <CONNECTION srcFilter="2" srcChannel="0" dstFilter="9" dstChannel="0"/></FILTERGRAPH>)");
+    CHECK (shareStructure (*a, *hidden));
 }
 
 // A plug-in updated since the scene was saved is the same plug-in

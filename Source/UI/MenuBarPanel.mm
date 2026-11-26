@@ -1,0 +1,821 @@
+/*
+==============================================================================
+   Copyright (c) Thomas Derham
+
+   You may also use this code under the terms of the AGPLv3:
+   https://www.gnu.org/licenses/agpl-3.0.en.html
+
+   CURVE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, AND ALL
+   WARRANTIES, WHETHER EXPRESSED OR IMPLIED, INCLUDING WARRANTY OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE, ARE DISCLAIMED.
+==============================================================================
+*/
+
+#define DONT_SET_USING_JUCE_NAMESPACE 1
+#include "MenuBarPanel.h"
+
+#import <AppKit/AppKit.h>
+#import <Carbon/Carbon.h> // kVK_ key codes
+
+#include <map>
+
+juce::PropertiesFile* getUserSettings();
+
+static NSString* toNS (const juce::String& s)
+{
+    return [NSString stringWithUTF8String: s.toRawUTF8()];
+}
+
+static NSColor* toNS (juce::Colour c)
+{
+    return [NSColor colorWithSRGBRed: c.getFloatRed() green: c.getFloatGreen() blue: c.getFloatBlue() alpha: c.getFloatAlpha()];
+}
+
+//==============================================================================
+/** Calls a function from a control's action or a menu item. Controls don't retain their targets,
+    so the panel keeps these until it rebuilds its views. */
+@interface CurvePanelAction : NSObject
+{
+@public
+    std::function<void (id)> function;
+}
+- (void) perform: (id) sender;
+@end
+
+@implementation CurvePanelAction
+- (void) perform: (id) sender
+{
+    if (function)
+        function (sender);
+}
+@end
+
+//==============================================================================
+/** The panel's root view: takes the preset keys while the panel is open. */
+@interface CurvePanelView : NSView
+{
+@public
+    std::function<bool (NSEvent*)> onKey;
+}
+@end
+
+@implementation CurvePanelView
+- (BOOL) acceptsFirstResponder { return YES; }
+- (BOOL) isFlipped             { return YES; }
+
+- (void) keyDown: (NSEvent*) event
+{
+    if (! (onKey && onKey (event)))
+        [super keyDown: event];
+}
+@end
+
+//==============================================================================
+/** A preset, as a tile: its name, its key, and its scene group's colour as a stripe. */
+@interface CurvePresetTile : NSView
+{
+@public
+    NSString* name;
+    NSString* shortcut;
+    NSColor* groupColour;
+    BOOL isCurrent, isHovered, isPressed;
+    std::function<void()> onClick;
+}
+@end
+
+@implementation CurvePresetTile
+
+- (void) dealloc
+{
+    [name release];
+    [shortcut release];
+    [groupColour release];
+    [super dealloc];
+}
+
+- (BOOL) isFlipped { return YES; }
+- (NSSize) intrinsicContentSize { return NSMakeSize (NSViewNoIntrinsicMetric, 34); }
+- (BOOL) acceptsFirstMouse: (NSEvent*) event { return YES; }
+
+- (void) updateTrackingAreas
+{
+    for (NSTrackingArea* area in [[[self trackingAreas] copy] autorelease])
+        [self removeTrackingArea: area];
+
+    [self addTrackingArea: [[[NSTrackingArea alloc] initWithRect: [self bounds]
+                                                        options: NSTrackingMouseEnteredAndExited | NSTrackingActiveAlways | NSTrackingInVisibleRect
+                                                          owner: self
+                                                       userInfo: nil] autorelease]];
+    [super updateTrackingAreas];
+}
+
+- (void) mouseEntered: (NSEvent*) e { isHovered = YES; [self setNeedsDisplay: YES]; }
+- (void) mouseExited: (NSEvent*) e  { isHovered = NO; isPressed = NO; [self setNeedsDisplay: YES]; }
+- (void) mouseDown: (NSEvent*) e    { isPressed = YES; [self setNeedsDisplay: YES]; }
+
+- (void) mouseUp: (NSEvent*) e
+{
+    const bool inside = NSPointInRect ([self convertPoint: [e locationInWindow] fromView: nil], [self bounds]);
+    isPressed = NO;
+    [self setNeedsDisplay: YES];
+
+    if (inside && onClick)
+        onClick();
+}
+
+- (void) drawRect: (NSRect) dirty
+{
+    const NSRect bounds = [self bounds];
+    NSBezierPath* shape = [NSBezierPath bezierPathWithRoundedRect: NSInsetRect (bounds, 0.5, 0.5) xRadius: 7 yRadius: 7];
+
+    NSColor* fill = isCurrent ? [NSColor controlAccentColor]
+                  : [[NSColor labelColor] colorWithAlphaComponent: isPressed ? 0.16 : isHovered ? 0.11 : 0.06];
+    [fill setFill];
+    [shape fill];
+
+    if (groupColour != nil)
+    {
+        [NSGraphicsContext saveGraphicsState];
+        [shape addClip];
+        [groupColour setFill];
+        NSRectFill (NSMakeRect (0, 0, 3.5, bounds.size.height));
+        [NSGraphicsContext restoreGraphicsState];
+    }
+
+    NSColor* textColour = isCurrent ? [NSColor whiteColor] : [NSColor labelColor];
+    NSColor* keyColour = isCurrent ? [[NSColor whiteColor] colorWithAlphaComponent: 0.7] : [NSColor tertiaryLabelColor];
+
+    NSMutableParagraphStyle* truncating = [[[NSMutableParagraphStyle alloc] init] autorelease];
+    [truncating setLineBreakMode: NSLineBreakByTruncatingTail];
+
+    NSDictionary* keyAttributes = @{ NSFontAttributeName: [NSFont monospacedDigitSystemFontOfSize: 11 weight: NSFontWeightRegular],
+                                     NSForegroundColorAttributeName: keyColour };
+    const NSSize keySize = shortcut != nil ? [shortcut sizeWithAttributes: keyAttributes] : NSZeroSize;
+
+    NSDictionary* nameAttributes = @{ NSFontAttributeName: [NSFont systemFontOfSize: 12 weight: isCurrent ? NSFontWeightSemibold : NSFontWeightMedium],
+                                      NSForegroundColorAttributeName: textColour,
+                                      NSParagraphStyleAttributeName: truncating };
+
+    const CGFloat left = groupColour != nil ? 12 : 10;
+    const CGFloat right = 10 + (keySize.width > 0 ? keySize.width + 6 : 0);
+    const NSSize nameSize = [name sizeWithAttributes: nameAttributes];
+
+    [name drawInRect: NSMakeRect (left, (bounds.size.height - nameSize.height) / 2, bounds.size.width - left - right, nameSize.height)
+      withAttributes: nameAttributes];
+
+    if (shortcut != nil)
+        [shortcut drawAtPoint: NSMakePoint (bounds.size.width - 10 - keySize.width, (bounds.size.height - keySize.height) / 2)
+               withAttributes: keyAttributes];
+}
+
+- (BOOL) isAccessibilityElement             { return YES; }
+- (NSAccessibilityRole) accessibilityRole   { return NSAccessibilityButtonRole; }
+- (NSString*) accessibilityLabel            { return name; }
+- (BOOL) accessibilityPerformPress          { if (onClick) onClick(); return YES; }
+
+@end
+
+//==============================================================================
+/** A plug-in's row, which right-clicks for its menu. */
+@interface CurvePluginRow : NSStackView
+{
+@public
+    std::function<NSMenu*()> makeMenu;
+}
+@end
+
+@implementation CurvePluginRow
+- (NSMenu*) menuForEvent: (NSEvent*) event
+{
+    return makeMenu ? makeMenu() : [super menuForEvent: event];
+}
+@end
+
+//==============================================================================
+@interface CurvePanelPopoverDelegate : NSObject <NSPopoverDelegate>
+{
+@public
+    std::function<void()> onClose;
+}
+@end
+
+@implementation CurvePanelPopoverDelegate
+- (void) popoverDidClose: (NSNotification*) notification
+{
+    if (onClose)
+        onClose();
+}
+@end
+
+//==============================================================================
+struct MenuBarPanel::Impl : private juce::Timer
+{
+    Impl (MenuBarPanelState::Source& s, Callbacks c) : source (s), callbacks (std::move (c))
+    {
+        actions = [[NSMutableArray alloc] init];
+        delegate = [[CurvePanelPopoverDelegate alloc] init];
+        delegate->onClose = [this] { closed(); };
+
+        source.onChange = [this] { if (isOpen()) rebuild(); };
+    }
+
+    ~Impl() override
+    {
+        stopTimer();
+        source.onChange = nullptr;
+        source.setListening (false);
+
+        if (popover != nil)
+        {
+            [popover setDelegate: nil];
+            [popover close];
+            [popover release];
+        }
+
+        [controller release];
+        [delegate release];
+        [actions release];
+    }
+
+    bool isOpen() const { return popover != nil && [popover isShown]; }
+
+    void toggle (void* statusItemHandle)
+    {
+        if (isOpen())
+        {
+            [popover performClose: nil];
+            return;
+        }
+
+        // Clicking the icon closes the open panel before the click reaches Curve, so it would open again
+        if (juce::Time::getMillisecondCounter() - lastCloseTime < 300)
+            return;
+
+        auto* statusItem = (NSStatusItem*) statusItemHandle;
+        NSStatusBarButton* button = statusItem != nil ? [statusItem button] : nil;
+
+        if (button == nil)
+            return;
+
+        if (popover == nil)
+        {
+            controller = [[NSViewController alloc] init];
+            root = [[[CurvePanelView alloc] initWithFrame: NSMakeRect (0, 0, panelWidth, 100)] autorelease];
+            root->onKey = [this] (NSEvent* e) { return handleKey (e); };
+            [controller setView: root];
+
+            popover = [[NSPopover alloc] init];
+            [popover setBehavior: NSPopoverBehaviorTransient];
+            [popover setAnimates: NO];
+            [popover setContentViewController: controller];
+            [popover setDelegate: delegate];
+        }
+
+        source.setListening (true);
+        rebuild();
+
+        // Curve has no Dock icon by default, so it's made active for the panel to take keys
+        [NSApp activateIgnoringOtherApps: YES];
+        [popover showRelativeToRect: [button bounds] ofView: button preferredEdge: NSRectEdgeMinY];
+        [[root window] makeFirstResponder: root];
+
+        startTimer (250);
+    }
+
+    void close()
+    {
+        if (isOpen())
+            [popover performClose: nil];
+    }
+
+private:
+    static constexpr CGFloat panelWidth = 320, margin = 12;
+
+    MenuBarPanelState::Source& source;
+    Callbacks callbacks;
+
+    NSPopover* popover = nil;
+    NSViewController* controller = nil;
+    CurvePanelView* root = nil; // Owned by the controller
+    CurvePanelPopoverDelegate* delegate = nil;
+    NSMutableArray* actions = nil;
+
+    NSSlider* volumeSlider = nil;  // Owned by the view hierarchy, while the panel shows it
+    NSTextField* volumeLabel = nil;
+    NSButton* muteButton = nil;
+
+    juce::Array<juce::File> presetFiles; // In the order of their keys
+    juce::uint32 lastCloseTime = 0;
+
+    void closed()
+    {
+        stopTimer();
+        source.setListening (false);
+        lastCloseTime = juce::Time::getMillisecondCounter();
+    }
+
+    // The volume can change from the volume keys while the panel is open
+    void timerCallback() override
+    {
+        if (volumeSlider == nil)
+            return;
+
+        const auto state = source.getState();
+
+        if ([[NSApp currentEvent] type] != NSEventTypeLeftMouseDragged)
+            updateVolume (state);
+    }
+
+    //==============================================================================
+    CurvePanelAction* makeAction (std::function<void (id)> f)
+    {
+        auto* action = [[[CurvePanelAction alloc] init] autorelease];
+        action->function = std::move (f);
+        [actions addObject: action];
+        return action;
+    }
+
+    static NSTextField* makeLabel (NSString* text, CGFloat size, NSFontWeight weight, NSColor* colour)
+    {
+        NSTextField* label = [NSTextField labelWithString: text];
+        [label setFont: [NSFont systemFontOfSize: size weight: weight]];
+        [label setTextColor: colour];
+        [label setLineBreakMode: NSLineBreakByTruncatingTail];
+        [label setContentCompressionResistancePriority: NSLayoutPriorityDefaultLow forOrientation: NSLayoutConstraintOrientationHorizontal];
+        return label;
+    }
+
+    NSButton* makeSymbolButton (NSString* symbol, NSString* description, std::function<void (id)> f)
+    {
+        NSImage* image = [NSImage imageWithSystemSymbolName: symbol accessibilityDescription: description];
+        auto* action = makeAction (std::move (f));
+        NSButton* button = [NSButton buttonWithImage: image target: action action: @selector (perform:)];
+        [button setBordered: NO];
+        [button setToolTip: description];
+        [button setContentTintColor: [NSColor secondaryLabelColor]];
+        return button;
+    }
+
+    static NSView* makeSeparator()
+    {
+        NSBox* line = [[[NSBox alloc] init] autorelease];
+        [line setBoxType: NSBoxSeparator];
+        return line;
+    }
+
+    static NSTextField* makeSectionHeader (NSString* text)
+    {
+        return makeLabel ([text uppercaseString], 10, NSFontWeightSemibold, [NSColor tertiaryLabelColor]);
+    }
+
+    static NSStackView* makeRow (NSArray<NSView*>* views)
+    {
+        NSStackView* row = [NSStackView stackViewWithViews: views];
+        [row setOrientation: NSUserInterfaceLayoutOrientationHorizontal];
+        [row setAlignment: NSLayoutAttributeCenterY];
+        [row setSpacing: 8];
+        return row;
+    }
+
+    static NSView* makeSpacer()
+    {
+        NSView* spacer = [[[NSView alloc] init] autorelease];
+        [spacer setContentHuggingPriority: 1 forOrientation: NSLayoutConstraintOrientationHorizontal];
+        return spacer;
+    }
+
+    //==============================================================================
+    void rebuild()
+    {
+        if (root == nil)
+            return;
+
+        const auto state = source.getState();
+
+        for (NSView* v in [[[root subviews] copy] autorelease])
+            [v removeFromSuperview];
+
+        [actions removeAllObjects];
+        volumeSlider = nil;
+        volumeLabel = nil;
+        muteButton = nil;
+
+        NSStackView* stack = [[[NSStackView alloc] init] autorelease];
+        [stack setOrientation: NSUserInterfaceLayoutOrientationVertical];
+        [stack setAlignment: NSLayoutAttributeLeading];
+        [stack setSpacing: 10];
+        [stack setEdgeInsets: NSEdgeInsetsMake (margin, margin, margin, margin)];
+        [stack setTranslatesAutoresizingMaskIntoConstraints: NO];
+        [root addSubview: stack];
+
+        [NSLayoutConstraint activateConstraints: @[
+            [[stack leadingAnchor] constraintEqualToAnchor: [root leadingAnchor]],
+            [[stack trailingAnchor] constraintEqualToAnchor: [root trailingAnchor]],
+            [[stack topAnchor] constraintEqualToAnchor: [root topAnchor]],
+            [[stack widthAnchor] constraintEqualToConstant: panelWidth]
+        ]];
+
+        const auto addFullWidth = [stack] (NSView* view)
+        {
+            [stack addArrangedSubview: view];
+            [[[view widthAnchor] constraintEqualToAnchor: [stack widthAnchor] constant: -2 * margin] setActive: YES];
+        };
+
+        addFullWidth (makeHeader (state));
+        addFullWidth (makeSeparator());
+        addPresets (state, addFullWidth);
+
+        if (getSetting (showPluginsSetting, true) && ! state.plugins.empty())
+        {
+            addFullWidth (makeSeparator());
+            addPlugins (state, addFullWidth);
+        }
+
+        if (getSetting (showVolumeSetting, true) && state.canSetVolume)
+        {
+            addFullWidth (makeSeparator());
+            addFullWidth (makeVolume (state));
+        }
+
+        addFullWidth (makeSeparator());
+        addFullWidth (makeFooter (state));
+
+        [root layoutSubtreeIfNeeded];
+        const NSSize size = NSMakeSize (panelWidth, [stack fittingSize].height);
+        [root setFrameSize: size];
+        [popover setContentSize: size];
+    }
+
+    NSView* makeHeader (const MenuBarPanelState::State& state)
+    {
+        NSTextField* title = makeLabel (@"Curve", 13, NSFontWeightBold, [NSColor labelColor]);
+
+        juce::String status;
+
+        if (state.deviceName.isEmpty())
+        {
+            status = "No audio interface";
+        }
+        else
+        {
+            // 48 kHz, but 44.1 kHz
+            const auto hz = juce::roundToInt (state.sampleRate);
+            status << juce::String (state.sampleRate / 1000.0, hz % 1000 == 0 ? 0 : 1)
+                   << " kHz " << juce::String::fromUTF8 ("\xc2\xb7") << " " << state.bufferSize << " smp";
+
+            if (state.latencySamples > 0 && state.sampleRate > 0.0)
+                status << " " << juce::String::fromUTF8 ("\xc2\xb7") << " +"
+                       << juce::String (1000.0 * state.latencySamples / state.sampleRate, 1) << " ms";
+        }
+
+        NSTextField* statusLabel = makeLabel (toNS (status), 11, NSFontWeightRegular, [NSColor secondaryLabelColor]);
+        [statusLabel setFont: [NSFont monospacedDigitSystemFontOfSize: 11 weight: NSFontWeightRegular]];
+        [statusLabel setToolTip: toNS (state.deviceName.isEmpty() ? juce::String ("Choose one in Audio Settings")
+                                                                  : state.deviceName + (state.latencySamples > 0 ? ", plus the plug-ins' latency" : ""))];
+
+        NSButton* gear = makeSymbolButton (@"gearshape", @"Settings", [this] (id sender) { showSettingsMenu ((NSView*) sender); });
+
+        return makeRow (@[ title, statusLabel, makeSpacer(), gear ]);
+    }
+
+    void showSettingsMenu (NSView* anchor)
+    {
+        NSMenu* menu = [[[NSMenu alloc] init] autorelease];
+
+        const auto add = [this, menu] (NSString* title, std::function<void()> f)
+        {
+            auto* action = makeAction ([this, f] (id)
+            {
+                close();
+                juce::MessageManager::callAsync (f); // After the menu and panel have closed
+            });
+
+            NSMenuItem* item = [[[NSMenuItem alloc] initWithTitle: title action: @selector (perform:) keyEquivalent: @""] autorelease];
+            [item setTarget: action];
+            [menu addItem: item];
+        };
+
+        add (@"Audio Settings", callbacks.showAudioSettings);
+        add (@"Plug-in Manager", callbacks.showPluginManager);
+        add (@"Preferences...", callbacks.showPreferences);
+        [menu addItem: [NSMenuItem separatorItem]];
+        add (@"Curve Help", callbacks.showHelp);
+        add (@"About...", callbacks.showAbout);
+        [menu addItem: [NSMenuItem separatorItem]];
+        add (@"Quit Curve", callbacks.quit);
+
+        [menu popUpMenuPositioningItem: nil atLocation: NSMakePoint (0, [anchor bounds].size.height + 4) inView: anchor];
+    }
+
+    template <typename AddFn>
+    void addPresets (const MenuBarPanelState::State& state, AddFn&& addFullWidth)
+    {
+        presetFiles.clear();
+
+        NSString* headerText = state.isPresetModified ? @"Presets  • modified" : @"Presets";
+        NSTextField* header = makeSectionHeader (headerText);
+        [header setToolTip: state.isPresetModified ? @"The current preset has changes that aren't saved" : nil];
+
+        auto* save = makeAction ([this] (id) { close(); juce::MessageManager::callAsync ([this] { source.saveAsPreset(); }); });
+        NSButton* saveButton = [NSButton buttonWithTitle: @"Save..." target: save action: @selector (perform:)];
+        [saveButton setBezelStyle: NSBezelStyleInline];
+        [saveButton setControlSize: NSControlSizeSmall];
+        [saveButton setToolTip: @"Save As Preset..."];
+
+        addFullWidth (makeRow (@[ header, makeSpacer(), saveButton ]));
+
+        if (state.presets.isEmpty())
+        {
+            addFullWidth (makeLabel (@"No presets yet. Save one to switch to it here.", 12, NSFontWeightRegular, [NSColor secondaryLabelColor]));
+            return;
+        }
+
+        // Two columns of tiles, or one column with longer names when there are many
+        const int columns = state.presets.size() <= 12 ? 2 : 1;
+
+        NSStackView* grid = [[[NSStackView alloc] init] autorelease];
+        [grid setOrientation: NSUserInterfaceLayoutOrientationVertical];
+        [grid setSpacing: 6];
+        [grid setAlignment: NSLayoutAttributeLeading];
+
+        NSMutableArray<NSView*>* rowViews = [NSMutableArray array];
+
+        for (int i = 0; i < state.presets.size(); ++i)
+        {
+            const auto& preset = state.presets.getReference (i);
+            presetFiles.add (preset.file);
+
+            CurvePresetTile* tile = [[[CurvePresetTile alloc] init] autorelease];
+            tile->name = [toNS (preset.name) retain];
+            tile->shortcut = preset.shortcut.isNotEmpty() ? [toNS (preset.shortcut) retain] : nil;
+            tile->groupColour = preset.groupColour.has_value() ? [toNS (*preset.groupColour) retain] : nil;
+            tile->isCurrent = preset.isCurrent;
+            tile->onClick = [this, file = preset.file] { source.loadPreset (file); };
+            [tile setToolTip: toNS (preset.name)];
+            [[[tile heightAnchor] constraintEqualToConstant: 34] setActive: YES];
+            [rowViews addObject: tile];
+
+            if ((int) [rowViews count] == columns || i == state.presets.size() - 1)
+            {
+                while ((int) [rowViews count] < columns)
+                    [rowViews addObject: [[[NSView alloc] init] autorelease]];
+
+                NSStackView* row = [NSStackView stackViewWithViews: rowViews];
+                [row setOrientation: NSUserInterfaceLayoutOrientationHorizontal];
+                [row setDistribution: NSStackViewDistributionFillEqually];
+                [row setSpacing: 6];
+                [grid addArrangedSubview: row];
+                [[[row widthAnchor] constraintEqualToAnchor: [grid widthAnchor]] setActive: YES];
+                [rowViews removeAllObjects];
+            }
+        }
+
+        // Scrolls past about ten rows
+        constexpr CGFloat maxHeight = 400;
+        [grid layoutSubtreeIfNeeded];
+        const CGFloat gridHeight = [grid fittingSize].height;
+
+        if (gridHeight <= maxHeight)
+        {
+            addFullWidth (grid);
+            return;
+        }
+
+        NSScrollView* scroll = [[[NSScrollView alloc] init] autorelease];
+        [scroll setHasVerticalScroller: YES];
+        [scroll setDrawsBackground: NO];
+        [scroll setAutohidesScrollers: YES];
+
+        CurvePanelView* document = [[[CurvePanelView alloc] init] autorelease]; // flipped, so the list starts at the top
+        [document setTranslatesAutoresizingMaskIntoConstraints: NO];
+        [grid setTranslatesAutoresizingMaskIntoConstraints: NO];
+        [document addSubview: grid];
+        [scroll setDocumentView: document];
+
+        NSClipView* clip = [scroll contentView];
+        [NSLayoutConstraint activateConstraints: @[
+            [[grid leadingAnchor] constraintEqualToAnchor: [document leadingAnchor]],
+            [[grid trailingAnchor] constraintEqualToAnchor: [document trailingAnchor] constant: -10],
+            [[grid topAnchor] constraintEqualToAnchor: [document topAnchor]],
+            [[grid bottomAnchor] constraintEqualToAnchor: [document bottomAnchor]],
+            [[document leadingAnchor] constraintEqualToAnchor: [clip leadingAnchor]],
+            [[document trailingAnchor] constraintEqualToAnchor: [clip trailingAnchor]],
+            [[document topAnchor] constraintEqualToAnchor: [clip topAnchor]],
+            [[scroll heightAnchor] constraintEqualToConstant: maxHeight]
+        ]];
+
+        addFullWidth (scroll);
+
+        // Show the current preset
+        for (int i = 0; i < state.presets.size(); ++i)
+            if (state.presets.getReference (i).isCurrent)
+                [document scrollRectToVisible: NSMakeRect (0, std::max (0.0, (double) i / columns * 40.0 - maxHeight / 2), 10, maxHeight)];
+    }
+
+    template <typename AddFn>
+    void addPlugins (const MenuBarPanelState::State& state, AddFn&& addFullWidth)
+    {
+        addFullWidth (makeSectionHeader (@"Plug-ins"));
+
+        for (const auto& plugin : state.plugins)
+        {
+            const auto nodeID = plugin.id;
+            const bool active = ! plugin.isBypassed && ! plugin.isMuted;
+
+            juce::String text = plugin.label;
+
+            if (plugin.isMuted)
+                text << "  (muted)";
+
+            NSTextField* name = makeLabel (toNS (text), 12, NSFontWeightRegular,
+                                           active ? [NSColor labelColor] : [NSColor tertiaryLabelColor]);
+            [name setToolTip: toNS (plugin.label)];
+
+            NSMutableArray<NSView*>* views = [NSMutableArray arrayWithObjects: name, makeSpacer(), nil];
+
+            if (plugin.hasEditor)
+            {
+                NSButton* edit = makeSymbolButton (@"macwindow",
+                                                   plugin.isWindowOpen ? @"Close the plug-in's window" : @"Open the plug-in's window",
+                                                   [this, nodeID] (id) { source.toggleEditor (nodeID); });
+
+                if (plugin.isWindowOpen)
+                    [edit setContentTintColor: [NSColor controlAccentColor]];
+
+                [views addObject: edit];
+            }
+
+            if (plugin.canBypass)
+            {
+                auto* toggle = makeAction ([this, nodeID, muted = plugin.isMuted] (id sender)
+                {
+                    const bool on = [(NSSwitch*) sender state] == NSControlStateValueOn;
+
+                    // Muted, nothing passes either, so switching it on unmutes it
+                    if (muted && on)
+                        source.setMuted (nodeID, false);
+                    else
+                        source.setBypassed (nodeID, ! on);
+                });
+
+                NSSwitch* power = [[[NSSwitch alloc] init] autorelease];
+                [power setControlSize: NSControlSizeMini];
+                [power setState: active ? NSControlStateValueOn : NSControlStateValueOff];
+                [power setTarget: toggle];
+                [power setAction: @selector (perform:)];
+                [power setToolTip: active ? @"On: click to bypass" : plugin.isMuted ? @"Muted: click to unmute" : @"Bypassed: click to turn on"];
+                [power setAccessibilityLabel: toNS (plugin.label)];
+                [views addObject: power];
+            }
+
+            CurvePluginRow* row = [CurvePluginRow stackViewWithViews: views];
+            [row setOrientation: NSUserInterfaceLayoutOrientationHorizontal];
+            [row setAlignment: NSLayoutAttributeCenterY];
+            [row setSpacing: 8];
+            [[[row heightAnchor] constraintGreaterThanOrEqualToConstant: 22] setActive: YES];
+
+            row->makeMenu = [this, plugin, nodeID]
+            {
+                NSMenu* menu = [[[NSMenu alloc] init] autorelease];
+
+                const auto add = [this, menu] (NSString* title, bool enabled, std::function<void()> f)
+                {
+                    auto* action = makeAction ([f] (id) { f(); });
+                    NSMenuItem* item = [[[NSMenuItem alloc] initWithTitle: title action: @selector (perform:) keyEquivalent: @""] autorelease];
+                    [item setTarget: action];
+                    [item setEnabled: enabled];
+                    [menu setAutoenablesItems: NO];
+                    [menu addItem: item];
+                };
+
+                add (plugin.isWindowOpen ? @"Close Plug-in Window" : @"Open Plug-in Window", plugin.hasEditor, [this, nodeID] { source.toggleEditor (nodeID); });
+
+                if (plugin.canBypass)
+                {
+                    add (plugin.isBypassed ? @"Turn On" : @"Bypass", true, [this, nodeID, b = plugin.isBypassed] { source.setBypassed (nodeID, ! b); });
+                    add (plugin.isMuted ? @"Unmute" : @"Mute", true, [this, nodeID, m = plugin.isMuted] { source.setMuted (nodeID, ! m); });
+                }
+
+                [menu addItem: [NSMenuItem separatorItem]];
+                add (@"Hide from Menu Bar Panel", true, [this, nodeID] { source.hideFromPanel (nodeID); });
+                return menu;
+            };
+
+            addFullWidth (row);
+        }
+    }
+
+    NSView* makeVolume (const MenuBarPanelState::State& state)
+    {
+        muteButton = makeSymbolButton (@"speaker.wave.2.fill", @"Mute", [this] (id)
+        {
+            const auto s = source.getState();
+            source.setVolume (s.volumeSteps, ! s.isVolumeMuted);
+            updateVolume (source.getState());
+        });
+
+        auto* change = makeAction ([this] (id sender)
+        {
+            source.setVolume ((int) std::lround ([(NSSlider*) sender doubleValue]), false);
+            updateVolume (source.getState());
+        });
+
+        volumeSlider = [NSSlider sliderWithValue: state.volumeSteps minValue: 0 maxValue: state.maxVolumeSteps
+                                          target: change action: @selector (perform:)];
+        [volumeSlider setContinuous: YES];
+        [volumeSlider setControlSize: NSControlSizeSmall];
+        [volumeSlider setAccessibilityLabel: @"Output volume"];
+
+        volumeLabel = makeLabel (@"", 11, NSFontWeightRegular, [NSColor secondaryLabelColor]);
+        [volumeLabel setFont: [NSFont monospacedDigitSystemFontOfSize: 11 weight: NSFontWeightRegular]];
+        [volumeLabel setAlignment: NSTextAlignmentRight];
+        [[[volumeLabel widthAnchor] constraintEqualToConstant: 62] setActive: YES];
+
+        updateVolume (state);
+        return makeRow (@[ muteButton, volumeSlider, volumeLabel ]);
+    }
+
+    void updateVolume (const MenuBarPanelState::State& state)
+    {
+        if (volumeSlider == nil)
+            return;
+
+        const bool silent = state.isVolumeMuted || state.volumeSteps == 0;
+        [volumeSlider setDoubleValue: state.volumeSteps];
+        [volumeLabel setStringValue: toNS (state.volumeDescription)];
+        [muteButton setImage: [NSImage imageWithSystemSymbolName: silent ? @"speaker.slash.fill" : @"speaker.wave.2.fill"
+                                        accessibilityDescription: state.isVolumeMuted ? @"Unmute" : @"Mute"]];
+        [muteButton setToolTip: state.isVolumeMuted ? @"Unmute" : @"Mute"];
+    }
+
+    NSView* makeFooter (const MenuBarPanelState::State& state)
+    {
+        auto* toggleEditor = makeAction ([this] (id) { close(); juce::MessageManager::callAsync ([this] { source.toggleGraphEditor(); }); });
+        NSButton* editor = [NSButton buttonWithTitle: state.isEditorShowing ? @"Hide Graph Editor" : @"Open Graph Editor..."
+                                              target: toggleEditor action: @selector (perform:)];
+        [editor setBezelStyle: NSBezelStyleRounded];
+        [editor setControlSize: NSControlSizeSmall];
+
+        return makeRow (@[ editor, makeSpacer() ]);
+    }
+
+    //==============================================================================
+    // The preset keys, as the menu had them: 1-9 and 0, then with Option, then with Shift
+    bool handleKey (NSEvent* event)
+    {
+        static const std::map<unsigned short, int> digits { { kVK_ANSI_1, 0 }, { kVK_ANSI_2, 1 }, { kVK_ANSI_3, 2 },
+                                                            { kVK_ANSI_4, 3 }, { kVK_ANSI_5, 4 }, { kVK_ANSI_6, 5 },
+                                                            { kVK_ANSI_7, 6 }, { kVK_ANSI_8, 7 }, { kVK_ANSI_9, 8 },
+                                                            { kVK_ANSI_0, 9 } };
+
+        const auto digit = digits.find ([event keyCode]);
+
+        if (digit == digits.end())
+            return false;
+
+        const auto flags = [event modifierFlags] & NSEventModifierFlagDeviceIndependentFlagsMask;
+
+        if ((flags & (NSEventModifierFlagCommand | NSEventModifierFlagControl)) != 0)
+            return false;
+
+        const int bank = (flags & NSEventModifierFlagShift) != 0 ? 2 : (flags & NSEventModifierFlagOption) != 0 ? 1 : 0;
+        const int index = bank * 10 + digit->second;
+
+        if (! juce::isPositiveAndBelow (index, presetFiles.size()))
+            return false;
+
+        source.loadPreset (presetFiles[index]);
+        return true;
+    }
+
+    JUCE_DECLARE_NON_COPYABLE (Impl)
+};
+
+//==============================================================================
+MenuBarPanel::MenuBarPanel (MenuBarPanelState::Source& source, Callbacks callbacks)
+    : impl (std::make_unique<Impl> (source, std::move (callbacks)))
+{
+}
+
+MenuBarPanel::~MenuBarPanel() = default;
+
+void MenuBarPanel::toggle (void* statusItem)    { impl->toggle (statusItem); }
+void MenuBarPanel::close()                      { impl->close(); }
+bool MenuBarPanel::isOpen() const               { return impl->isOpen(); }
+
+bool MenuBarPanel::getSetting (const char* key, bool defaultValue)
+{
+    if (auto* settings = getUserSettings())
+        return settings->getBoolValue (key, defaultValue);
+
+    return defaultValue;
+}
+
+void MenuBarPanel::setSetting (const char* key, bool value)
+{
+    if (auto* settings = getUserSettings())
+    {
+        settings->setValue (key, value);
+        settings->saveIfNeeded();
+    }
+}

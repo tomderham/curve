@@ -772,6 +772,15 @@ namespace
                 stopTimer();
         }
 
+        // From the menu bar panel's slider: as a key press would set it, without the overlay
+        void setVolume (int steps, bool muted)
+        {
+            volumeSteps.store (OutputVolume::clampSteps (steps));
+            volumeMuted.store (muted);
+            applyGain();
+            saveTimer.startTimer (2000);
+        }
+
         void keyHandled()
         {
             // Saved once the keys have been left alone for a moment
@@ -956,6 +965,22 @@ namespace VolumeKeyManager
     bool hasConnectedLoopback()
     {
         return OutputInterfaceLoopbackNode::isAnyTapActiveInGraph();
+    }
+
+    int getVolumeSteps()
+    {
+        return volumeSteps.load();
+    }
+
+    bool isVolumeMuted()
+    {
+        return volumeMuted.load();
+    }
+
+    void setVolume (int steps, bool muted)
+    {
+        if (controller != nullptr)
+            controller->setVolume (steps, muted);
     }
 
     juce::String describeVolume()

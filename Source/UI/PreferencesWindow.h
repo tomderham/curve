@@ -23,6 +23,7 @@
 #include "SystemSleepManager.h"
 #include "IdleReleaseController.h"
 #include "VolumeKeyManager.h"
+#include "MenuBarPanel.h"
 
 inline bool attemptToEnableLoginItem()
 {
@@ -66,6 +67,7 @@ public:
     {
         const auto background = getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId);
         tabs.addTab ("General", background, &general, false);
+        tabs.addTab ("Menu Bar", background, &menuBar, false);
         tabs.addTab ("Keyboard", background, &keyboard, false);
         tabs.addTab ("MIDI", background, &midi, false);
         tabs.setTabBarDepth (30);
@@ -229,6 +231,73 @@ private:
         juce::ToggleButton openAtLogin, showInDock, preventSleep, releaseWhenIdle, pluginWindowsOnAllSpaces, autoCheck;
         juce::Label updatesLabel;
         juce::TextButton checkNow;
+    };
+
+    //==============================================================================
+    // What clicking Curve's menu bar icon opens, and what its panel shows
+    struct MenuBarPage final : public juce::Component
+    {
+        MenuBarPage()
+        {
+            opensLabel.setText ("Clicking the Icon Opens:", juce::dontSendNotification);
+            opens.addItem ("The Panel", 1);
+            opens.addItem ("A Menu", 2);
+            opens.onChange = [this]
+            {
+                MenuBarPanel::setSetting (MenuBarPanel::useMenuSetting, opens.getSelectedId() == 2);
+                refresh();
+            };
+
+            showsLabel.setText ("The Panel Shows:", juce::dontSendNotification);
+
+            showPlugins.setButtonText ("Plug-ins, to bypass them and open their windows");
+            showPlugins.onClick = [this] { MenuBarPanel::setSetting (MenuBarPanel::showPluginsSetting, showPlugins.getToggleState()); };
+
+            showVolume.setButtonText ("Output volume, while Curve controls it");
+            showVolume.onClick = [this] { MenuBarPanel::setSetting (MenuBarPanel::showVolumeSetting, showVolume.getToggleState()); };
+
+            styleNote (note);
+            note.setText ("The panel always shows the presets. Right-click or Control-click the icon for the menu.",
+                          juce::dontSendNotification);
+
+            for (auto* c : std::initializer_list<juce::Component*> { &opensLabel, &opens, &showsLabel, &showPlugins, &showVolume, &note })
+                addAndMakeVisible (c);
+        }
+
+        void refresh()
+        {
+            const bool usesMenu = MenuBarPanel::getSetting (MenuBarPanel::useMenuSetting, false);
+            opens.setSelectedId (usesMenu ? 2 : 1, juce::dontSendNotification);
+            showPlugins.setToggleState (MenuBarPanel::getSetting (MenuBarPanel::showPluginsSetting, true), juce::dontSendNotification);
+            showVolume.setToggleState (MenuBarPanel::getSetting (MenuBarPanel::showVolumeSetting, true), juce::dontSendNotification);
+            showPlugins.setEnabled (! usesMenu);
+            showVolume.setEnabled (! usesMenu);
+        }
+
+        void resized() override
+        {
+            auto r = getLocalBounds().reduced (margin, 12);
+
+            auto row = r.removeFromTop (rowHeight);
+            opensLabel.setBounds (row.removeFromLeft (labelWidth));
+            opens.setBounds (row.removeFromLeft (160).reduced (0, 3));
+
+            r.removeFromTop (8);
+            row = r.removeFromTop (rowHeight);
+            showsLabel.setBounds (row.removeFromLeft (labelWidth));
+            showPlugins.setBounds (row);
+
+            row = r.removeFromTop (rowHeight);
+            row.removeFromLeft (labelWidth);
+            showVolume.setBounds (row);
+
+            r.removeFromTop (12);
+            note.setBounds (r.removeFromTop (40));
+        }
+
+        juce::Label opensLabel, showsLabel, note;
+        juce::ComboBox opens;
+        juce::ToggleButton showPlugins, showVolume;
     };
 
     //==============================================================================
@@ -477,6 +546,7 @@ private:
     void refresh()
     {
         general.refresh();
+        menuBar.refresh();
         keyboard.refresh();
         midi.refresh();
     }
@@ -489,6 +559,7 @@ private:
 
     Callbacks callbacks; // before the pages, which refer to it
     GeneralPage general;
+    MenuBarPage menuBar;
     KeyboardPage keyboard;
     MidiPage midi;
     juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };

@@ -23,6 +23,8 @@
 #include "IdleReleaseController.h"
 #include "VolumeKeyManager.h"
 #include "PreferencesWindow.h"
+#include "MenuBarPanel.h"
+#include "MenuBarPanelModel.h"
 
 inline std::unique_ptr<InputStream>
 createAssetInputStream(const char *resourcePath) {
@@ -81,7 +83,26 @@ public:
       handleDisplayChange();
     });
 
+    panelModel = std::make_unique<MenuBarPanelModel>(mainWindow);
+
+    juce::Component::SafePointer<TrayIconController> safeSelf(this);
+    juce::Component::SafePointer<MainHostWindow> safeWindow(&mainWindow);
+    MenuBarPanel::Callbacks callbacks;
+    callbacks.showAudioSettings = [safeWindow] { if (auto *w = safeWindow.getComponent()) w->showAudioSettings(); };
+    callbacks.showPluginManager = [safeWindow] { if (auto *w = safeWindow.getComponent()) w->showPluginListWindow(); };
+    callbacks.showPreferences = [safeSelf] { if (auto *self = safeSelf.getComponent()) self->showPreferences(); };
+    callbacks.showHelp = [] { HelpBookManager::showHelp(); };
+    callbacks.showAbout = [safeWindow] { if (auto *w = safeWindow.getComponent()) w->showAboutBox(); };
+    callbacks.quit = [] { juce::JUCEApplication::getInstance()->systemRequestedQuit(); };
+    panel = std::make_unique<MenuBarPanel>(*panelModel, std::move(callbacks));
+
     initGlobalShortcut();
+  }
+
+  // The panel, unless the menu was asked for: by right-clicking or Control-clicking the icon, or
+  // in Preferences instead of the panel
+  static bool opensPanel(bool isPopupMenuClick) {
+    return !isPopupMenuClick && !MenuBarPanel::getSetting(MenuBarPanel::useMenuSetting, false);
   }
 
   void refreshIcon() {
@@ -92,7 +113,7 @@ public:
   }
 
   void recreateStatusItem() {
-    if (isMenuOpen)
+    if (isMenuOpen || (panel != nullptr && panel->isOpen()))
       return;
 
     // Explicitly unregister old NSStatusItem from NSStatusBar so it is cleanly removed
@@ -144,6 +165,11 @@ public:
   void toggleMenuFromShortcut() {
     juce::MessageManager::callAsync([safeSelf = juce::Component::SafePointer<TrayIconController>(this)] {
       if (auto *self = safeSelf.getComponent()) {
+        if (opensPanel(false) && !self->isMenuOpen) {
+          self->panel->toggle(self->getNativeHandle());
+          return;
+        }
+
         auto now = juce::Time::getMillisecondCounter();
         if (self->isMenuOpen || (now - self->lastMenuDismissTime < 250)) {
           self->isMenuOpen = false;
@@ -163,6 +189,13 @@ public:
 
   void mouseDown(const juce::MouseEvent &event) override {
     if (event.mouseWasClicked()) {
+      if (opensPanel(event.mods.isPopupMenu()) && !isMenuOpen) {
+        panel->toggle(getNativeHandle());
+        return;
+      }
+
+      panel->close();
+
       auto now = juce::Time::getMillisecondCounter();
       if (isMenuOpen || (now - lastMenuDismissTime < 250)) {
         isMenuOpen = false;
@@ -550,6 +583,8 @@ private:
   void *activeMenuKeyMonitor = nullptr;
   std::unique_ptr<MacOSDisplayChangeNotifierBase> displayChangeNotifier;
   std::unique_ptr<PreferencesWindow> preferencesWindow;
+  std::unique_ptr<MenuBarPanelModel> panelModel; // before the panel, which uses it
+  std::unique_ptr<MenuBarPanel> panel;
   std::vector<juce::uint32> knownDisplayIDs;
 
   struct CallbackTimer : juce::Timer {

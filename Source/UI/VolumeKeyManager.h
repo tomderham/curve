@@ -78,6 +78,11 @@ namespace VolumeKeyManager
     /** True while the graph has an Interface Loopback (In) node that's connected and not bypassed. */
     bool hasConnectedLoopback();
 
+    /** The volume, in OutputVolume's steps, which the volume keys and the menu bar panel set. */
+    int getVolumeSteps();
+    bool isVolumeMuted();
+    void setVolume (int steps, bool muted);
+
     /** e.g. "-11.9 dB", "Muted" */
     juce::String describeVolume();
 

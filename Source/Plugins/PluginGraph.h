@@ -123,8 +123,14 @@ public:
     // Shows plug-in windows on every Space, or each only on its own, and remembers the choice
     void setPluginWindowsOnAllSpaces (bool shouldBeOnAll);
 
+    bool hasWindowFor (const AudioProcessorGraph::Node&, PluginWindow::Type) const;
+    void closeWindowFor (const AudioProcessorGraph::Node&, PluginWindow::Type);
+
     static inline const Identifier openWithPresetProp { "openWithPreset" };
     static inline const Identifier freePositionProp { "freePosition" };
+
+    // Left out of the menu bar panel's plug-in list. Shared by a preset's scenes, as its graph is
+    static inline const Identifier hiddenFromPanelProp { "hiddenFromPanel" };
     static inline const Identifier varyBySceneProp { Curve::Scenes::varyAttribute };
     static inline const Identifier mutedProp { Curve::Scenes::mutedAttribute };
 
@@ -282,7 +288,6 @@ private:
     bool pluginWindowsFloating = false;
     MidiMappingSet midiMappings;
 
-    bool hasWindowFor (const AudioProcessorGraph::Node&, PluginWindow::Type) const;
 
     // Moves plug-in windows back onto a display when it's connected again
     std::unique_ptr<MacOSDisplayChangeNotifierBase> displayChangeNotifier;

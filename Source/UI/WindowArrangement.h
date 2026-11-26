@@ -24,8 +24,8 @@ namespace WindowArrangement
     std::vector<Curve::WindowPlacement::Display> getDisplays();
 
     /** Brings the windows to the front in this order, so the last ends up frontmost, even while
-        Curve isn't the active app, without making it active. If Curve is active, the frontmost
-        also takes keyboard focus. */
+        Curve isn't the active app, without making it active. If Curve is active and none of its
+        other windows has keyboard focus, the frontmost takes it. */
     void bringToFront (const juce::Array<juce::Component*>& backToFront);
 
     /** Whether the window is on the Space being shown, or on every Space. */

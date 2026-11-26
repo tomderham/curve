@@ -92,6 +92,8 @@ static NSWindow* getWindow (juce::Component& component)
 void bringToFront (const juce::Array<juce::Component*>& backToFront)
 {
     NSWindow* frontmost = nil;
+    NSWindow* keyWindow = [NSApp keyWindow];
+    bool keyIsAmongThem = keyWindow == nil;
 
     for (auto* component : backToFront)
     {
@@ -105,9 +107,12 @@ void bringToFront (const juce::Array<juce::Component*>& backToFront)
 
         [window orderFrontRegardless];
         frontmost = window;
+        keyIsAmongThem = keyIsAmongThem || window == keyWindow;
     }
 
-    if (frontmost != nil && [NSApp isActive] && [frontmost canBecomeKeyWindow])
+    // Not from another of Curve's windows, such as the graph editor or the menu bar panel, which a
+    // plug-in window taking the keys would close
+    if (frontmost != nil && [NSApp isActive] && keyIsAmongThem && [frontmost canBecomeKeyWindow])
         [frontmost makeKeyWindow];
 }
 

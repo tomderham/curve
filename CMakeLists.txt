@@ -70,6 +70,7 @@ target_sources(Curve PRIVATE
     Source/Calibration/AutoEQDataManager.cpp
     Source/UI/GlobalShortcutManager.mm
     Source/UI/WindowArrangement.mm
+    Source/UI/MenuBarPanel.mm
     Source/UI/OnlineCalibrationDialog.cpp)
 target_compile_definitions(Curve PRIVATE
     ENABLE_AUDIO_DIAGNOSTICS=$<BOOL:${ENABLE_AUDIO_DIAGNOSTICS}>
