@@ -54,6 +54,8 @@
 #include "DelayNode.h"
 #include "GainNode.h"
 #include "ScoreViewerNode.h"
+#include "LooperNode.h"
+#include "PlayerNode.h"
 #include "InternalPlugins.h"
 #include "InvertPhaseNode.h"
 #include "MeterNode.h"
@@ -244,6 +246,14 @@ static const std::vector<PluginDescription>& getStaticInternalDescriptions()
         ScoreViewerNode().fillInPluginDescription (scor);
         result.push_back (scor);
 
+        PluginDescription loop;
+        LooperNode().fillInPluginDescription (loop);
+        result.push_back (loop);
+
+        PluginDescription play;
+        PlayerNode::describe (play);
+        result.push_back (play);
+
         return result;
     }();
 
@@ -310,7 +320,9 @@ InternalPluginFormat::InternalPluginFormat()
         [] { return std::make_unique<MidSideNode> (MidSideNode::Mode::decode); },
         [] { return std::make_unique<DelayNode>(); },
         [] { return std::make_unique<MeterNode>(); },
-        [] { return std::make_unique<ScoreViewerNode>(); }
+        [] { return std::make_unique<ScoreViewerNode>(); },
+        [] { return std::make_unique<LooperNode>(); },
+        [] { return std::make_unique<PlayerNode>(); }
     }
 {
 }

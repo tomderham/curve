@@ -37,6 +37,8 @@
 #include "PluginGraph.h"
 #include "InternalPlugins.h"
 #include "MeterNode.h"
+#include "LooperNode.h"
+#include "PlayerNode.h"
 #include "OutputInterfaceLoopbackNode.h"
 #include "../UI/GraphEditorPanel.h"
 #include "../AudioConstants.h"
@@ -519,8 +521,10 @@ void PluginGraph::setBypassingAll (bool shouldBypass)
         {
             auto* processor = node->getProcessor();
 
-            // Effects only: an instrument, with no audio in, would go silent
+            // Effects only: an instrument, with no audio in, would go silent, as would a loop or a
+            // backing track, which are what's being played along to rather than an effect on it
             if (processor == nullptr || ! canBeBypassed (*processor) || isConfiguredByAudioSettings (*processor)
+                || dynamic_cast<LooperNode*> (processor) != nullptr || dynamic_cast<PlayerNode*> (processor) != nullptr
                 || processor->getTotalNumInputChannels() == 0 || node->isBypassed() || isNodeMuted (node->nodeID))
                 continue;
 

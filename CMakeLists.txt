@@ -50,6 +50,8 @@ target_sources(Curve PRIVATE
     Source/Plugins/PanNode.cpp
     Source/Plugins/PluginGraph.cpp
     Source/Plugins/ScoreViewerNode.cpp
+    Source/Plugins/LooperNode.cpp
+    Source/Plugins/PlayerNode.cpp
     Source/Plugins/PdfView.mm
     Source/Plugins/SpeakerEmulationNode.cpp
     Source/Plugins/StereoUtilityNode.cpp
