@@ -320,7 +320,12 @@ public:
         rememberBounds();
     }
 
-    bool hasTitleBar() const    { return ! (arePositionsLocked() && areTitleBarsHiddenWhenLocked()); }
+    bool hasTitleBar() const    { return ! (isLockable() && arePositionsLocked() && areTitleBarsHiddenWhenLocked()); }
+
+    /** A plug-in's own window, or its generic one: what's laid out for a scene, and locked with it.
+        Its other windows, e.g. Configure I/O, are tools, opened for a moment, so they're neither
+        locked in place nor without a title bar. */
+    bool isLockable() const     { return type == Type::normal || type == Type::generic; }
 
     /** How far forward the window was last brought, to order a preset's windows as they were. */
     int getStackPosition() const
@@ -420,6 +425,9 @@ public:
     /** Locked, the window can't be dragged, and hides its title bar if that's set */
     void applyLock (bool isLocked)
     {
+        if (! isLockable())
+            return;
+
         // Its own placing: the frame moves by the title bar's height, but the content doesn't
         const ScopedValueSetter<bool> placingNow (isPlacing, true);
         WindowArrangement::setMovable (*this, ! isLocked);

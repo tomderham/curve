@@ -566,8 +566,9 @@ void PluginGraph::arrangePluginWindows()
     // In the order they're in now, reading across and down, so the result is like the layout it tidies
     Array<PluginWindow*> windows;
 
+    // The plug-ins' own windows, not tools such as Configure I/O
     for (auto* w : activePluginWindows)
-        if (w->isVisible())
+        if (w->isVisible() && w->isLockable())
             windows.add (w);
 
     if (windows.isEmpty())
@@ -644,7 +645,7 @@ void PluginGraph::updateBackdrop()
     Array<PluginWindow*> windows;
 
     for (auto* w : activePluginWindows)
-        if (w->isVisible() && ! w->isMinimised())
+        if (w->isVisible() && ! w->isMinimised() && w->isLockable())
             windows.add (w);
 
     const auto displays = WindowArrangement::getDisplays();
