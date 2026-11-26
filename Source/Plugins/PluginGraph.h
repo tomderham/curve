@@ -211,8 +211,34 @@ public:
     String describeMidiMappingTarget (const MidiMappingTarget&) const;
 
     //==============================================================================
-    void audioProcessorParameterChanged (AudioProcessor*, int, float) override {}
-    void audioProcessorChanged (AudioProcessor*, const ChangeDetails&) override { changed(); }
+    // Only the graph's own changes mark the preset as changed. A plug-in's, while its states are
+    // watched (see watchPluginStates()), are only noted, from whichever thread it reports them on
+    void audioProcessorParameterChanged (AudioProcessor*, int, float) override { pluginStateTouched.store (true); }
+    void audioProcessorChanged (AudioProcessor*, const ChangeDetails&) override;
+
+    //==============================================================================
+    // Unsaved changes, kept to restore when Curve opens again (see SessionRecovery)
+
+    // Notes a plug-in's parameter or other state changing, which doesn't mark the preset as
+    // changed, so it's known whether there may be anything new to keep without asking every
+    // plug-in for its state. Watches the plug-ins in the graph now: call it again after adding some
+    void watchPluginStates();
+    bool takePluginStateTouched()  { return pluginStateTouched.exchange (false); }
+
+    // Whether this graph, from createXml(), isn't the preset as loaded or last saved, plug-ins'
+    // settings included. Without a preset file, whether it has anything beyond the default nodes
+    bool differsFromSaved (const XmlElement& current) const;
+    bool hasOnlyDefaultNodes() const;
+
+    // No plug-in still loading, or missing: createXml() then has the whole preset
+    bool isFullyLoaded() const  { return pendingAsyncRestores == 0 && pluginsMissingFromLoad.isEmpty(); }
+
+    // Loads changes kept from createXml() as the unsaved changes to presetFile, which stays the
+    // preset loaded, as saved, for scene saves and switches to compare with. Without it, untitled
+    void restoreUnsavedChanges (const XmlElement& kept, const File& presetFile);
+
+    // Changes whenever the loaded preset is saved
+    uint32 getSaveGeneration() const  { return saveGeneration; }
 
     //==============================================================================
     // Without the plug-ins' states, it's quick, e.g. to compare a graph's structure
@@ -343,7 +369,10 @@ private:
     // State for the preset restore in progress. Plugins that can't be created
     // synchronously (e.g. AUv3) finish restoring after restoreFromXml() returns;
     // restoreGeneration lets those callbacks detect that the graph was replaced.
-    uint32 restoreGeneration = 0;
+    uint32 restoreGeneration = 0, saveGeneration = 0;
+    uint32 unsavedChangesGeneration = 0;   // restored by restoreUnsavedChanges(), and not saved since
+    std::atomic<bool> pluginStateTouched { false };
+    void stopWatchingPluginStates();
     int pendingAsyncRestores = 0;
     StringArray pluginsFailedToRestore;
     StringArray pluginsMissingFromLoad;   // as above, but kept until the next load, for scene saves

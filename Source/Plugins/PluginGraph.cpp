@@ -96,6 +96,7 @@ PluginGraph::~PluginGraph()
     graph.removeListener (this);
     graph.removeChangeListener (this);
     closeAnyOpenPluginWindows();
+    stopWatchingPluginStates();
     graph.clear();
 }
 
@@ -312,6 +313,9 @@ void PluginGraph::removeNode (NodeID nodeID)
     if (auto node = graph.getNodeForId (nodeID))
         deactivateIfLoopback (*node);
 
+    if (auto node = graph.getNodeForId (nodeID))
+        node->getProcessor()->removeListener (this);
+
     midiMappings.removeForNode (nodeID);
     statesAsSaved.erase (nodeID.uid);
     bypassedForComparison.erase (nodeID.uid);
@@ -340,6 +344,7 @@ void PluginGraph::clear()
     for (auto* node : graph.getNodes())
         deactivateIfLoopback (*node);
 
+    stopWatchingPluginStates();
     graph.clear();
     changed();
 }
@@ -1511,8 +1516,9 @@ void PluginGraph::asyncNodeRestoreFinished (std::unique_ptr<AudioPluginInstance>
     }
     else
     {
-        // As in loadDocument(): completing the load mustn't mark the preset as edited
-        const bool wasChanged = hasChangedSinceSaved();
+        // As in loadDocument(): completing the load mustn't mark the preset as edited. Kept
+        // changes being restored are, though the flag may not be set again yet
+        const bool wasChanged = hasChangedSinceSaved() || unsavedChangesGeneration == restoreGeneration;
         graph.removeChangeListener (this);
 
         if (finishNodeFromXml (wrapInstanceForARA (std::move (instance), description), nodeXml, restorePluginWindows))
@@ -1786,6 +1792,93 @@ void PluginGraph::restoreFromXml (const XmlElement& xml, bool restorePluginWindo
 
     if (pendingAsyncRestores == 0)
         showRestoreFailures();
+}
+
+//==============================================================================
+// Unsaved changes
+
+void PluginGraph::audioProcessorChanged (AudioProcessor* processor, const ChangeDetails&)
+{
+    if (processor == &graph)
+        changed();
+    else
+        pluginStateTouched.store (true);
+}
+
+void PluginGraph::watchPluginStates()
+{
+    for (auto* node : graph.getNodes())
+        node->getProcessor()->addListener (this);   // once each, if it's already watched
+}
+
+void PluginGraph::stopWatchingPluginStates()
+{
+    for (auto* node : graph.getNodes())
+        node->getProcessor()->removeListener (this);
+}
+
+bool PluginGraph::hasOnlyDefaultNodes() const
+{
+    return graph.getConnections().empty()
+        && std::all_of (graph.getNodes().begin(), graph.getNodes().end(), [] (auto* node)
+           {
+               return isConfiguredByAudioSettings (*node->getProcessor());
+           });
+}
+
+bool PluginGraph::differsFromSaved (const XmlElement& current) const
+{
+    if (! getFile().existsAsFile() || loadedXml == nullptr)
+        return ! hasOnlyDefaultNodes();
+
+    // Not what saving adds, or changes without a change to the preset, e.g. a plug-in updated
+    const auto normalise = [] (const XmlElement& xml)
+    {
+        auto copy = std::make_unique<XmlElement> (xml);
+        copy->removeAttribute (Curve::Scenes::groupAttribute);
+
+        for (auto* node : copy->getChildWithTagNameIterator ("FILTER"))
+            Curve::Scenes::removeDescriptionTimes (*node);
+
+        return copy;
+    };
+
+    return ! normalise (current)->isEquivalentTo (normalise (*loadedXml).get(), true);
+}
+
+void PluginGraph::restoreUnsavedChanges (const XmlElement& kept, const File& presetFile)
+{
+    graph.removeChangeListener (this);
+    restoreFromXml (kept, restorePluginWindowsOnLoad);
+    unsavedChangesGeneration = restoreGeneration;
+
+    // The preset as saved, not as kept: a scene save rewrites the scenes still sharing it
+    auto saved = presetFile.existsAsFile() ? parseXMLIfTagMatches (presetFile, "FILTERGRAPH") : nullptr;
+
+    if (saved != nullptr)
+    {
+        sceneGroup = saved->getStringAttribute (Curve::Scenes::groupAttribute);
+        loadedXml = std::move (saved);
+        setFile (presetFile);
+        setLastDocumentOpened (presetFile);
+    }
+    else
+    {
+        sceneGroup.clear();
+        loadedXml.reset();
+        setFile ({});
+    }
+
+    // As loadDocument(), but changed: after the change messages, which loading clears it after
+    juce::WeakReference<PluginGraph> weakSelf (this);
+    MessageManager::callAsync ([weakSelf]
+    {
+        if (auto* self = weakSelf.get())
+        {
+            self->setChangedFlag (true);
+            self->graph.addChangeListener (self);
+        }
+    });
 }
 
 //==============================================================================
@@ -2335,6 +2428,8 @@ Result PluginGraph::saveScene (const SceneSave& save, bool* wasPresetSaved)
     // As read back from a file, like the other scenes it's compared with on the next save
     loadedXml = parseXML (saved->toString());
     rememberSavedStates (*saved);
+    ++saveGeneration;
+    unsavedChangesGeneration = 0;
     setChangedFlag (false);
 
     StringArray problems;
@@ -2386,6 +2481,8 @@ Result PluginGraph::saveSeparatePreset (const File& file)
     sceneGroup.clear();
     loadedXml = parseXML (xml->toString());
     rememberSavedStates (*xml);
+    ++saveGeneration;
+    unsavedChangesGeneration = 0;
     setChangedFlag (false);
     return Result::ok();
 }

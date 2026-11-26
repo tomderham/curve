@@ -26,6 +26,7 @@
 #include "MenuBarPanel.h"
 #include "CurveFolders.h"
 #include "ProgramNumbersComponent.h"
+#include "SessionRecovery.h"
 
 inline bool attemptToEnableLoginItem()
 {
@@ -86,7 +87,7 @@ public:
         for (auto* page : std::initializer_list<juce::Component*> { &general, &menuBar, &files, &keyboard, &midi })
             matchLabelSizes (*page);
 
-        setSize (560, 450);
+        setSize (560, 550);
     }
 
     void resized() override { tabs.setBounds (getLocalBounds().reduced (8)); }
@@ -212,6 +213,30 @@ private:
             // Locking is per preset, from the editor and the menus; this is how it looks
             lockedLabel.setText ("When a preset's plug-in windows are locked:", juce::dontSendNotification);
 
+            unsavedLabel.setText ("Unsaved changes to a preset:", juce::dontSendNotification);
+
+            keepOnQuit.setButtonText ("Keep them when Curve quits, and restore them when it opens");
+            keepOnQuit.setTooltip ("Changes are kept until the preset is saved, or another is loaded. "
+                                   "The preset file isn't changed unless you save it.");
+            keepOnQuit.onClick = [this]
+            {
+                SessionRecovery::setKeepOnQuitEnabled (keepOnQuit.getToggleState());
+
+                if (auto* recovery = window.getSessionRecovery())
+                    recovery->settingsChanged();
+            };
+
+            saveForCrashes.setButtonText ("Save them every 5 minutes, in case Curve crashes");
+            saveForCrashes.setTooltip ("Saving asks every plug-in for its settings, as saving a preset does. "
+                                       "A few plug-ins hold up their audio while they do.");
+            saveForCrashes.onClick = [this]
+            {
+                SessionRecovery::setSaveForCrashesEnabled (saveForCrashes.getToggleState());
+
+                if (auto* recovery = window.getSessionRecovery())
+                    recovery->settingsChanged();
+            };
+
             updatesLabel.setText ("Updates:", juce::dontSendNotification);
 
             autoCheck.setButtonText ("Auto-Check for App Updates");
@@ -237,7 +262,8 @@ private:
             };
 
             for (auto* c : std::initializer_list<juce::Component*> { &openAtLogin, &dockLabel, &dockMode, &preventSleep, &releaseWhenIdle,
-                                                                    &pluginWindowsOnAllSpaces, &lockedLabel, &hideTitleBars, &showBackdrop, &updatesLabel, &autoCheck, &checkNow })
+                                                                    &pluginWindowsOnAllSpaces, &lockedLabel, &hideTitleBars, &showBackdrop,
+                                                                    &unsavedLabel, &keepOnQuit, &saveForCrashes, &updatesLabel, &autoCheck, &checkNow })
                 addAndMakeVisible (c);
         }
 
@@ -249,6 +275,8 @@ private:
             pluginWindowsOnAllSpaces.setToggleState (PluginWindow::isShownOnAllSpaces(), juce::dontSendNotification);
             hideTitleBars.setToggleState (PluginWindow::areTitleBarsHiddenWhenLocked(), juce::dontSendNotification);
             showBackdrop.setToggleState (PluginWindow::isBackdropShownWhenLocked(), juce::dontSendNotification);
+            keepOnQuit.setToggleState (SessionRecovery::isKeepOnQuitEnabled(), juce::dontSendNotification);
+            saveForCrashes.setToggleState (SessionRecovery::isSaveForCrashesEnabled(), juce::dontSendNotification);
 
             if (auto* settings = getAppProperties().getUserSettings())
             {
@@ -277,6 +305,11 @@ private:
             showBackdrop.setBounds (r.removeFromTop (rowHeight).withTrimmedLeft (24));
 
             r.removeFromTop (12);
+            unsavedLabel.setBounds (r.removeFromTop (rowHeight));
+            keepOnQuit.setBounds (r.removeFromTop (rowHeight));
+            saveForCrashes.setBounds (r.removeFromTop (rowHeight));
+
+            r.removeFromTop (12);
             updatesLabel.setBounds (r.removeFromTop (rowHeight));
             autoCheck.setBounds (r.removeFromTop (rowHeight));
             r.removeFromTop (4);
@@ -289,7 +322,8 @@ private:
         juce::Label dockLabel;
         juce::ComboBox dockMode;
         juce::ToggleButton openAtLogin, preventSleep, releaseWhenIdle, pluginWindowsOnAllSpaces, hideTitleBars, showBackdrop, autoCheck;
-        juce::Label lockedLabel;
+        juce::ToggleButton keepOnQuit, saveForCrashes;
+        juce::Label lockedLabel, unsavedLabel;
         juce::Label updatesLabel;
         juce::TextButton checkNow;
     };

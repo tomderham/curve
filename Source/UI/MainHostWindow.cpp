@@ -53,6 +53,7 @@
 #include "FilteredAudioDeviceSelectorComponent.h"
 #include "MidiMappingsComponent.h"
 #include "PresetSaveDialog.h"
+#include "SessionRecovery.h"
 #include "OnlineCalibrationDialog.h"
 #include "../Calibration/AUNBandEQConverter.h"
 #include "../Plugins/InternalPlugins.h"
@@ -996,6 +997,16 @@ MainHostWindow::MainHostWindow()
     if (auto* g = graphHolder->graph.get())
         g->addChangeListener (this);
 
+    // Started by PluginHostApp once the preset Curve opens with is decided
+    sessionRecovery = std::make_unique<SessionRecovery> (
+        [this]() -> PluginGraph* { return graphHolder != nullptr ? graphHolder->graph.get() : nullptr; },
+        [this]
+        {
+            auto* device = deviceManager.getCurrentAudioDevice();
+            return device != nullptr ? device->getName() : juce::String();
+        },
+        [this] { return isLoadingPreset || isPresetLoadScheduled; });
+
     addKeyListener (getCommandManager().getKeyMappings());
 
     getCommandManager().setFirstCommandTarget (this);
@@ -1003,6 +1014,7 @@ MainHostWindow::MainHostWindow()
 
 MainHostWindow::~MainHostWindow()
 {
+    sessionRecovery = nullptr;
     pluginListWindow = nullptr;
     midiMappingsWindow = nullptr;
     knownPluginList.removeChangeListener (this);
@@ -1024,6 +1036,10 @@ void MainHostWindow::closeButtonPressed()
 
 void MainHostWindow::tryToQuitApplication()
 {
+    // As the graph still is, its plug-in windows open
+    if (sessionRecovery != nullptr)
+        sessionRecovery->quitting();
+
     if (graphHolder != nullptr)
         graphHolder->closeAnyOpenPluginWindows();
 
@@ -1658,6 +1674,43 @@ void MainHostWindow::loadPresetNow (juce::File file, bool switchingQuickly)
     // A scene of the loaded group that couldn't switch in place: say why, as it's slower
     if (loaded && whyLoadedInFull.isNotEmpty() && graphHolder != nullptr)
         graphHolder->showStatusMessage ("Loaded \"" + file.getFileNameWithoutExtension() + "\" in full, as " + whyLoadedInFull, 8000);
+}
+
+void MainHostWindow::restoreUnsavedChanges (const juce::XmlElement& kept, const juce::File& preset)
+{
+    if (graphHolder == nullptr || graphHolder->graph == nullptr)
+        return;
+
+    ++windowsOpenGeneration; // A preset's windows waiting to open no longer will
+
+    {
+        const juce::ScopedValueSetter<bool> loading (isLoadingPreset, true);
+
+        replaceGraph ([this, &kept, &preset]
+        {
+            graphHolder->graph->setRestorePluginWindowsOnLoad (false);
+            graphHolder->graph->restoreUnsavedChanges (kept, preset);
+            graphHolder->propagateDeviceSettingsToNodes();
+        });
+    }
+
+    lastPresetLoadTime = juce::Time::getMillisecondCounter();
+    openPresetPluginWindows (false);
+
+    // Asked for while it loaded, e.g. a MIDI program change: it replaces the restored changes
+    if (pendingPresetFile != juce::File())
+    {
+        loadPreset (pendingPresetFile);
+        return;
+    }
+
+    if (graphHolder != nullptr && graphHolder->graph != nullptr)
+    {
+        const auto name = graphHolder->graph->getFile().existsAsFile()
+                            ? "\"" + graphHolder->graph->getFile().getFileNameWithoutExtension() + "\""
+                            : juce::String ("an untitled preset");
+        graphHolder->showStatusMessage ("Restored the unsaved changes to " + name + ".", 8000);
+    }
 }
 
 void MainHostWindow::newPreset()

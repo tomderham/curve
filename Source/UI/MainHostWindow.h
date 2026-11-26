@@ -66,6 +66,8 @@ PropertiesFile* getUserSettings();
 
 constexpr const char* processUID = "juceaudiopluginhost";
 
+class SessionRecovery;
+
 // Longest one plug-in may take to load during a scan. Large instruments can
 // take 20s on a cold start, and the worker's IPC thread can't answer pings
 // while it waits, so the ping and coordinator limits must both outlast this.
@@ -117,6 +119,11 @@ public:
     void showPluginListWindow();
     void showMidiMappingsWindow();
     void loadPreset (juce::File);
+
+    // Loads unsaved changes kept when Curve quit (see SessionRecovery), as changes to their preset
+    void restoreUnsavedChanges (const juce::XmlElement& kept, const juce::File& preset);
+    SessionRecovery* getSessionRecovery() const  { return sessionRecovery.get(); }
+
     // Clears the graph back to its default audio nodes, asking first if there are unsaved changes
     void newPreset();
     void showOnlineCalibrationDialogForCreation (juce::Point<int> pos);
@@ -142,6 +149,8 @@ private:
     void loadPendingPreset();
     void loadPresetNow (juce::File, bool switchingQuickly);
     void openPresetPluginWindows (bool afterSettling);
+
+    std::unique_ptr<SessionRecovery> sessionRecovery;
 
 
     //==============================================================================

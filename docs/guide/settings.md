@@ -23,6 +23,8 @@ The Preferences window has three tabs. It can stay open while you use Curve.
 | Show in Dock | Shows Curve in the Dock and the Command-Tab switcher. | Off |
 | Prevent macOS from automatically sleeping | Stops your Mac idle sleeping while Curve's audio is running. | Off |
 | Release audio interface when idle | Releases the interface after 5 seconds of silence, which allows AirPods automatic switching. See [Audio settings](audio-settings.md). | Off |
+| Unsaved changes to a preset: Keep them when Curve quits | Keeps changes to the loaded preset that haven't been saved, plug-in settings included, and restores them the next time Curve opens. The preset file isn't changed unless you save it. Curve asks before restoring if it didn't shut down cleanly, if it was asked to open another preset, or if the interface in use has a different default preset. | On |
+| Unsaved changes to a preset: Save them every 5 minutes | Also saves them while Curve runs, so they can be restored after a crash. A few plug-ins hold up their audio briefly while their settings are saved. | Off |
 | Auto-Check for App Updates | Checks for new versions automatically. | On |
 | Check for Updates... | Checks for a new version now. | |
 

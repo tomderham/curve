@@ -63,6 +63,7 @@
 #include "UI/DockIconManager.h"
 #include "UI/TrayIconController.h"
 #include "UI/DefaultPresets.h"
+#include "UI/SessionRecovery.h"
 #include "AudioDiagnostics.h"
 
 
@@ -717,6 +718,8 @@ public:
 
     // Following macOS with "Also load at launch": the default preset of the interface macOS is
     // using replaces the preset used last (but not a preset Curve was asked to open)
+    bool isOpeningInterfaceDefault = false;
+
     if (!isOpeningRequestedFile && AudioResilienceManager::isFollowingSystemOutput() &&
         DefaultPresets::shouldLoadAtLaunch()) {
       juce::String deviceName;
@@ -727,10 +730,138 @@ public:
 
       auto defaultPreset = DefaultPresets::getPresetFile(
           DefaultPresets::getPresetFileName(getMacOSOutputDeviceUID(deviceName)));
-      if (defaultPreset.existsAsFile())
+      if (defaultPreset.existsAsFile()) {
         fileToOpen = defaultPreset;
+        isOpeningInterfaceDefault = true;
+      }
     }
 
+    // Unsaved changes kept when Curve last quit, or saved in case it crashed (see SessionRecovery)
+    std::shared_ptr<SessionRecovery::Kept> kept = SessionRecovery::read();
+
+    SessionRecoveryCore::Launch launch;
+    launch.keepOnQuit = SessionRecovery::isKeepOnQuitEnabled();
+    launch.saveForCrashes = SessionRecovery::isSaveForCrashesEnabled();
+    launch.hasKeptChanges = kept != nullptr;
+    launch.lastShutdownClean = lastShutdownClean && !SessionRecovery::wasLeftUnanswered();
+    launch.isOpeningRequestedFile = isOpeningRequestedFile;
+    launch.isOpeningInterfaceDefault = isOpeningInterfaceDefault;
+
+    juce::String deviceName;
+    if (auto *device = mainWindow->getDeviceManager().getCurrentAudioDevice())
+      deviceName = device->getName();
+    else if (AudioResilienceManager::isFollowingSystemOutput())
+      deviceName = AudioResilienceManager::getFollowedOutputDeviceName();
+
+    if (kept != nullptr) {
+      launch.keptForPresetToOpen = kept->preset == fileToOpen;
+      launch.onSameInterface = kept->deviceUID.isNotEmpty() && deviceName.isNotEmpty() &&
+                               kept->deviceUID == getMacOSOutputDeviceUID(deviceName);
+      launch.presetChangedSince = kept->presetChangedSince();
+    }
+
+    const auto decision = SessionRecoveryCore::decide(launch);
+
+    if (decision.action == SessionRecoveryCore::Action::restore) {
+      mainWindow->restoreUnsavedChanges(*kept->graph, kept->preset);
+      startSessionRecovery();
+    } else if (decision.action == SessionRecoveryCore::Action::ask) {
+      askAboutKeptChanges(kept, fileToOpen, decision.reason, deviceName);
+    } else {
+      if (kept != nullptr)
+        SessionRecovery::discard();
+      if (SessionRecovery::wasLeftUnanswered())
+        SessionRecovery::setAsking(false);
+
+      openAsBefore(fileToOpen);
+      startSessionRecovery();
+    }
+
+    maybeShowLoginItemFirstRunPrompt();
+  }
+
+  void startSessionRecovery() {
+    if (mainWindow != nullptr)
+      if (auto *recovery = mainWindow->getSessionRecovery())
+        recovery->start();
+  }
+
+  // Changes kept from before, and a reason not to restore them without asking
+  void askAboutKeptChanges(std::shared_ptr<SessionRecovery::Kept> kept, const File &fileToOpen,
+                           SessionRecoveryCore::Reason reason, const juce::String &deviceName) {
+    using Reason = SessionRecoveryCore::Reason;
+
+    const auto quoted = [](const File &f) {
+      return juce::String("\"") + f.getFileNameWithoutExtension() +
+             juce::String("\"");
+    };
+
+    juce::String message = "Curve kept the changes to " + kept->describePreset() +
+                           " that weren't saved, as they were at " +
+                           kept->keptAt.toString(true, true, false) + ".";
+
+    switch (reason) {
+    case Reason::didntShutDownCleanly:
+      message << "\n\nIt looks like Curve didn't shut down cleanly last time. If a plug-in's "
+                 "settings caused that, restoring them could cause it again.";
+      break;
+    case Reason::requestedFile:
+      message << "\n\nCurve was asked to open " << quoted(fileToOpen) << ".";
+      break;
+    case Reason::interfaceDefault:
+      message << "\n\n" << quoted(fileToOpen) << " is the default preset for "
+              << (deviceName.isNotEmpty() ? deviceName : juce::String("the interface"))
+              << ", the interface in use now.";
+      break;
+    case Reason::presetChanged:
+      message << "\n\nThe preset has been changed since. Restoring them doesn't change its file "
+                 "unless you save.";
+      break;
+    case Reason::none:
+      break;
+    }
+
+    const bool canOpen = fileToOpen.existsAsFile();
+    const juce::String openText = !canOpen ? juce::String("Discard Changes")
+                                  : kept->preset == fileToOpen ? juce::String("Open Saved Preset")
+                                                               : "Open " + quoted(fileToOpen);
+
+    // Not opening anything, as before, in case the preset itself is what crashed it
+    const bool offerNothing = reason == Reason::didntShutDownCleanly && canOpen;
+    const auto icon = reason == Reason::didntShutDownCleanly ? juce::MessageBoxIconType::WarningIcon
+                                                             : juce::MessageBoxIconType::QuestionIcon;
+
+    auto options = offerNothing
+                       ? juce::MessageBoxOptions::makeOptionsYesNoCancel(
+                             icon, "Restore Unsaved Changes?", message, "Restore Changes",
+                             openText, "Don't Open a Preset")
+                       : juce::MessageBoxOptions::makeOptionsOkCancel(
+                             icon, "Restore Unsaved Changes?", message, "Restore Changes", openText);
+
+    SessionRecovery::setAsking(true);
+
+    // Plain button indices: Restore, Open (or Discard), Don't Open
+    juce::NativeMessageBox::showAsync(options, [this, kept, fileToOpen](int button) {
+      SessionRecovery::setAsking(false);
+
+      if (mainWindow == nullptr)
+        return;
+
+      if (button == 0) {
+        mainWindow->restoreUnsavedChanges(*kept->graph, kept->preset);
+      } else {
+        SessionRecovery::discard();
+
+        if (button == 1 && fileToOpen.existsAsFile())
+          mainWindow->loadPreset(fileToOpen);
+      }
+
+      startSessionRecovery();
+    });
+  }
+
+  // As Curve opened before it could keep unsaved changes
+  void openAsBefore(const File &fileToOpen) {
     if (fileToOpen.existsAsFile()) {
       if (!lastShutdownClean) {
         juce::NativeMessageBox::showOkCancelBox(
@@ -749,8 +880,6 @@ public:
         mainWindow->loadPreset(fileToOpen);
       }
     }
-
-    maybeShowLoginItemFirstRunPrompt();
   }
 
   void maybeShowLoginItemFirstRunPrompt() {
