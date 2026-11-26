@@ -309,6 +309,16 @@ static void testPluginWindowsAreEachScenes()
     CHECK (node (*updated, 2)->getStringAttribute ("uiopen_Normal") == "0");
     CHECK (node (*updated, 2)->getStringAttribute ("uiLastX_Normal") == "300");
 
+    // Nor its size, display or stacking
+    auto arranged = parse (R"(<FILTERGRAPH sceneGroup="g">
+  <FILTER uid="2" x="0.5" y="0.4" uiopen_Normal="1" uiLastW_Normal="800" uiLastH_Normal="600"
+          uiDisplay_Normal="37D8832A-2D66-02CA-B9F7-8F30A301B230" uiDisplayX_Normal="40" uiDisplayY_Normal="60"
+          uiStack_Normal="7"><STATE>eq</STATE></FILTER>
+</FILTERGRAPH>)");
+    CHECK (shareGraph (*early, *arranged));
+    CHECK (node (*createOtherScene (*arranged, *early), 2)->getStringAttribute ("uiLastW_Normal").isEmpty());
+    CHECK (node (*createOtherScene (*early, *arranged), 2)->getStringAttribute ("uiDisplay_Normal") == "37D8832A-2D66-02CA-B9F7-8F30A301B230");
+
     // Nor one that the other scene has no position for
     auto noWindow = parse (R"(<FILTERGRAPH sceneGroup="g"><FILTER uid="2" x="0.5" y="0.4"><STATE>eq</STATE></FILTER></FILTERGRAPH>)");
     CHECK (! createOtherScene (*early, *noWindow)->getChildByName ("FILTER")->hasAttribute ("uiLastX_Normal"));

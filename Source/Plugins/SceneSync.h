@@ -47,14 +47,19 @@ inline void removeDescriptionTimes (juce::XmlElement& node)
     }
 }
 
-/** Whether a node attribute is about its plug-in window: where it is, whether it's open, and
-    whether it opens with the preset. Each scene has its own, so one scene can show the windows of
-    the instruments it uses, and just opening or moving a window isn't a change to the shared graph.
+/** Whether a node attribute is about its plug-in window: where it is, its size, which display it's
+    on, how far forward it is, whether it's open, and whether it opens with the preset (see
+    PluginWindow::getArrangementProps()). Each scene has its own, so one scene can show the windows
+    of the instruments it uses, and just opening or moving a window isn't a change to the shared graph.
 */
 inline bool isWindowAttribute (const juce::String& name)
 {
-    return name.startsWith ("uiopen_") || name.startsWith ("uiLastX_") || name.startsWith ("uiLastY_")
-        || name == "openWithPreset";
+    for (const auto* prefix : { "uiopen_", "uiLastX_", "uiLastY_", "uiLastW_", "uiLastH_",
+                                "uiDisplay_", "uiDisplayX_", "uiDisplayY_", "uiStack_" })
+        if (name.startsWith (prefix))
+            return true;
+
+    return name == "openWithPreset";
 }
 
 inline void removeWindowAttributes (juce::XmlElement& node)

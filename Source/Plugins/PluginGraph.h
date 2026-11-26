@@ -35,6 +35,7 @@
 #pragma once
 
 #include "../UI/PluginWindow.h"
+#include "../UI/LoginItemManager.h"
 #include "../Midi/MidiMapping.h"
 #include "SceneSync.h"
 #include "HostTransport.h"
@@ -110,9 +111,18 @@ public:
     static bool canBeBypassed (AudioProcessor&);
     bool closeAnyOpenPluginWindows();
 
-    // Opens the windows of nodes set to open with the preset. Called once the preset's audio is
-    // running, because plugin editors can be slow to open. Doesn't take focus from the current app.
+    // Opens the windows of nodes set to open with the preset, and brings them to the front together.
+    // Called once the preset's audio is running, because plugin editors can be slow to open.
+    // Doesn't take keyboard focus from the current app.
     void openPresetPluginWindows();
+
+    // Brings the open plug-in windows in front of other apps' windows, in the order they were last
+    // in, without making Curve the active app
+    void bringPluginWindowsToFront();
+
+    // Shows plug-in windows on every Space, or each only on its own, and remembers the choice
+    void setPluginWindowsOnAllSpaces (bool shouldBeOnAll);
+
     static inline const Identifier openWithPresetProp { "openWithPreset" };
     static inline const Identifier freePositionProp { "freePosition" };
     static inline const Identifier varyBySceneProp { Curve::Scenes::varyAttribute };
@@ -271,6 +281,11 @@ private:
     bool restorePluginWindowsOnLoad = false;
     bool pluginWindowsFloating = false;
     MidiMappingSet midiMappings;
+
+    bool hasWindowFor (const AudioProcessorGraph::Node&, PluginWindow::Type) const;
+
+    // Moves plug-in windows back onto a display when it's connected again
+    std::unique_ptr<MacOSDisplayChangeNotifierBase> displayChangeNotifier;
 
     // State for the preset restore in progress. Plugins that can't be created
     // synchronously (e.g. AUv3) finish restoring after restoreFromXml() returns;

@@ -48,8 +48,11 @@
 
 #include "../Plugins/IOConfigurationWindow.h"
 #include "../Plugins/ARAPlugin.h"
+#include "WindowArrangement.h"
 
 class PluginGraph;
+
+ApplicationProperties& getAppProperties();
 
 /**
     A window that shows a log of parameter change messages sent by the plugin.
@@ -189,33 +192,31 @@ public:
 
         setConstrainer (&constrainer);
 
-        // New windows open on the display the mouse is on, which is normally where
-        // the graph editor is.
-        const auto openingArea = getOpeningDisplayArea();
-        auto& random = Random::getSystemRandom();
-        const auto defaultX = openingArea.getX() + random.nextInt (jmax (1, jmin (500, openingArea.getWidth() - getWidth())));
-        const auto defaultY = openingArea.getY() + nativeTitleBarHeight
-                            + random.nextInt (jmax (1, jmin (500, openingArea.getHeight() - getHeight() - nativeTitleBarHeight)));
-
-        auto savedX = (int) node->properties.getWithDefault (getLastXProp (type), defaultX);
-        auto savedY = (int) node->properties.getWithDefault (getLastYProp (type), defaultY);
-
-        // The saved position may be on a display that's gone, or in a gap between
-        // displays of different sizes. If the title bar can't be reached, reopen
-        // centred on the display the mouse is on instead. Positions are of the window's
-        // content, with the native title bar above, whose height JUCE reports as 0, so
-        // take macOS's standard height
-        if (! isTitleBarReachable ({ savedX, savedY - nativeTitleBarHeight, getWidth(), nativeTitleBarHeight }))
+        // A plug-in that can be resized reopens at the size it was
+        if (getContentComponent() != nullptr && isResizable())
         {
-            savedX = openingArea.getX() + jmax (0, (openingArea.getWidth() - getWidth()) / 2);
-            savedY = openingArea.getY() + jmax (nativeTitleBarHeight, (openingArea.getHeight() - getHeight()) / 2);
+            const auto savedWidth  = (int) node->properties.getWithDefault (getLastWidthProp (type), 0);
+            const auto savedHeight = (int) node->properties.getWithDefault (getLastHeightProp (type), 0);
+
+            if (savedWidth > 0 && savedHeight > 0)
+                setBoundsConstrained (getBounds().withSize (savedWidth, savedHeight));
         }
 
-        setTopLeftPosition (savedX, savedY);
+        placeAsSaved();
 
         node->properties.set (getOpenProp (type), true);
 
         setVisible (true);
+
+        if (isShownOnAllSpaces())
+            WindowArrangement::setOnAllSpaces (*this, true);
+
+        isPlacing = false;
+
+        // Where it opened, if nothing was saved, or where a preset saved before displays were
+        // remembered has it. A displaced one keeps the display it was saved on
+        if (! isDisplaced)
+            rememberBounds();
 
         addKeyListener (keyListener);
     }
@@ -229,11 +230,69 @@ public:
 
     void moved() override
     {
-        if (node != nullptr)
+        if (node == nullptr || isPlacing)
+            return;
+
+        // A move without a mouse button down isn't a drag. If the window's display has gone, it's
+        // macOS moving it onto another, which mustn't replace the display it was saved on
+        if (! WindowArrangement::isMouseButtonDown())
         {
-            node->properties.set (getLastXProp (type), getX());
-            node->properties.set (getLastYProp (type), getY());
+            if (isDisplaced)
+                return;
+
+            const auto savedDisplay = node->properties[getDisplayProp (type)].toString().toStdString();
+
+            if (! savedDisplay.empty()
+                && Curve::WindowPlacement::findDisplay (WindowArrangement::getDisplays(), savedDisplay) == nullptr)
+            {
+                isDisplaced = true;
+                return;
+            }
         }
+
+        isDisplaced = false;
+        rememberBounds();
+    }
+
+    void resized() override
+    {
+        DocumentWindow::resized();
+
+        if (node != nullptr && ! isPlacing && isResizable())
+        {
+            node->properties.set (getLastWidthProp (type), getWidth());
+            node->properties.set (getLastHeightProp (type), getHeight());
+        }
+    }
+
+    // Clicked, or brought to the front otherwise: now in front of the others
+    void broughtToFront() override
+    {
+        if (node != nullptr && ! isPlacing)
+            node->properties.set (getStackProp (type), nextStackValue());
+    }
+
+    /** Moves a window that was put on the main display because its own was away back to its own,
+        if that's connected again. */
+    void returnToSavedDisplay()
+    {
+        if (! isDisplaced || node == nullptr)
+            return;
+
+        const auto result = Curve::WindowPlacement::place (getSaved(), getWidth(), getHeight(), WindowArrangement::getDisplays());
+
+        if (result.outcome == Curve::WindowPlacement::Outcome::onSavedDisplay)
+        {
+            const ScopedValueSetter<bool> placingNow (isPlacing, true);
+            setTopLeftPosition (result.x, result.y);
+            isDisplaced = false;
+        }
+    }
+
+    /** How far forward the window was last brought, to order a preset's windows as they were. */
+    int getStackPosition() const
+    {
+        return node != nullptr ? (int) node->properties[getStackProp (type)] : 0;
     }
 
     void closeButtonPressed() override
@@ -241,9 +300,85 @@ public:
         activeWindowList.removeObject (this);
     }
 
-    static String getLastXProp (Type type)    { return "uiLastX_" + getTypeName (type); }
-    static String getLastYProp (Type type)    { return "uiLastY_" + getTypeName (type); }
-    static String getOpenProp  (Type type)    { return "uiopen_"  + getTypeName (type); }
+    /** Whether plug-in windows show on every Space, rather than only the one each is on. Off by
+        default: windows stay on the Space they're put on (see PluginGraph::openPresetPluginWindows()). */
+    static bool isShownOnAllSpaces()
+    {
+        if (auto* settings = getAppProperties().getUserSettings())
+            return settings->getBoolValue (onAllSpacesSetting, false);
+
+        return false;
+    }
+
+    static void setShownOnAllSpaces (bool shouldBeOnAll)
+    {
+        if (auto* settings = getAppProperties().getUserSettings())
+        {
+            settings->setValue (onAllSpacesSetting, shouldBeOnAll);
+            settings->saveIfNeeded();
+        }
+    }
+
+    static constexpr const char* onAllSpacesSetting = "pluginWindowsOnAllSpaces";
+
+    /** The node properties, saved in presets as node attributes, that say how its window of this
+        type was arranged. Each window type's own, so a node's generic editor has its own place. */
+    static String getOpenProp        (Type type)    { return "uiopen_"     + getTypeName (type); }
+    static String getLastXProp       (Type type)    { return "uiLastX_"    + getTypeName (type); }
+    static String getLastYProp       (Type type)    { return "uiLastY_"    + getTypeName (type); }
+    static String getLastWidthProp   (Type type)    { return "uiLastW_"    + getTypeName (type); }
+    static String getLastHeightProp  (Type type)    { return "uiLastH_"    + getTypeName (type); }
+    static String getDisplayProp     (Type type)    { return "uiDisplay_"  + getTypeName (type); }
+    static String getDisplayXProp    (Type type)    { return "uiDisplayX_" + getTypeName (type); }
+    static String getDisplayYProp    (Type type)    { return "uiDisplayY_" + getTypeName (type); }
+    static String getStackProp       (Type type)    { return "uiStack_"    + getTypeName (type); }
+
+    static StringArray getArrangementProps (Type type)
+    {
+        return { getOpenProp (type), getLastXProp (type), getLastYProp (type),
+                 getLastWidthProp (type), getLastHeightProp (type),
+                 getDisplayProp (type), getDisplayXProp (type), getDisplayYProp (type),
+                 getStackProp (type) };
+    }
+
+    /** Sets a node's window properties from its saved attributes, removing any it doesn't have
+        if removeMissing, so a scene's windows are as that scene has them. */
+    static void restoreArrangement (const XmlElement& xml, NamedValueSet& properties, Type type, bool removeMissing)
+    {
+        for (const auto& prop : getArrangementProps (type))
+        {
+            const Identifier id (prop);
+
+            if (! xml.hasAttribute (prop))
+            {
+                if (removeMissing)
+                    properties.remove (id);
+
+                continue;
+            }
+
+            if (prop == getDisplayProp (type))
+            {
+                properties.set (id, xml.getStringAttribute (prop));
+            }
+            else
+            {
+                const auto value = xml.getIntAttribute (prop);
+                properties.set (id, value);
+
+                // Windows brought forward from now on go in front of those of the loaded preset
+                if (prop == getStackProp (type))
+                    stackCounter = jmax (stackCounter, value);
+            }
+        }
+    }
+
+    static void saveArrangement (const NamedValueSet& properties, XmlElement& xml, Type type)
+    {
+        for (const auto& prop : getArrangementProps (type))
+            if (properties.contains (prop))
+                xml.setAttribute (prop, properties[prop].toString());
+    }
 
     OwnedArray<PluginWindow>& activeWindowList;
     const AudioProcessorGraph::Node::Ptr node;
@@ -333,22 +468,80 @@ private:
         return display != nullptr ? display->userBounds.toNearestInt() : Rectangle<int> { 0, 0, 800, 600 };
     }
 
-    static constexpr int nativeTitleBarHeight = 28;
+    // Opening, and its own placing, isn't a move or resize to remember, nor is opening bringing
+    // it to the front: PluginGraph::bringPluginWindowsToFront() orders a preset's windows together
+    bool isPlacing = true;
+    bool isDisplaced = false; // On the main display while the one it was saved on is away
 
-    static bool isTitleBarReachable (Rectangle<int> titleBar)
+    static inline int stackCounter = 0;
+    static int nextStackValue()    { return ++stackCounter; }
+
+    Curve::WindowPlacement::Saved getSaved() const
     {
-        const auto minVisibleWidth = jmin (100, titleBar.getWidth());
+        Curve::WindowPlacement::Saved saved;
+        const auto& props = node->properties;
 
-        for (const auto& display : Desktop::getInstance().getDisplays().displays)
+        saved.displayId = props[getDisplayProp (type)].toString().toStdString();
+        saved.offsetX = (int) props[getDisplayXProp (type)];
+        saved.offsetY = (int) props[getDisplayYProp (type)];
+        saved.hasAbsolute = props.contains (getLastXProp (type)) && props.contains (getLastYProp (type));
+        saved.x = (int) props[getLastXProp (type)];
+        saved.y = (int) props[getLastYProp (type)];
+        return saved;
+    }
+
+    // Where the window was saved: on the same display if it's connected, wherever that now is.
+    // Positions are of the window's content, with the native title bar above
+    void placeAsSaved()
+    {
+        using namespace Curve::WindowPlacement;
+
+        const auto saved = getSaved();
+        const auto result = place (saved, getWidth(), getHeight(), WindowArrangement::getDisplays());
+
+        isDisplaced = result.outcome == Outcome::displaced;
+
+        if (result.outcome != Outcome::unsaved)
         {
-            const auto overlap = display.userBounds.toNearestInt().getIntersection (titleBar);
-
-            if (overlap.getHeight() == titleBar.getHeight() && overlap.getWidth() >= minVisibleWidth)
-                return true;
+            setTopLeftPosition (result.x, result.y);
+            return;
         }
 
-        return false;
+        // New windows open on the display the mouse is on, which is normally where the graph
+        // editor is: centred if an older preset's position is on no display now, else near the top left
+        const auto openingArea = getOpeningDisplayArea();
+
+        if (saved.hasAbsolute)
+        {
+            setTopLeftPosition (openingArea.getX() + jmax (0, (openingArea.getWidth() - getWidth()) / 2),
+                                openingArea.getY() + jmax (titleBarHeight, (openingArea.getHeight() - getHeight()) / 2));
+            return;
+        }
+
+        auto& random = Random::getSystemRandom();
+        setTopLeftPosition (openingArea.getX() + random.nextInt (jmax (1, jmin (500, openingArea.getWidth() - getWidth()))),
+                            openingArea.getY() + titleBarHeight
+                                + random.nextInt (jmax (1, jmin (500, openingArea.getHeight() - getHeight() - titleBarHeight))));
     }
+
+    // Both where it is on its display, to reopen there, and on the desktop, for older versions
+    void rememberBounds()
+    {
+        auto& props = node->properties;
+        props.set (getLastXProp (type), getX());
+        props.set (getLastYProp (type), getY());
+
+        const auto displays = WindowArrangement::getDisplays();
+
+        if (const auto* display = Curve::WindowPlacement::findDisplayFor (displays, { getX(), getY(), getWidth(), getHeight() }))
+        {
+            props.set (getDisplayProp (type), String (display->id));
+            props.set (getDisplayXProp (type), getX() - display->frame.x);
+            props.set (getDisplayYProp (type), getY() - display->frame.y);
+        }
+    }
+
+    static constexpr int titleBarHeight = Curve::WindowPlacement::titleBarHeight;
 
     float getDesktopScaleFactor() const override     { return 1.0f; }
 

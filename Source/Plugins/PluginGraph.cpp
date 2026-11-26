@@ -75,6 +75,13 @@ PluginGraph::PluginGraph (AudioPluginFormatManager& fm, KnownPluginList& kpl)
 {
     newDocument();
     graph.addListener (this);
+
+    displayChangeNotifier = createMacOSDisplayChangeNotifier ([weakSelf = WeakReference<PluginGraph> (this)]
+    {
+        if (auto* self = weakSelf.get())
+            for (auto* w : self->activePluginWindows)
+                w->returnToSavedDisplay();
+    });
 }
 
 PluginGraph::~PluginGraph()
@@ -390,9 +397,68 @@ bool PluginGraph::closeAnyOpenPluginWindows()
 
 void PluginGraph::openPresetPluginWindows()
 {
+    // New windows open on the Space being shown. If those already open, which a scene switch
+    // keeps, are all on another, they come to this one first, so the set isn't split between two
+    const auto opensNew = [this]
+    {
+        for (auto* node : graph.getNodes())
+            if (node->properties[openWithPresetProp] && ! hasWindowFor (*node, PluginWindow::Type::normal))
+                return true;
+
+        return false;
+    }();
+
+    if (opensNew && ! activePluginWindows.isEmpty())
+    {
+        const auto anyOnThisSpace = std::any_of (activePluginWindows.begin(), activePluginWindows.end(),
+                                                 [] (PluginWindow* w) { return WindowArrangement::isOnActiveSpace (*w); });
+
+        if (! anyOnThisSpace)
+            for (auto* w : activePluginWindows)
+                WindowArrangement::moveToActiveSpace (*w);
+    }
+
     for (auto* node : graph.getNodes())
         if (node->properties[openWithPresetProp])
             getOrCreateWindowFor (node, PluginWindow::Type::normal);
+
+    // Those already open too: a scene switch keeps them, wherever they've got to behind other apps
+    bringPluginWindowsToFront();
+}
+
+void PluginGraph::bringPluginWindowsToFront()
+{
+    Array<PluginWindow*> windows;
+
+    for (auto* w : activePluginWindows)
+        windows.add (w);
+
+    // As they were last stacked. Stable, so windows never brought forward keep the order they opened in
+    std::stable_sort (windows.begin(), windows.end(), [] (const PluginWindow* a, const PluginWindow* b)
+    {
+        return a->getStackPosition() < b->getStackPosition();
+    });
+
+    Array<Component*> backToFront;
+
+    for (auto* w : windows)
+        backToFront.add (w);
+
+    WindowArrangement::bringToFront (backToFront);
+}
+
+bool PluginGraph::hasWindowFor (const AudioProcessorGraph::Node& node, PluginWindow::Type type) const
+{
+    return std::any_of (activePluginWindows.begin(), activePluginWindows.end(),
+                        [&] (const PluginWindow* w) { return w->node.get() == &node && w->type == type; });
+}
+
+void PluginGraph::setPluginWindowsOnAllSpaces (bool shouldBeOnAll)
+{
+    PluginWindow::setShownOnAllSpaces (shouldBeOnAll);
+
+    for (auto* w : activePluginWindows)
+        WindowArrangement::setOnAllSpaces (*w, shouldBeOnAll);
 }
 
 void PluginGraph::setPluginWindowsFloating (bool shouldFloat)
@@ -868,11 +934,7 @@ static XmlElement* createNodeXml (AudioProcessorGraph::Node* const node, bool in
             auto type = (PluginWindow::Type) i;
 
             if (node->properties.contains (PluginWindow::getOpenProp (type)))
-            {
-                e->setAttribute (PluginWindow::getLastXProp (type), node->properties[PluginWindow::getLastXProp (type)].toString());
-                e->setAttribute (PluginWindow::getLastYProp (type), node->properties[PluginWindow::getLastYProp (type)].toString());
-                e->setAttribute (PluginWindow::getOpenProp (type),  node->properties[PluginWindow::getOpenProp (type)].toString());
-            }
+                PluginWindow::saveArrangement (node->properties, *e, type);
         }
 
         {
@@ -1198,9 +1260,7 @@ bool PluginGraph::finishNodeFromXml (std::unique_ptr<AudioPluginInstance> instan
 
             if (xml.hasAttribute (PluginWindow::getOpenProp (type)))
             {
-                node->properties.set (PluginWindow::getLastXProp (type), xml.getIntAttribute (PluginWindow::getLastXProp (type)));
-                node->properties.set (PluginWindow::getLastYProp (type), xml.getIntAttribute (PluginWindow::getLastYProp (type)));
-                node->properties.set (PluginWindow::getOpenProp  (type), xml.getIntAttribute (PluginWindow::getOpenProp (type)));
+                PluginWindow::restoreArrangement (xml, node->properties, type, false);
 
                 if (restorePluginWindows && node->properties[PluginWindow::getOpenProp (type)])
                 {
@@ -1634,17 +1694,7 @@ void PluginGraph::switchScene (const File& file, const XmlElement& scene)
 
         // Where this scene's plug-in windows were. Open ones stay where they are
         for (int i = 0; i < (int) PluginWindow::Type::numTypes; ++i)
-        {
-            const auto type = (PluginWindow::Type) i;
-
-            for (const auto& prop : { PluginWindow::getLastXProp (type), PluginWindow::getLastYProp (type), PluginWindow::getOpenProp (type) })
-            {
-                if (e->hasAttribute (prop))
-                    node->properties.set (prop, e->getIntAttribute (prop));
-                else
-                    node->properties.remove (prop);
-            }
-        }
+            PluginWindow::restoreArrangement (*e, node->properties, (PluginWindow::Type) i, true);
     }
 
     graph.transport.setTempo (scene.getDoubleAttribute (Curve::Scenes::tempoAttribute, HostTransport::defaultTempo));

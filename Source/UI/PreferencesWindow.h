@@ -62,7 +62,7 @@ public:
     };
 
     PreferencesComponent (MainHostWindow& window, GitHubUpdater& updater, Callbacks callbacksIn)
-        : callbacks (std::move (callbacksIn)), general (updater), keyboard (callbacks), midi (window)
+        : callbacks (std::move (callbacksIn)), general (window, updater), keyboard (callbacks), midi (window)
     {
         const auto background = getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId);
         tabs.addTab ("General", background, &general, false);
@@ -96,7 +96,7 @@ private:
     //==============================================================================
     struct GeneralPage final : public juce::Component
     {
-        explicit GeneralPage (GitHubUpdater& updater) : updaterToken (updater.getLifetimeToken())
+        GeneralPage (MainHostWindow& w, GitHubUpdater& updater) : window (w), updaterToken (updater.getLifetimeToken())
         {
             openAtLogin.setButtonText ("Open at Login");
             openAtLogin.onClick = [this]
@@ -155,6 +155,17 @@ private:
             releaseWhenIdle.setButtonText ("Release audio interface when idle");
             releaseWhenIdle.onClick = [this] { IdleReleaseController::setEnabledInSettings (releaseWhenIdle.getToggleState()); };
 
+            pluginWindowsOnAllSpaces.setButtonText ("Show plug-in windows on all Spaces");
+            pluginWindowsOnAllSpaces.onClick = [this]
+            {
+                const bool newState = pluginWindowsOnAllSpaces.getToggleState();
+
+                if (window.graphHolder != nullptr && window.graphHolder->graph != nullptr)
+                    window.graphHolder->graph->setPluginWindowsOnAllSpaces (newState);
+                else
+                    PluginWindow::setShownOnAllSpaces (newState);
+            };
+
             updatesLabel.setText ("Updates:", juce::dontSendNotification);
 
             autoCheck.setButtonText ("Auto-Check for App Updates");
@@ -180,7 +191,7 @@ private:
             };
 
             for (auto* c : std::initializer_list<juce::Component*> { &openAtLogin, &showInDock, &preventSleep, &releaseWhenIdle,
-                                                                    &updatesLabel, &autoCheck, &checkNow })
+                                                                    &pluginWindowsOnAllSpaces, &updatesLabel, &autoCheck, &checkNow })
                 addAndMakeVisible (c);
         }
 
@@ -189,6 +200,7 @@ private:
             openAtLogin.setToggleState (LoginItemManager::getStatus() == LoginItemManager::Status::enabled, juce::dontSendNotification);
             showInDock.setToggleState (DockIconManager::isShowInDockEnabled(), juce::dontSendNotification);
             releaseWhenIdle.setToggleState (IdleReleaseController::isEnabledInSettings(), juce::dontSendNotification);
+            pluginWindowsOnAllSpaces.setToggleState (PluginWindow::isShownOnAllSpaces(), juce::dontSendNotification);
 
             if (auto* settings = getAppProperties().getUserSettings())
             {
@@ -201,7 +213,7 @@ private:
         {
             auto r = getLocalBounds().reduced (margin, 12);
 
-            for (auto* t : { &openAtLogin, &showInDock, &preventSleep, &releaseWhenIdle })
+            for (auto* t : { &openAtLogin, &showInDock, &preventSleep, &releaseWhenIdle, &pluginWindowsOnAllSpaces })
                 t->setBounds (r.removeFromTop (rowHeight));
 
             r.removeFromTop (12);
@@ -212,8 +224,9 @@ private:
             checkNow.setTopLeftPosition (r.getX(), r.getY());
         }
 
+        MainHostWindow& window;
         std::shared_ptr<std::atomic<GitHubUpdater*>> updaterToken;
-        juce::ToggleButton openAtLogin, showInDock, preventSleep, releaseWhenIdle, autoCheck;
+        juce::ToggleButton openAtLogin, showInDock, preventSleep, releaseWhenIdle, pluginWindowsOnAllSpaces, autoCheck;
         juce::Label updatesLabel;
         juce::TextButton checkNow;
     };
