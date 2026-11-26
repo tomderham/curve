@@ -107,16 +107,32 @@ namespace
 
 namespace IdleReleaseCoreAudio
 {
-    juce::uint32 findDeviceID (const juce::String& deviceName)
+    juce::uint32 findDeviceID (const juce::String& deviceName, Direction direction)
     {
         if (deviceName.isEmpty())
             return 0;
 
+        AudioObjectID firstNamed = 0;
+
         for (auto device : getObjectList (kAudioObjectSystemObject, kAudioHardwarePropertyDevices))
-            if (getName (device) == deviceName)
+        {
+            if (getName (device) != deviceName)
+                continue;
+
+            if (direction == Direction::any)
                 return device;
 
-        return 0;
+            const auto scope = direction == Direction::output ? kAudioObjectPropertyScopeOutput : kAudioObjectPropertyScopeInput;
+
+            if (! getObjectList (device, kAudioDevicePropertyStreams, scope).empty())
+                return device;
+
+            if (firstNamed == 0)
+                firstNamed = device;
+        }
+
+        // None with streams that way, e.g. while it's reconnecting: the first with its name, as before
+        return firstNamed;
     }
 
     bool isAnotherProcessUsingDevice (juce::uint32 deviceID)
@@ -154,6 +170,13 @@ namespace IdleReleaseCoreAudio
         return std::make_shared<RunningSomewhereListener> (deviceID, std::move (onChange));
     }
 }
+
+// The output interface is watched first, then any separate input
+static IdleReleaseCoreAudio::Direction getWakeDirection (int index)
+{
+    return index == 0 ? IdleReleaseCoreAudio::Direction::output : IdleReleaseCoreAudio::Direction::input;
+}
+
 
 //==============================================================================
 IdleReleaseController::IdleReleaseController (juce::AudioDeviceManager& dm, BusyPredicate isHostBusyIn,
@@ -270,7 +293,7 @@ const char* IdleReleaseController::getReasonNotToRelease (juce::StringArray& wak
     {
         // An input can only wake Curve if other apps feed it, i.e. a virtual device such as BlackHole.
         // A microphone or line input couldn't, because nothing can hear it once the device is closed.
-        const auto inputID = IdleReleaseCoreAudio::findDeviceID (setup.inputDeviceName);
+        const auto inputID = IdleReleaseCoreAudio::findDeviceID (setup.inputDeviceName, IdleReleaseCoreAudio::Direction::input);
         const auto isVirtual = inputID != 0 && IdleReleaseCoreAudio::isVirtualDevice (inputID);
 
         if (setup.inputDeviceName != setup.outputDeviceName)
@@ -289,9 +312,9 @@ const char* IdleReleaseController::getReasonNotToRelease (juce::StringArray& wak
         }
     }
 
-    for (auto& name : wakeDevicesOut)
+    for (int i = 0; i < wakeDevicesOut.size(); ++i)
     {
-        const auto deviceID = IdleReleaseCoreAudio::findDeviceID (name);
+        const auto deviceID = IdleReleaseCoreAudio::findDeviceID (wakeDevicesOut[i], getWakeDirection (i));
 
         // Without a device to listen on we couldn't wake up again
         if (deviceID == 0)
@@ -319,7 +342,7 @@ bool IdleReleaseController::isPhysicalInputActive() const
     if (setup.inputDeviceName.isEmpty())
         return false;
 
-    const auto inputID = IdleReleaseCoreAudio::findDeviceID (setup.inputDeviceName);
+    const auto inputID = IdleReleaseCoreAudio::findDeviceID (setup.inputDeviceName, IdleReleaseCoreAudio::Direction::input);
     return inputID == 0 || ! IdleReleaseCoreAudio::isVirtualDevice (inputID);
 }
 
@@ -340,7 +363,7 @@ void IdleReleaseController::timerCallback()
         // Re-arm if a device was unplugged/replugged (its ID changes)
         for (int i = 0; i < wakeDeviceNames.size(); ++i)
         {
-            if (IdleReleaseCoreAudio::findDeviceID (wakeDeviceNames[i]) != armedDeviceIDs[(size_t) i])
+            if (IdleReleaseCoreAudio::findDeviceID (wakeDeviceNames[i], getWakeDirection (i)) != armedDeviceIDs[(size_t) i])
             {
                 armWakeListeners();
                 break;
@@ -422,9 +445,9 @@ void IdleReleaseController::armWakeListeners()
 
     auto aliveToken = isAlive;
 
-    for (auto& name : wakeDeviceNames)
+    for (int i = 0; i < wakeDeviceNames.size(); ++i)
     {
-        const auto deviceID = IdleReleaseCoreAudio::findDeviceID (name);
+        const auto deviceID = IdleReleaseCoreAudio::findDeviceID (wakeDeviceNames[i], getWakeDirection (i));
         armedDeviceIDs.push_back (deviceID);
 
         wakeListeners.push_back (IdleReleaseCoreAudio::addRunningSomewhereListener (deviceID, [this, aliveToken, deviceID]

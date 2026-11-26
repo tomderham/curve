@@ -61,8 +61,12 @@ namespace IdleAudioActivity
 /** CoreAudio queries used by IdleReleaseController (implemented in IdleReleaseController.mm). */
 namespace IdleReleaseCoreAudio
 {
-    /** Returns the AudioObjectID of the device with this name, or 0 if not present. */
-    juce::uint32 findDeviceID (const juce::String& deviceName);
+    enum class Direction { any, input, output };
+
+    /** Returns the AudioObjectID of the device with this name, or 0 if not present. Some hardware,
+        e.g. AirPods, has separate input and output devices of the same name, so given a direction,
+        one with streams that way is preferred. */
+    juce::uint32 findDeviceID (const juce::String& deviceName, Direction = Direction::any);
 
     /** True if any process other than Curve is running audio input or output on this device. */
     bool isAnotherProcessUsingDevice (juce::uint32 deviceID);

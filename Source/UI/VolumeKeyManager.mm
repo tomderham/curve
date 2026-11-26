@@ -775,7 +775,7 @@ namespace
 
             // Whether Curve's own volume applies without the keys. The gain is only published here
             // while the tap isn't running, which applies it itself
-            const auto device = (AudioObjectID) IdleReleaseCoreAudio::findDeviceID (curveOutputDevice);
+            const auto device = (AudioObjectID) IdleReleaseCoreAudio::findDeviceID (curveOutputDevice, IdleReleaseCoreAudio::Direction::output);
             const bool onlyVolume = curveOutputDevice.isNotEmpty() && device != kAudioObjectUnknown
                                  && ! macOSVolumeReachesChannels (device, curveOutputChannels);
 
@@ -794,7 +794,7 @@ namespace
         // The interface's own volume, which macOS's volume menu sets, for Curve's output channels
         AudioObjectID getInterfaceWithVolume() const
         {
-            const auto device = (AudioObjectID) IdleReleaseCoreAudio::findDeviceID (curveOutputDevice);
+            const auto device = (AudioObjectID) IdleReleaseCoreAudio::findDeviceID (curveOutputDevice, IdleReleaseCoreAudio::Direction::output);
 
             if (curveOutputDevice.isEmpty() || device == kAudioObjectUnknown
                 || ! macOSVolumeReachesChannels (device, curveOutputChannels))
@@ -882,7 +882,7 @@ namespace
 
             const auto systemOutput = getDefaultOutputDevice();
             return systemOutput != kAudioObjectUnknown
-                && systemOutput == (AudioObjectID) IdleReleaseCoreAudio::findDeviceID (curveOutputDevice)
+                && systemOutput == (AudioObjectID) IdleReleaseCoreAudio::findDeviceID (curveOutputDevice, IdleReleaseCoreAudio::Direction::output)
                 && ! macOSVolumeReachesChannels (systemOutput, curveOutputChannels);
         }
 
