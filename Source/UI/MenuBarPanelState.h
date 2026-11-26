@@ -26,6 +26,7 @@ namespace MenuBarPanelState
         juce::File file;
         bool isCurrent = false;
         std::optional<juce::Colour> groupColour; // Scenes of a group share a colour
+        juce::String group;                       // The group's name, for a scene with others
         juce::String shortcut;                    // e.g. "1", "⌥3"
     };
 

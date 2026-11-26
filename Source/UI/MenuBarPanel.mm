@@ -18,6 +18,7 @@
 #import <Carbon/Carbon.h> // kVK_ key codes
 
 #include <map>
+#include <set>
 
 juce::PropertiesFile* getUserSettings();
 
@@ -85,24 +86,72 @@ static NSColor* toNS (juce::Colour c)
 @public
     NSString* name;
     NSString* shortcut;
-    NSColor* groupColour;
     BOOL isCurrent, isHovered, isPressed;
     std::function<void()> onClick;
+    id scrollObserver;
 }
+- (void) refreshHover;
 @end
 
 @implementation CurvePresetTile
 
 - (void) dealloc
 {
+    [self stopObservingScrolls];
     [name release];
     [shortcut release];
-    [groupColour release];
     [super dealloc];
 }
 
+// Whether the pointer's over it, from where the pointer is now: entering and leaving aren't told when
+// the list scrolls under a pointer that's still, so it's also asked then
+- (void) refreshHover
+{
+    const NSPoint p = [self convertPoint: [[self window] mouseLocationOutsideOfEventStream] fromView: nil];
+    // Within its bounds, as visibleRect can be more than them: the part of the list that's shown
+    const BOOL inside = [self window] != nil && NSPointInRect (p, NSIntersectionRect ([self bounds], [self visibleRect]));
+
+    if (inside != isHovered)
+    {
+        isHovered = inside;
+
+        if (! inside)
+            isPressed = NO;
+
+        [self setNeedsDisplay: YES];
+    }
+}
+
+- (void) stopObservingScrolls
+{
+    if (scrollObserver != nil)
+    {
+        [[NSNotificationCenter defaultCenter] removeObserver: scrollObserver];
+        [scrollObserver release];
+        scrollObserver = nil;
+    }
+}
+
+- (void) viewDidMoveToWindow
+{
+    [super viewDidMoveToWindow];
+    [self stopObservingScrolls];
+
+    if (NSClipView* clip = [[self enclosingScrollView] contentView]; clip != nil && [self window] != nil)
+    {
+        [clip setPostsBoundsChangedNotifications: YES];
+
+        // Not retained by the block, so it can go; it stops observing as it leaves the window
+        __block CurvePresetTile* tile = self;
+        scrollObserver = [[[NSNotificationCenter defaultCenter] addObserverForName: NSViewBoundsDidChangeNotification
+                                                                            object: clip
+                                                                             queue: nil
+                                                                        usingBlock: ^(NSNotification*) { [tile refreshHover]; }] retain];
+    }
+}
+
 - (BOOL) isFlipped { return YES; }
-- (NSSize) intrinsicContentSize { return NSMakeSize (NSViewNoIntrinsicMetric, 34); }
+- (NSSize) intrinsicContentSize { return NSMakeSize (NSViewNoIntrinsicMetric, 30); }
 - (BOOL) acceptsFirstMouse: (NSEvent*) event { return YES; }
 
 - (void) updateTrackingAreas
@@ -111,14 +160,15 @@ static NSColor* toNS (juce::Colour c)
         [self removeTrackingArea: area];
 
     [self addTrackingArea: [[[NSTrackingArea alloc] initWithRect: [self bounds]
-                                                        options: NSTrackingMouseEnteredAndExited | NSTrackingActiveAlways | NSTrackingInVisibleRect
+                                                        options: NSTrackingMouseEnteredAndExited | NSTrackingMouseMoved | NSTrackingActiveAlways | NSTrackingInVisibleRect
                                                           owner: self
                                                        userInfo: nil] autorelease]];
     [super updateTrackingAreas];
 }
 
-- (void) mouseEntered: (NSEvent*) e { isHovered = YES; [self setNeedsDisplay: YES]; }
-- (void) mouseExited: (NSEvent*) e  { isHovered = NO; isPressed = NO; [self setNeedsDisplay: YES]; }
+- (void) mouseEntered: (NSEvent*) e { [self refreshHover]; }
+- (void) mouseExited: (NSEvent*) e  { [self refreshHover]; }
+- (void) mouseMoved: (NSEvent*) e   { [self refreshHover]; }
 - (void) mouseDown: (NSEvent*) e    { isPressed = YES; [self setNeedsDisplay: YES]; }
 
 - (void) mouseUp: (NSEvent*) e
@@ -134,46 +184,62 @@ static NSColor* toNS (juce::Colour c)
 - (void) drawRect: (NSRect) dirty
 {
     const NSRect bounds = [self bounds];
-    NSBezierPath* shape = [NSBezierPath bezierPathWithRoundedRect: NSInsetRect (bounds, 0.5, 0.5) xRadius: 7 yRadius: 7];
 
-    NSColor* fill = isCurrent ? [NSColor controlAccentColor]
-                  : [[NSColor labelColor] colorWithAlphaComponent: isPressed ? 0.16 : isHovered ? 0.11 : 0.06];
-    [fill setFill];
-    [shape fill];
+    // The current one tinted with the accent and edged in it, so it stands out without a solid
+    // block of colour; the one under the pointer a quieter grey
+    NSColor* accent = [NSColor controlAccentColor];
+    NSBezierPath* shape = [NSBezierPath bezierPathWithRoundedRect: NSInsetRect (bounds, 4.5, 2) xRadius: 6 yRadius: 6];
 
-    if (groupColour != nil)
+    if (isCurrent)
     {
-        [NSGraphicsContext saveGraphicsState];
-        [shape addClip];
-        [groupColour setFill];
-        NSRectFill (NSMakeRect (0, 0, 3.5, bounds.size.height));
-        [NSGraphicsContext restoreGraphicsState];
+        [[accent colorWithAlphaComponent: isPressed ? 0.42 : isHovered ? 0.36 : 0.3] setFill];
+        [shape fill];
+        [[accent colorWithAlphaComponent: 0.75] setStroke];
+        [shape setLineWidth: 1];
+        [shape stroke];
+    }
+    else if (isPressed || isHovered)
+    {
+        [[[NSColor labelColor] colorWithAlphaComponent: isPressed ? 0.12 : 0.07] setFill];
+        [shape fill];
     }
 
-    NSColor* textColour = isCurrent ? [NSColor whiteColor] : [NSColor labelColor];
-    NSColor* keyColour = isCurrent ? [[NSColor whiteColor] colorWithAlphaComponent: 0.7] : [NSColor tertiaryLabelColor];
+    // A checkmark for the current one, in a column of its own, so the names line up
+    if (isCurrent)
+    {
+        NSImageSymbolConfiguration* config = [[NSImageSymbolConfiguration configurationWithPointSize: 10 weight: NSFontWeightBold]
+                                                 configurationByApplyingConfiguration: [NSImageSymbolConfiguration configurationWithPaletteColors: @[ accent ]]];
+        NSImage* check = [[NSImage imageWithSystemSymbolName: @"checkmark" accessibilityDescription: nil] imageWithSymbolConfiguration: config];
+        const NSSize size = [check size];
+        [check drawInRect: NSMakeRect (12, (bounds.size.height - size.height) / 2, size.width, size.height)];
+    }
 
     NSMutableParagraphStyle* truncating = [[[NSMutableParagraphStyle alloc] init] autorelease];
     [truncating setLineBreakMode: NSLineBreakByTruncatingTail];
 
-    NSDictionary* keyAttributes = @{ NSFontAttributeName: [NSFont monospacedDigitSystemFontOfSize: 11 weight: NSFontWeightRegular],
-                                     NSForegroundColorAttributeName: keyColour };
+    // The key, on a keycap of its own
+    NSDictionary* keyAttributes = @{ NSFontAttributeName: [NSFont monospacedDigitSystemFontOfSize: 10 weight: NSFontWeightMedium],
+                                     NSForegroundColorAttributeName: isCurrent ? [NSColor labelColor] : [NSColor secondaryLabelColor] };
     const NSSize keySize = shortcut != nil ? [shortcut sizeWithAttributes: keyAttributes] : NSZeroSize;
+    const NSRect keycap = NSMakeRect (bounds.size.width - 12 - (keySize.width + 10), (bounds.size.height - 17) / 2, keySize.width + 10, 17);
 
-    NSDictionary* nameAttributes = @{ NSFontAttributeName: [NSFont systemFontOfSize: 12 weight: isCurrent ? NSFontWeightSemibold : NSFontWeightMedium],
-                                      NSForegroundColorAttributeName: textColour,
+    NSDictionary* nameAttributes = @{ NSFontAttributeName: [NSFont systemFontOfSize: 12.5 weight: isCurrent ? NSFontWeightSemibold : NSFontWeightRegular],
+                                      NSForegroundColorAttributeName: [NSColor labelColor],
                                       NSParagraphStyleAttributeName: truncating };
 
-    const CGFloat left = groupColour != nil ? 12 : 10;
-    const CGFloat right = 10 + (keySize.width > 0 ? keySize.width + 6 : 0);
+    const CGFloat left = 30, right = shortcut != nil ? bounds.size.width - NSMinX (keycap) + 6 : 14;
     const NSSize nameSize = [name sizeWithAttributes: nameAttributes];
 
     [name drawInRect: NSMakeRect (left, (bounds.size.height - nameSize.height) / 2, bounds.size.width - left - right, nameSize.height)
       withAttributes: nameAttributes];
 
     if (shortcut != nil)
-        [shortcut drawAtPoint: NSMakePoint (bounds.size.width - 10 - keySize.width, (bounds.size.height - keySize.height) / 2)
+    {
+        [(isCurrent ? [accent colorWithAlphaComponent: 0.35] : [[NSColor labelColor] colorWithAlphaComponent: 0.09]) setFill];
+        [[NSBezierPath bezierPathWithRoundedRect: keycap xRadius: 4 yRadius: 4] fill];
+        [shortcut drawAtPoint: NSMakePoint (NSMidX (keycap) - keySize.width / 2, NSMidY (keycap) - keySize.height / 2)
                withAttributes: keyAttributes];
+    }
 }
 
 - (BOOL) isAccessibilityElement             { return YES; }
@@ -183,6 +249,57 @@ static NSColor* toNS (juce::Colour c)
 
 @end
 
+//==============================================================================
+// A rounded card that rows sit on, as System Settings' and Control Center's grouped lists do. A
+// scene group's has its colour down its left edge
+@interface CurvePanelCard : NSView
+{
+@public
+    NSColor* edgeColour;
+}
+@end
+
+@implementation CurvePanelCard
+- (void) dealloc { [edgeColour release]; [super dealloc]; }
+- (BOOL) isFlipped { return YES; }
+
+- (void) drawRect: (NSRect) dirty
+{
+    NSBezierPath* shape = [NSBezierPath bezierPathWithRoundedRect: [self bounds] xRadius: 9 yRadius: 9];
+    [[[NSColor labelColor] colorWithAlphaComponent: 0.05] setFill];
+    [shape fill];
+
+    if (edgeColour != nil)
+    {
+        [NSGraphicsContext saveGraphicsState];
+        [shape addClip];
+        [edgeColour setFill];
+        NSRectFill (NSMakeRect (0, 0, 4, [self bounds].size.height));
+        [NSGraphicsContext restoreGraphicsState];
+    }
+}
+@end
+
+// A hairline between rows of a card, from where their text starts
+@interface CurvePanelRowDivider : NSView
+{
+@public
+    CGFloat inset;
+}
+@end
+
+@implementation CurvePanelRowDivider
+- (NSSize) intrinsicContentSize { return NSMakeSize (NSViewNoIntrinsicMetric, 1); }
+
+- (void) drawRect: (NSRect) dirty
+{
+    [[NSColor separatorColor] setFill];
+    NSRectFillUsingOperation (NSMakeRect (inset, 0, [self bounds].size.width - inset - 10, 1.0 / std::max ((CGFloat) 1, [[self window] backingScaleFactor])),
+                              NSCompositingOperationSourceOver);
+}
+@end
+
+//==============================================================================
 //==============================================================================
 /** The output's level: a bar for each side, from -60 dB to 0 dB, which falls back smoothly. */
 @interface CurvePanelMeter : NSView
@@ -480,6 +597,10 @@ struct MenuBarPanel::Impl : private juce::Timer
             [popover setDelegate: delegate];
         }
 
+        // The screen the menu bar icon is on, which may not be the main one
+        if (NSScreen* screen = [[button window] screen] != nil ? [[button window] screen] : [NSScreen mainScreen])
+            availableHeight = NSHeight ([screen visibleFrame]) - 24;
+
         source.setListening (true);
         source.setMetering (getSetting (showMeterSetting, true));
         rebuild();
@@ -501,6 +622,94 @@ struct MenuBarPanel::Impl : private juce::Timer
 
 private:
     static constexpr CGFloat panelWidth = 320, margin = 12;
+    static constexpr CGFloat tileHeight = 27, tileGap = 1, pluginRowHeight = 30, pluginRowGap = 1, cardPadding = 3;
+
+    // How tall the panel can be on the screen it opens on: below the menu bar, with room for its arrow
+    CGFloat availableHeight = 800;
+
+    // The lists' heights, which shrink, presets first, if the panel would be taller than that
+    NSLayoutConstraint* presetsHeight = nil;
+    NSLayoutConstraint* pluginsHeight = nil;
+
+    // How tall a list may be before it scrolls: a share of the screen's height, and no more than a
+    // few rows, so the panel stays short however many presets and plug-ins there are
+    CGFloat getListHeightLimit (double share, int maxRows, CGFloat rowPitch) const
+    {
+        return std::max (3 * rowPitch, std::min ((CGFloat) share * availableHeight, maxRows * rowPitch));
+    }
+
+    // A list in a scroll view as tall as it is, up to maxHeight, which can be made shorter later
+    NSScrollView* makeScrollingList (NSView* list, CGFloat contentHeight, CGFloat maxHeight, CGFloat trailingRoom,
+                                     NSLayoutConstraint*& heightConstraint)
+    {
+        NSScrollView* scroll = [[[NSScrollView alloc] init] autorelease];
+        [scroll setHasVerticalScroller: YES];
+        [scroll setDrawsBackground: NO];
+        [scroll setAutohidesScrollers: YES];
+
+        CurvePanelView* document = [[[CurvePanelView alloc] init] autorelease]; // flipped, so the list starts at the top
+        [document setTranslatesAutoresizingMaskIntoConstraints: NO];
+        [list setTranslatesAutoresizingMaskIntoConstraints: NO];
+        [document addSubview: list];
+        [scroll setDocumentView: document];
+
+        NSClipView* clip = [scroll contentView];
+        heightConstraint = [[scroll heightAnchor] constraintEqualToConstant: std::min (contentHeight, maxHeight)];
+
+        [NSLayoutConstraint activateConstraints: @[
+            [[list leadingAnchor] constraintEqualToAnchor: [document leadingAnchor]],
+            [[list trailingAnchor] constraintEqualToAnchor: [document trailingAnchor] constant: -trailingRoom],
+            [[list topAnchor] constraintEqualToAnchor: [document topAnchor]],
+            [[list bottomAnchor] constraintEqualToAnchor: [document bottomAnchor]],
+            [[document leadingAnchor] constraintEqualToAnchor: [clip leadingAnchor]],
+            [[document trailingAnchor] constraintEqualToAnchor: [clip trailingAnchor]],
+            [[document topAnchor] constraintEqualToAnchor: [clip topAnchor]],
+            heightConstraint
+        ]];
+
+        return scroll;
+    }
+
+    // Rows on a rounded card, with hairlines between them from where their text starts
+    static NSView* makeCard (NSArray<NSView*>* rows, CGFloat dividerInset, NSColor* edgeColour = nil)
+    {
+        CurvePanelCard* card = [[[CurvePanelCard alloc] init] autorelease];
+        card->edgeColour = [edgeColour retain];
+        [card setTranslatesAutoresizingMaskIntoConstraints: NO];
+
+        NSStackView* stack = [[[NSStackView alloc] init] autorelease];
+        [stack setOrientation: NSUserInterfaceLayoutOrientationVertical];
+        [stack setAlignment: NSLayoutAttributeLeading];
+        [stack setSpacing: 0];
+        [stack setEdgeInsets: NSEdgeInsetsMake (cardPadding, 0, cardPadding, 0)];
+        [stack setTranslatesAutoresizingMaskIntoConstraints: NO];
+        [card addSubview: stack];
+
+        [NSLayoutConstraint activateConstraints: @[
+            [[stack leadingAnchor] constraintEqualToAnchor: [card leadingAnchor]],
+            [[stack trailingAnchor] constraintEqualToAnchor: [card trailingAnchor]],
+            [[stack topAnchor] constraintEqualToAnchor: [card topAnchor]],
+            [[stack bottomAnchor] constraintEqualToAnchor: [card bottomAnchor]]
+        ]];
+
+        for (NSUInteger i = 0; i < [rows count]; ++i)
+        {
+            if (i > 0)
+            {
+                CurvePanelRowDivider* divider = [[[CurvePanelRowDivider alloc] init] autorelease];
+                divider->inset = dividerInset;
+                [stack addArrangedSubview: divider];
+                [[[divider widthAnchor] constraintEqualToAnchor: [stack widthAnchor]] setActive: YES];
+                [[[divider heightAnchor] constraintEqualToConstant: 1] setActive: YES];
+            }
+
+            NSView* row = [rows objectAtIndex: i];
+            [stack addArrangedSubview: row];
+            [[[row widthAnchor] constraintEqualToAnchor: [stack widthAnchor]] setActive: YES];
+        }
+
+        return card;
+    }
 
     MenuBarPanelState::Source& source;
     Callbacks callbacks;
@@ -674,6 +883,8 @@ private:
             [v removeFromSuperview];
 
         [actions removeAllObjects];
+        presetsHeight = nil;
+        pluginsHeight = nil;
         meter = nil;
         volumeSlider = nil;
         volumeLabel = nil;
@@ -720,6 +931,27 @@ private:
         [[root layer] setBackgroundColor: getSetting (solidBackgroundSetting, false) ? [[NSColor windowBackgroundColor] CGColor] : nil];
 
         [root layoutSubtreeIfNeeded];
+
+        // Taller than the screen allows: the lists made shorter, presets first, down to a few rows each
+        if (auto excess = [stack fittingSize].height - availableHeight; excess > 0)
+        {
+            for (auto [constraint, minHeight] : { std::pair { presetsHeight, 3 * (tileHeight + tileGap) - tileGap },
+                                                  { pluginsHeight, 3 * (pluginRowHeight + pluginRowGap) - pluginRowGap } })
+            {
+                if (constraint == nil || excess <= 0)
+                    continue;
+
+                const CGFloat by = std::min (excess, [constraint constant] - minHeight);
+
+                if (by > 0)
+                {
+                    [constraint setConstant: [constraint constant] - by];
+                    excess -= by;
+                }
+            }
+
+            [root layoutSubtreeIfNeeded];
+        }
 
         if (auto scroll = std::exchange (scrollAfterLayout, nullptr))
             scroll();
@@ -834,89 +1066,91 @@ private:
             return;
         }
 
-        // Two columns of tiles, or one column with longer names when there are many
-        const int columns = state.presets.size() <= 12 ? 2 : 1;
+        // The keys follow the presets' order, alphabetical, as MIDI program changes do, whatever order
+        // they're shown in
+        for (const auto& preset : state.presets)
+            presetFiles.add (preset.file);
 
-        NSStackView* grid = [[[NSStackView alloc] init] autorelease];
-        [grid setOrientation: NSUserInterfaceLayoutOrientationVertical];
-        [grid setSpacing: 6];
-        [grid setAlignment: NSLayoutAttributeLeading];
-
-        NSMutableArray<NSView*>* rowViews = [NSMutableArray array];
+        // Shown in that order, but with each scene group's scenes together, on a card of their own,
+        // where its first scene would be, and the presets between on others. A name too long for its
+        // row is cut short, and shown in full as its tooltip
+        std::vector<int> order;
+        std::set<juce::String> placedGroups;
 
         for (int i = 0; i < state.presets.size(); ++i)
         {
-            const auto& preset = state.presets.getReference (i);
-            presetFiles.add (preset.file);
+            const auto& group = state.presets.getReference (i).group;
+
+            if (group.isEmpty())
+                order.push_back (i);
+            else if (placedGroups.insert (group).second)
+                for (int j = i; j < state.presets.size(); ++j)
+                    if (state.presets.getReference (j).group == group)
+                        order.push_back (j);
+        }
+
+        NSStackView* list = [[[NSStackView alloc] init] autorelease];
+        [list setOrientation: NSUserInterfaceLayoutOrientationVertical];
+        [list setSpacing: 10];
+        [list setAlignment: NSLayoutAttributeLeading];
+
+        CurvePresetTile* currentTile = nil;
+        NSMutableArray<NSView*>* rows = [NSMutableArray array];
+
+        // A scene group, which has no name of its own, is shown by its colour down its card's edge
+        const auto addCard = [&] (const MenuBarPanelState::Preset& last)
+        {
+            if ([rows count] == 0)
+                return;
+
+            NSView* card = makeCard ([[rows copy] autorelease], 30,
+                                     last.group.isNotEmpty() && last.groupColour.has_value() ? toNS (*last.groupColour) : nil);
+            [list addArrangedSubview: card];
+            [[[card widthAnchor] constraintEqualToAnchor: [list widthAnchor]] setActive: YES];
+            [rows removeAllObjects];
+        };
+
+        for (size_t k = 0; k < order.size(); ++k)
+        {
+            const auto& preset = state.presets.getReference (order[k]);
+
+            if (k > 0 && preset.group != state.presets.getReference (order[k - 1]).group)
+                addCard (state.presets.getReference (order[k - 1]));
 
             CurvePresetTile* tile = [[[CurvePresetTile alloc] init] autorelease];
             tile->name = [toNS (preset.name) retain];
             tile->shortcut = preset.shortcut.isNotEmpty() ? [toNS (preset.shortcut) retain] : nil;
-            tile->groupColour = preset.groupColour.has_value() ? [toNS (*preset.groupColour) retain] : nil;
             tile->isCurrent = preset.isCurrent;
             tile->onClick = [this, file = preset.file] { source.loadPreset (file); };
             [tile setToolTip: toNS (preset.name)];
-            [[[tile heightAnchor] constraintEqualToConstant: 34] setActive: YES];
-            [rowViews addObject: tile];
+            [[[tile heightAnchor] constraintEqualToConstant: tileHeight] setActive: YES];
+            [rows addObject: tile];
 
-            if ((int) [rowViews count] == columns || i == state.presets.size() - 1)
-            {
-                while ((int) [rowViews count] < columns)
-                    [rowViews addObject: [[[NSView alloc] init] autorelease]];
-
-                NSStackView* row = [NSStackView stackViewWithViews: rowViews];
-                [row setOrientation: NSUserInterfaceLayoutOrientationHorizontal];
-                [row setDistribution: NSStackViewDistributionFillEqually];
-                [row setSpacing: 6];
-                [grid addArrangedSubview: row];
-                [[[row widthAnchor] constraintEqualToAnchor: [grid widthAnchor]] setActive: YES];
-                [rowViews removeAllObjects];
-            }
+            if (preset.isCurrent)
+                currentTile = tile;
         }
 
-        // Scrolls past about ten rows
-        constexpr CGFloat maxHeight = 400;
-        [grid layoutSubtreeIfNeeded];
-        const CGFloat gridHeight = [grid fittingSize].height;
+        addCard (state.presets.getReference (order.back()));
 
-        if (gridHeight <= maxHeight)
-        {
-            addFullWidth (grid);
-            return;
-        }
+        // Scrolls past about ten rows, or fewer on a short screen, or if the panel would be taller
+        // than the screen (see rebuild())
+        const CGFloat contentHeight = [list fittingSize].height;
+        const CGFloat maxHeight = getListHeightLimit (0.4, 10, tileHeight + tileGap) + 2 * cardPadding;
 
-        NSScrollView* scroll = [[[NSScrollView alloc] init] autorelease];
-        [scroll setHasVerticalScroller: YES];
-        [scroll setDrawsBackground: NO];
-        [scroll setAutohidesScrollers: YES];
-
-        CurvePanelView* document = [[[CurvePanelView alloc] init] autorelease]; // flipped, so the list starts at the top
-        [document setTranslatesAutoresizingMaskIntoConstraints: NO];
-        [grid setTranslatesAutoresizingMaskIntoConstraints: NO];
-        [document addSubview: grid];
-        [scroll setDocumentView: document];
-
-        NSClipView* clip = [scroll contentView];
-        [NSLayoutConstraint activateConstraints: @[
-            [[grid leadingAnchor] constraintEqualToAnchor: [document leadingAnchor]],
-            [[grid trailingAnchor] constraintEqualToAnchor: [document trailingAnchor] constant: -10],
-            [[grid topAnchor] constraintEqualToAnchor: [document topAnchor]],
-            [[grid bottomAnchor] constraintEqualToAnchor: [document bottomAnchor]],
-            [[document leadingAnchor] constraintEqualToAnchor: [clip leadingAnchor]],
-            [[document trailingAnchor] constraintEqualToAnchor: [clip trailingAnchor]],
-            [[document topAnchor] constraintEqualToAnchor: [clip topAnchor]],
-            [[scroll heightAnchor] constraintEqualToConstant: maxHeight]
-        ]];
-
+        // Room for the scrollbar, if it scrolls
+        NSScrollView* scroll = makeScrollingList (list, contentHeight, maxHeight, contentHeight > maxHeight ? 10 : 0, presetsHeight);
         addFullWidth (scroll);
 
-        // The current preset in view, once the panel's been laid out (see rebuild())
-        for (int i = 0; i < state.presets.size(); ++i)
-            if (state.presets.getReference (i).isCurrent)
-                scrollAfterLayout = [document, y = std::max (0.0, (double) (i / columns) * 40.0 - maxHeight / 2)]
-                {
-                    [document scrollRectToVisible: NSMakeRect (0, y, 10, maxHeight)];
-                };
+        // The current preset in view, once the panel's been laid out
+        if (currentTile != nil)
+            scrollAfterLayout = [scroll, currentTile]
+            {
+                const auto visible = NSHeight ([scroll frame]);
+                const auto row = [[scroll documentView] convertRect: [currentTile bounds] fromView: currentTile];
+
+                if (NSMaxY (row) > visible)
+                    [[scroll documentView] scrollPoint: NSMakePoint (0, std::max ((CGFloat) 0, NSMinY (row) - (visible - NSHeight (row)) / 2))];
+            };
     }
 
     template <typename AddFn>
@@ -966,16 +1200,17 @@ private:
 
         addFullWidth (makeRow (header));
 
-        // Scrolls past about ten, so a large graph can't push the rest of the panel off the screen
-        NSStackView* list = [[[NSStackView alloc] init] autorelease];
-        [list setOrientation: NSUserInterfaceLayoutOrientationVertical];
-        [list setAlignment: NSLayoutAttributeLeading];
-        [list setSpacing: 10];
-        [list setTranslatesAutoresizingMaskIntoConstraints: NO];
+        // On a card, as the presets are. Scrolls past about eight, or fewer on a short screen, so a
+        // large graph can't make the panel too tall
+        NSMutableArray<NSView*>* rows = [NSMutableArray array];
+
+        const CGFloat pitch = pluginRowHeight + pluginRowGap;
+        const CGFloat maxHeight = getListHeightLimit (0.3, 8, pitch) - pluginRowGap + 2 * cardPadding;
+        const CGFloat contentHeight = (CGFloat) state.plugins.size() * pitch - pluginRowGap + 2 * cardPadding;
 
         // Narrower when it scrolls, to leave room for the scrollbar
-        const bool scrolls = state.plugins.size() > 10;
-        const CGFloat listWidth = panelWidth - 2 * margin - (scrolls ? 14 : 0);
+        const bool scrolls = contentHeight > maxHeight;
+        const CGFloat trailingRoom = scrolls ? 14 : 0;
 
         for (const auto& plugin : state.plugins)
         {
@@ -1033,7 +1268,8 @@ private:
             [row setOrientation: NSUserInterfaceLayoutOrientationHorizontal];
             [row setAlignment: NSLayoutAttributeCenterY];
             [row setSpacing: 8];
-            [[[row heightAnchor] constraintGreaterThanOrEqualToConstant: 22] setActive: YES];
+            [row setEdgeInsets: NSEdgeInsetsMake (0, 12, 0, 10)];
+            [[[row heightAnchor] constraintEqualToConstant: pluginRowHeight] setActive: YES];
 
             row->makeMenu = [this, plugin, nodeID]
             {
@@ -1069,40 +1305,11 @@ private:
                 return menu;
             };
 
-            [list addArrangedSubview: row];
-            [[[row widthAnchor] constraintEqualToConstant: listWidth] setActive: YES];
+            [rows addObject: row];
         }
 
-        if (! scrolls)
-        {
-            addFullWidth (list);
-            return;
-        }
-
-        constexpr CGFloat maxHeight = 320;
-
-        NSScrollView* scroll = [[[NSScrollView alloc] init] autorelease];
-        [scroll setHasVerticalScroller: YES];
-        [scroll setDrawsBackground: NO];
-        [scroll setAutohidesScrollers: YES];
-
-        CurvePanelView* document = [[[CurvePanelView alloc] init] autorelease]; // flipped, so the list starts at the top
-        [document setTranslatesAutoresizingMaskIntoConstraints: NO];
-        [document addSubview: list];
-        [scroll setDocumentView: document];
-
-        NSClipView* clip = [scroll contentView];
-        [NSLayoutConstraint activateConstraints: @[
-            [[list leadingAnchor] constraintEqualToAnchor: [document leadingAnchor]],
-            [[list topAnchor] constraintEqualToAnchor: [document topAnchor]],
-            [[list bottomAnchor] constraintEqualToAnchor: [document bottomAnchor]],
-            [[document leadingAnchor] constraintEqualToAnchor: [clip leadingAnchor]],
-            [[document trailingAnchor] constraintEqualToAnchor: [clip trailingAnchor]],
-            [[document topAnchor] constraintEqualToAnchor: [clip topAnchor]],
-            [[scroll heightAnchor] constraintEqualToConstant: maxHeight]
-        ]];
-
-        addFullWidth (scroll);
+        // In a scroll view even when it fits, so it can be made shorter if the panel's too tall for the screen
+        addFullWidth (makeScrollingList (makeCard (rows, 12), contentHeight, maxHeight, trailingRoom, pluginsHeight));
     }
 
     // What Curve plays out: switches for checking it and its volume, with its level at the right

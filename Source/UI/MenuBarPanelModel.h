@@ -283,7 +283,10 @@ private:
             preset.shortcut = getShortcut (i);
 
             if (groups[i].isNotEmpty() && groupSizes[groups[i]] > 1)
+            {
                 preset.groupColour = PluginGraph::getSceneGroupColour (groups[i]);
+                preset.group = groups[i];
+            }
 
             state.presets.add (preset);
         }
