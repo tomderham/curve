@@ -24,9 +24,9 @@ juce_add_gui_app(Curve
     PLUGINHOST_AU                   TRUE
     OSX_DEPLOYMENT_TARGET           14.2
     OSX_SYSROOT                     macosx
-    PLIST_TO_MERGE "<plist><dict><key>CFBundleLocalizations</key><array><string>en</string><string>de</string><string>es</string><string>fr</string><string>hi</string><string>ja</string><string>ko</string><string>pt</string><string>zh-Hans</string></array><key>CFBundleHelpBookFolder</key><string>Curve.help</string><key>CFBundleHelpBookName</key><string>com.thomasderham.curve.help</string><key>LSMinimumSystemVersion</key><string>14.2</string><key>LSUIElement</key><true/><key>NSAppSleepDisabled</key><true/><key>NSAudioCaptureUsageDescription</key><string>Curve needs audio access to capture and process system audio.</string><key>NSBluetoothAlwaysUsageDescription</key><string>Curve requires access to Bluetooth to connect to Bluetooth MIDI devices.</string><key>NSBluetoothPeripheralUsageDescription</key><string>Curve requires access to Bluetooth to connect to Bluetooth MIDI devices.</string></dict></plist>"
+    PLIST_TO_MERGE "<plist><dict><key>CFBundleLocalizations</key><array><string>en</string><string>de</string><string>es</string><string>fr</string><string>hi</string><string>ja</string><string>ko</string><string>pt</string><string>zh-Hans</string></array><key>CFBundleHelpBookFolder</key><string>Curve.help</string><key>CFBundleHelpBookName</key><string>com.thomasderham.curve.help</string><key>LSMinimumSystemVersion</key><string>14.2</string><key>LSUIElement</key><true/><key>NSAppSleepDisabled</key><true/><key>NSAppleEventsUsageDescription</key><string>Curve controls Music and Spotify from its Music plug-in: what is playing, playing and pausing, and searching your library.</string><key>NSAudioCaptureUsageDescription</key><string>Curve needs audio access to capture and process system audio.</string><key>NSBluetoothAlwaysUsageDescription</key><string>Curve requires access to Bluetooth to connect to Bluetooth MIDI devices.</string><key>NSBluetoothPeripheralUsageDescription</key><string>Curve requires access to Bluetooth to connect to Bluetooth MIDI devices.</string></dict></plist>"
     HARDENED_RUNTIME_ENABLED        TRUE
-    HARDENED_RUNTIME_OPTIONS        com.apple.security.device.audio-input com.apple.security.network.client com.apple.security.cs.disable-library-validation com.apple.security.cs.disable-executable-page-protection com.apple.security.cs.allow-jit com.apple.security.cs.allow-unsigned-executable-memory com.apple.security.cs.allow-dyld-environment-variables
+    HARDENED_RUNTIME_OPTIONS        com.apple.security.device.audio-input com.apple.security.network.client com.apple.security.cs.disable-library-validation com.apple.security.cs.disable-executable-page-protection com.apple.security.cs.allow-jit com.apple.security.cs.allow-unsigned-executable-memory com.apple.security.cs.allow-dyld-environment-variables com.apple.security.automation.apple-events
 )
 
 juce_generate_juce_header(Curve)
@@ -52,6 +52,7 @@ target_sources(Curve PRIVATE
     Source/Plugins/ScoreViewerNode.cpp
     Source/Plugins/LooperNode.cpp
     Source/Plugins/PlayerNode.cpp
+    Source/Plugins/MusicNode.cpp
     Source/Plugins/PdfView.mm
     Source/Plugins/SpeakerEmulationNode.cpp
     Source/Plugins/StereoUtilityNode.cpp

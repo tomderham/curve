@@ -56,6 +56,7 @@
 #include "ScoreViewerNode.h"
 #include "LooperNode.h"
 #include "PlayerNode.h"
+#include "MusicNode.h"
 #include "InternalPlugins.h"
 #include "InvertPhaseNode.h"
 #include "MeterNode.h"
@@ -254,6 +255,10 @@ static const std::vector<PluginDescription>& getStaticInternalDescriptions()
         PlayerNode::describe (play);
         result.push_back (play);
 
+        PluginDescription musi;
+        MusicNode().fillInPluginDescription (musi);
+        result.push_back (musi);
+
         return result;
     }();
 
@@ -322,7 +327,8 @@ InternalPluginFormat::InternalPluginFormat()
         [] { return std::make_unique<MeterNode>(); },
         [] { return std::make_unique<ScoreViewerNode>(); },
         [] { return std::make_unique<LooperNode>(); },
-        [] { return std::make_unique<PlayerNode>(); }
+        [] { return std::make_unique<PlayerNode>(); },
+        [] { return std::make_unique<MusicNode>(); }
     }
 {
 }
