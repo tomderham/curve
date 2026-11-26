@@ -123,6 +123,9 @@ public:
     // Hides the open plug-in windows, or shows and brings them to the front if they're all hidden,
     // from the menu bar panel, a shortcut or a MIDI control. They stay open while hidden
     void togglePluginWindows();
+
+    // Tidies the open plug-in windows into rows on the display most of them are on
+    void arrangePluginWindows();
     void showPluginWindows();
     bool arePluginWindowsHidden() const;
     int getNumPluginWindows() const   { return activePluginWindows.size(); }
@@ -134,8 +137,15 @@ public:
     void setWindowKeptOnTop (NodeID, bool shouldKeepOnTop);
     bool isWindowKeptOnTop (NodeID) const;
 
-    // Stops plug-in windows being dragged, and remembers the choice
+    // Stops the plug-in windows being dragged, and hides their title bars if that's set. Each scene has
+    // its own, saved with it as its window layout is, so changing it is a change to the preset
     void setPluginWindowPositionsLocked (bool shouldLock);
+    void setPluginWindowTitleBarsHiddenWhenLocked (bool shouldHide);
+    void setPluginWindowBackdropShownWhenLocked (bool shouldShow);
+
+    // Puts the backdrop behind the plug-in windows while they're locked, if that's set, covering them
+    // with a margin, or takes it away. Soon, once for any number of changes
+    void updateBackdropSoon();
 
     bool hasWindowFor (const AudioProcessorGraph::Node&, PluginWindow::Type) const;
     bool isWindowShowing (const AudioProcessorGraph::Node&, PluginWindow::Type) const; // open, and not hidden or minimised
@@ -311,6 +321,15 @@ private:
 
 
     std::set<uint32> bypassedForComparison; // by setBypassingAll(), to turn back on
+
+    WindowArrangement::Backdrop backdrop;
+    void applyWindowLock (bool shouldLock); // As a scene has it, without changing the preset
+    bool backdropUpdatePending = false;
+    void updateBackdrop();
+
+    // The display most of these windows are on, or the main one
+    static const Curve::WindowPlacement::Display* findLayoutDisplay (const std::vector<Curve::WindowPlacement::Display>&,
+                                                                     const Array<PluginWindow*>&);
 
     // Moves plug-in windows back onto a display when it's connected again
     std::unique_ptr<MacOSDisplayChangeNotifierBase> displayChangeNotifier;

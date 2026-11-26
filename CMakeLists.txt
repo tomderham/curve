@@ -49,6 +49,8 @@ target_sources(Curve PRIVATE
     Source/Plugins/MidSideNode.cpp
     Source/Plugins/PanNode.cpp
     Source/Plugins/PluginGraph.cpp
+    Source/Plugins/ScoreViewerNode.cpp
+    Source/Plugins/PdfView.mm
     Source/Plugins/SpeakerEmulationNode.cpp
     Source/Plugins/StereoUtilityNode.cpp
     Source/Plugins/OutputInterfaceLoopbackNode.mm
@@ -101,7 +103,8 @@ target_link_libraries(Curve PRIVATE
     "-framework ServiceManagement"
     "-framework AVFoundation"
     "-framework Carbon"
-    "-framework ApplicationServices")
+    "-framework ApplicationServices"
+    "-framework PDFKit")
 
 juce_add_bundle_resources_directory(Curve  ${CMAKE_CURRENT_SOURCE_DIR}/Source/Assets/)
 

@@ -159,6 +159,138 @@ void setMovable (juce::Component& component, bool canMove)
         [window setMovable: canMove];
 }
 
+void setTitleBarHidden (juce::Component& component, bool shouldHide)
+{
+    NSWindow* window = getWindow (component);
+
+    if (window == nil)
+        return;
+
+    const auto mask = [window styleMask];
+    const bool isHidden = (mask & NSWindowStyleMaskTitled) == 0;
+
+    if (isHidden == shouldHide)
+        return;
+
+    // The frame changes by the title bar's height, so the content stays put
+    const NSRect content = [window contentRectForFrameRect: [window frame]];
+
+    [window setStyleMask: shouldHide ? (mask & ~(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable))
+                                     : (mask | NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable)];
+    [window setFrame: [window frameRectForContentRect: content] display: YES];
+
+    // Without the title bar's, a shadow sets it apart from the windows beside it
+    [window setHasShadow: YES];
+    [window invalidateShadow];
+}
+
+void detachFromBackdrop (juce::Component& component)
+{
+    NSWindow* window = getWindow (component);
+
+    if (window != nil && [window parentWindow] != nil)
+        [[window parentWindow] removeChildWindow: window];
+}
+
+//==============================================================================
+struct Backdrop::Impl
+{
+    ~Impl()
+    {
+        hide();
+        [window release];
+    }
+
+    void hide()
+    {
+        if (window == nil)
+            return;
+
+        for (NSWindow* child in [[[window childWindows] copy] autorelease])
+            [window removeChildWindow: child];
+
+        [window orderOut: nil];
+    }
+
+    NSWindow* window = nil;
+};
+
+Backdrop::Backdrop() : impl (std::make_unique<Impl>()) {}
+Backdrop::~Backdrop() = default;
+
+void Backdrop::hide()   { impl->hide(); }
+
+void Backdrop::show (const Curve::WindowPlacement::Rect& area, const juce::Array<juce::Component*>& windows,
+                     juce::Colour colour, bool onAllSpaces)
+{
+    NSArray<NSScreen*>* screens = [NSScreen screens];
+
+    if (area.w <= 0 || area.h <= 0 || [screens count] == 0)
+    {
+        hide();
+        return;
+    }
+
+    // From the desktop's y downwards to AppKit's upwards, from the bottom of the primary display
+    const CGFloat primaryHeight = [[screens objectAtIndex: 0] frame].size.height;
+    const NSRect frame = NSMakeRect (area.x, primaryHeight - (area.y + area.h), area.w, area.h);
+
+    if (impl->window == nil)
+    {
+        impl->window = [[NSWindow alloc] initWithContentRect: frame
+                                                   styleMask: NSWindowStyleMaskBorderless
+                                                     backing: NSBackingStoreBuffered
+                                                       defer: NO];
+        [impl->window setReleasedWhenClosed: NO];
+        [impl->window setOpaque: NO];
+        [impl->window setBackgroundColor: [NSColor clearColor]];
+        [impl->window setHasShadow: YES];
+
+        // Rounded, as macOS's own windows are
+        NSView* content = [impl->window contentView];
+        [content setWantsLayer: YES];
+        [[content layer] setCornerRadius: 12];
+        [[content layer] setMasksToBounds: YES];
+    }
+
+    NSWindow* backdrop = impl->window;
+
+    [[[backdrop contentView] layer] setBackgroundColor: [[NSColor colorWithSRGBRed: colour.getFloatRed()
+                                                                             green: colour.getFloatGreen()
+                                                                              blue: colour.getFloatBlue()
+                                                                             alpha: 1.0] CGColor]];
+    [backdrop setCollectionBehavior: onAllSpaces ? NSWindowCollectionBehaviorCanJoinAllSpaces : NSWindowCollectionBehaviorDefault];
+    [backdrop setFrame: frame display: YES];
+
+    // Its windows now, and no longer any that aren't
+    NSMutableSet* wanted = [NSMutableSet set];
+
+    for (auto* component : windows)
+        if (component != nullptr)
+            if (NSWindow* w = getWindow (*component))
+                [wanted addObject: w];
+
+    for (NSWindow* child in [[[backdrop childWindows] copy] autorelease])
+        if (! [wanted containsObject: child])
+            [backdrop removeChildWindow: child];
+
+    const bool wasShowing = [backdrop isVisible];
+
+    if (! wasShowing)
+        [backdrop orderFrontRegardless];
+
+    for (NSWindow* w in wanted)
+    {
+        if ([w parentWindow] != backdrop)
+        {
+            if ([w parentWindow] != nil)
+                [[w parentWindow] removeChildWindow: w];
+
+            [backdrop addChildWindow: w ordered: NSWindowAbove];
+        }
+    }
+}
+
 bool isMouseButtonDown()
 {
     return [NSEvent pressedMouseButtons] != 0;

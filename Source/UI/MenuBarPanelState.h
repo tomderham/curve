@@ -90,6 +90,7 @@ namespace MenuBarPanelState
         virtual void setInterfaceVolume (float) = 0;
         virtual void toggleGraphEditor() = 0;
         virtual void togglePluginWindows() = 0;
+        virtual void arrangePluginWindows() = 0;
         virtual void setOutputSwitch (OutputSwitch, bool) = 0;
 
         /** The output's peak levels since the last read, 0 to 1, while metering is on. */

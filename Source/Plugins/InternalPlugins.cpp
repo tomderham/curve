@@ -53,6 +53,7 @@
 #include "CrossfeedNode.h"
 #include "DelayNode.h"
 #include "GainNode.h"
+#include "ScoreViewerNode.h"
 #include "InternalPlugins.h"
 #include "InvertPhaseNode.h"
 #include "MeterNode.h"
@@ -239,6 +240,10 @@ static const std::vector<PluginDescription>& getStaticInternalDescriptions()
         metr.numOutputChannels = 0;
         result.push_back (metr);
 
+        PluginDescription scor;
+        ScoreViewerNode().fillInPluginDescription (scor);
+        result.push_back (scor);
+
         return result;
     }();
 
@@ -304,7 +309,8 @@ InternalPluginFormat::InternalPluginFormat()
         [] { return std::make_unique<MidSideNode> (MidSideNode::Mode::encode); },
         [] { return std::make_unique<MidSideNode> (MidSideNode::Mode::decode); },
         [] { return std::make_unique<DelayNode>(); },
-        [] { return std::make_unique<MeterNode>(); }
+        [] { return std::make_unique<MeterNode>(); },
+        [] { return std::make_unique<ScoreViewerNode>(); }
     }
 {
 }

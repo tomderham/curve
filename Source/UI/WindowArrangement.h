@@ -41,6 +41,34 @@ namespace WindowArrangement
     /** Whether the window can be dragged by its title bar. It can still be moved from code. */
     void setMovable (juce::Component&, bool canMove);
 
+    /** Hides the window's title bar, or shows it again, keeping its content where it is. Hidden,
+        the window can't be dragged, closed or minimised from it, so is for a locked layout. */
+    void setTitleBarHidden (juce::Component&, bool shouldHide);
+
+    /** Detaches the window from a backdrop it's in front of, e.g. as it closes. */
+    void detachFromBackdrop (juce::Component&);
+
+    /** A rounded panel in the canvas colour behind a layout of plug-in windows, so their gaps show it
+        rather than the desktop. The windows are its child windows, so they stay in front of it, with
+        no other app's windows between, and keep to its Space. */
+    class Backdrop final
+    {
+    public:
+        Backdrop();
+        ~Backdrop();
+
+        /** Shows it over the area, in desktop coordinates, with these windows in front of it. */
+        void show (const Curve::WindowPlacement::Rect& area, const juce::Array<juce::Component*>& windows,
+                   juce::Colour, bool onAllSpaces);
+        void hide();
+
+        struct Impl;
+
+    private:
+        std::unique_ptr<Impl> impl;
+        JUCE_DECLARE_NON_COPYABLE (Backdrop)
+    };
+
     /** Whether a mouse button is down anywhere, e.g. dragging a window by its title bar, which
         macOS handles without telling the window's view. */
     bool isMouseButtonDown();

@@ -758,10 +758,19 @@ private:
         add (@"Preferences...", callbacks.showPreferences);
         [menu addItem: [NSMenuItem separatorItem]];
 
+        const auto panelState = source.getState();
+
+        auto* arrange = makeAction ([this] (id) { source.arrangePluginWindows(); });
+        NSMenuItem* arrangeItem = [[[NSMenuItem alloc] initWithTitle: @"Arrange Plug-in Windows" action: @selector (perform:) keyEquivalent: @""] autorelease];
+        [arrangeItem setTarget: arrange];
+        [arrangeItem setEnabled: panelState.numPluginWindows > 0];
+        [menu setAutoenablesItems: NO];
+        [menu addItem: arrangeItem];
+
         // Quick to reach on stage, so a layout can't be knocked out of place
-        const bool locked = source.getState().arePluginWindowPositionsLocked;
+        const bool locked = panelState.arePluginWindowPositionsLocked;
         auto* lock = makeAction ([this, locked] (id) { source.setPluginWindowPositionsLocked (! locked); });
-        NSMenuItem* lockItem = [[[NSMenuItem alloc] initWithTitle: @"Lock Plug-in Window Positions" action: @selector (perform:) keyEquivalent: @""] autorelease];
+        NSMenuItem* lockItem = [[[NSMenuItem alloc] initWithTitle: @"Lock Plug-in Windows (This Scene)" action: @selector (perform:) keyEquivalent: @""] autorelease];
         [lockItem setTarget: lock];
         [lockItem setState: locked ? NSControlStateValueOn : NSControlStateValueOff];
         [menu addItem: lockItem];

@@ -78,7 +78,7 @@ public:
 
         refresh();
         startTimer (500);
-        setSize (560, 380);
+        setSize (560, 450);
     }
 
     void resized() override { tabs.setBounds (getLocalBounds().reduced (8)); }
@@ -170,16 +170,30 @@ private:
                     PluginWindow::setShownOnAllSpaces (newState);
             };
 
-            lockWindowPositions.setButtonText ("Lock plug-in window positions");
-            lockWindowPositions.onClick = [this]
+            hideTitleBars.setButtonText ("Hide their title bars");
+            hideTitleBars.onClick = [this]
             {
-                const bool newState = lockWindowPositions.getToggleState();
+                const bool newState = hideTitleBars.getToggleState();
 
                 if (window.graphHolder != nullptr && window.graphHolder->graph != nullptr)
-                    window.graphHolder->graph->setPluginWindowPositionsLocked (newState);
+                    window.graphHolder->graph->setPluginWindowTitleBarsHiddenWhenLocked (newState);
                 else
-                    PluginWindow::setPositionsLocked (newState);
+                    PluginWindow::setTitleBarsHiddenWhenLocked (newState);
             };
+
+            showBackdrop.setButtonText ("Show a backdrop behind them");
+            showBackdrop.onClick = [this]
+            {
+                const bool newState = showBackdrop.getToggleState();
+
+                if (window.graphHolder != nullptr && window.graphHolder->graph != nullptr)
+                    window.graphHolder->graph->setPluginWindowBackdropShownWhenLocked (newState);
+                else
+                    PluginWindow::setBackdropShownWhenLocked (newState);
+            };
+
+            // Locking is per scene, from the editor and the menus; this is how it looks
+            lockedLabel.setText ("When a scene's plug-in windows are locked:", juce::dontSendNotification);
 
             updatesLabel.setText ("Updates:", juce::dontSendNotification);
 
@@ -206,7 +220,7 @@ private:
             };
 
             for (auto* c : std::initializer_list<juce::Component*> { &openAtLogin, &showInDock, &preventSleep, &releaseWhenIdle,
-                                                                    &pluginWindowsOnAllSpaces, &lockWindowPositions, &updatesLabel, &autoCheck, &checkNow })
+                                                                    &pluginWindowsOnAllSpaces, &lockedLabel, &hideTitleBars, &showBackdrop, &updatesLabel, &autoCheck, &checkNow })
                 addAndMakeVisible (c);
         }
 
@@ -216,7 +230,8 @@ private:
             showInDock.setToggleState (DockIconManager::isShowInDockEnabled(), juce::dontSendNotification);
             releaseWhenIdle.setToggleState (IdleReleaseController::isEnabledInSettings(), juce::dontSendNotification);
             pluginWindowsOnAllSpaces.setToggleState (PluginWindow::isShownOnAllSpaces(), juce::dontSendNotification);
-            lockWindowPositions.setToggleState (PluginWindow::arePositionsLocked(), juce::dontSendNotification);
+            hideTitleBars.setToggleState (PluginWindow::areTitleBarsHiddenWhenLocked(), juce::dontSendNotification);
+            showBackdrop.setToggleState (PluginWindow::isBackdropShownWhenLocked(), juce::dontSendNotification);
 
             if (auto* settings = getAppProperties().getUserSettings())
             {
@@ -229,8 +244,14 @@ private:
         {
             auto r = getLocalBounds().reduced (margin, 12);
 
-            for (auto* t : { &openAtLogin, &showInDock, &preventSleep, &releaseWhenIdle, &pluginWindowsOnAllSpaces, &lockWindowPositions })
+            for (auto* t : { &openAtLogin, &showInDock, &preventSleep, &releaseWhenIdle, &pluginWindowsOnAllSpaces })
                 t->setBounds (r.removeFromTop (rowHeight));
+
+            lockedLabel.setBounds (r.removeFromTop (rowHeight));
+
+            // Under the lock, which it goes with
+            hideTitleBars.setBounds (r.removeFromTop (rowHeight).withTrimmedLeft (24));
+            showBackdrop.setBounds (r.removeFromTop (rowHeight).withTrimmedLeft (24));
 
             r.removeFromTop (12);
             updatesLabel.setBounds (r.removeFromTop (rowHeight));
@@ -242,7 +263,8 @@ private:
 
         MainHostWindow& window;
         std::shared_ptr<std::atomic<GitHubUpdater*>> updaterToken;
-        juce::ToggleButton openAtLogin, showInDock, preventSleep, releaseWhenIdle, pluginWindowsOnAllSpaces, lockWindowPositions, autoCheck;
+        juce::ToggleButton openAtLogin, showInDock, preventSleep, releaseWhenIdle, pluginWindowsOnAllSpaces, hideTitleBars, showBackdrop, autoCheck;
+        juce::Label lockedLabel;
         juce::Label updatesLabel;
         juce::TextButton checkNow;
     };

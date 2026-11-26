@@ -49,6 +49,7 @@
 #include "../Plugins/IOConfigurationWindow.h"
 #include "../Plugins/ARAPlugin.h"
 #include "WindowArrangement.h"
+#include "WindowLock.h"
 
 class PluginGraph;
 
@@ -212,7 +213,7 @@ public:
             WindowArrangement::setOnAllSpaces (*this, true);
 
         if (arePositionsLocked())
-            WindowArrangement::setMovable (*this, false);
+            applyLock (true);
 
         isPlacing = false;
 
@@ -226,6 +227,8 @@ public:
 
     ~PluginWindow() override
     {
+        WindowArrangement::detachFromBackdrop (*this);
+
         if (node != nullptr)
             node->properties.set (getOpenProp (type), false);
         clearContentComponent();
@@ -233,6 +236,9 @@ public:
 
     void moved() override
     {
+        if (onBoundsChanged != nullptr)
+            onBoundsChanged();
+
         if (node == nullptr || isPlacing)
             return;
 
@@ -271,6 +277,9 @@ public:
     {
         DocumentWindow::resized();
 
+        if (onBoundsChanged != nullptr)
+            onBoundsChanged();
+
         if (node != nullptr && ! isPlacing && isResizable())
         {
             node->properties.set (getLastWidthProp (type), getWidth());
@@ -302,6 +311,16 @@ public:
         }
     }
 
+    /** Moves the window's content to here, as a drag to it would, so it's remembered there. */
+    void moveContentTo (int x, int y)
+    {
+        isDisplaced = false;
+        setTopLeftPosition (x, y);
+        rememberBounds();
+    }
+
+    bool hasTitleBar() const    { return ! (arePositionsLocked() && areTitleBarsHiddenWhenLocked()); }
+
     /** How far forward the window was last brought, to order a preset's windows as they were. */
     int getStackPosition() const
     {
@@ -320,6 +339,9 @@ public:
 
     /** Called after the window's own close button closes it, e.g. for the menu bar panel to follow */
     std::function<void()> onClosed;
+
+    /** Called when it moves or changes size, e.g. for the backdrop behind it to follow */
+    std::function<void()> onBoundsChanged;
 
     /** Whether plug-in windows show on every Space, rather than only the one each is on. Off by
         default: windows stay on the Space they're put on (see PluginGraph::openPresetPluginWindows()). */
@@ -342,25 +364,58 @@ public:
 
     static constexpr const char* onAllSpacesSetting = "pluginWindowsOnAllSpaces";
 
-    /** Whether plug-in windows can't be dragged, so a layout can't be knocked out of place on stage */
-    static bool arePositionsLocked()
+    /** Whether the loaded scene's plug-in windows can't be dragged, so a layout can't be knocked out of
+        place on stage. Each scene has its own, saved with it (see PluginGraph::setPluginWindowPositionsLocked()) */
+    static bool arePositionsLocked()    { return WindowLock::locked.load(); }
+
+    /** Whether locked windows also hide their title bars, for a clean layout on stage */
+    static bool areTitleBarsHiddenWhenLocked()
     {
         if (auto* settings = getAppProperties().getUserSettings())
-            return settings->getBoolValue (positionsLockedSetting, false);
+            return settings->getBoolValue (hideTitleBarsSetting, true);
 
-        return false;
+        return true;
     }
 
-    static void setPositionsLocked (bool shouldLock)
+    static void setTitleBarsHiddenWhenLocked (bool shouldHide)
     {
         if (auto* settings = getAppProperties().getUserSettings())
         {
-            settings->setValue (positionsLockedSetting, shouldLock);
+            settings->setValue (hideTitleBarsSetting, shouldHide);
             settings->saveIfNeeded();
         }
     }
 
-    static constexpr const char* positionsLockedSetting = "pluginWindowPositionsLocked";
+    static constexpr const char* hideTitleBarsSetting = "pluginWindowTitleBarsHiddenWhenLocked";
+
+    /** Whether locked windows have a backdrop behind them (see PluginGraph::updateBackdrop()) */
+    static bool isBackdropShownWhenLocked()
+    {
+        if (auto* settings = getAppProperties().getUserSettings())
+            return settings->getBoolValue (backdropSetting, false);
+
+        return false;
+    }
+
+    static void setBackdropShownWhenLocked (bool shouldShow)
+    {
+        if (auto* settings = getAppProperties().getUserSettings())
+        {
+            settings->setValue (backdropSetting, shouldShow);
+            settings->saveIfNeeded();
+        }
+    }
+
+    static constexpr const char* backdropSetting = "pluginWindowBackdropWhenLocked";
+
+    /** Locked, the window can't be dragged, and hides its title bar if that's set */
+    void applyLock (bool isLocked)
+    {
+        // Its own placing: the frame moves by the title bar's height, but the content doesn't
+        const ScopedValueSetter<bool> placingNow (isPlacing, true);
+        WindowArrangement::setMovable (*this, ! isLocked);
+        WindowArrangement::setTitleBarHidden (*this, isLocked && areTitleBarsHiddenWhenLocked());
+    }
 
     /** The node properties, saved in presets as node attributes, that say how its window of this
         type was arranged. Each window type's own, so a node's generic editor has its own place. */

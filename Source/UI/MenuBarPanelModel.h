@@ -195,8 +195,6 @@ public:
     {
         if (auto* graph = getGraph())
             graph->setPluginWindowPositionsLocked (shouldLock);
-        else
-            PluginWindow::setPositionsLocked (shouldLock);
     }
 
     void setMetering (bool shouldMeter) override                 { OutputMeter::enabled.store (shouldMeter); }
@@ -215,6 +213,12 @@ public:
         }
 
         triggerAsyncUpdate();
+    }
+
+    void arrangePluginWindows() override
+    {
+        if (auto* graph = getGraph())
+            graph->arrangePluginWindows();
     }
 
     void togglePluginWindows() override

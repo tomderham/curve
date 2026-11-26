@@ -633,6 +633,22 @@ public:
           w->showMidiMappingsWindow();
       });
     }
+    // The preset's plug-in windows, tidied into rows
+    {
+      auto *graph = mainWindow.graphHolder != nullptr ? mainWindow.graphHolder->graph.get() : nullptr;
+      menu.addItem("Arrange Plug-in Windows", graph != nullptr && graph->getNumPluginWindows() > 0, false, [safeWindow] {
+        if (auto *w = safeWindow.getComponent())
+          if (w->graphHolder != nullptr && w->graphHolder->graph != nullptr)
+            w->graphHolder->graph->arrangePluginWindows();
+      });
+
+      // Saved with the scene, as its window layout is
+      menu.addItem("Lock Plug-in Windows (This Scene)", graph != nullptr, PluginWindow::arePositionsLocked(), [safeWindow] {
+        if (auto *w = safeWindow.getComponent())
+          if (w->graphHolder != nullptr && w->graphHolder->graph != nullptr)
+            w->graphHolder->graph->setPluginWindowPositionsLocked(!PluginWindow::arePositionsLocked());
+      });
+    }
     menu.addSubMenu("Settings", settingsmenu, true);
 
     return menu;

@@ -41,6 +41,7 @@
 #include "../UI/GraphEditorPanel.h"
 #include "../AudioConstants.h"
 #include "../AudioDiagnostics.h"
+#include "../UI/CurveColours.h"
 
 
 //==============================================================================
@@ -79,8 +80,12 @@ PluginGraph::PluginGraph (AudioPluginFormatManager& fm, KnownPluginList& kpl)
     displayChangeNotifier = createMacOSDisplayChangeNotifier ([weakSelf = WeakReference<PluginGraph> (this)]
     {
         if (auto* self = weakSelf.get())
+        {
             for (auto* w : self->activePluginWindows)
                 w->returnToSavedDisplay();
+
+            self->updateBackdropSoon();
+        }
     });
 }
 
@@ -309,6 +314,7 @@ void PluginGraph::removeNode (NodeID nodeID)
 void PluginGraph::clear()
 {
     bypassedForComparison.clear();
+    WindowLock::locked.store (false); // A new graph's windows are free, until its scene says otherwise
     ++restoreGeneration;
     pendingAsyncRestores = 0;
     pluginsFailedToRestore.clear();
@@ -332,8 +338,11 @@ void PluginGraph::clear()
 
 bool PluginGraph::canBeBypassed (AudioProcessor& processor)
 {
+    // Nor a node with no audio or MIDI, e.g. the Score Viewer, which has nothing to pass through
     return dynamic_cast<AudioProcessorGraph::AudioGraphIOProcessor*> (&processor) == nullptr
-        && dynamic_cast<MeterNode*> (&processor) == nullptr;
+        && dynamic_cast<MeterNode*> (&processor) == nullptr
+        && (processor.getTotalNumInputChannels() > 0 || processor.getTotalNumOutputChannels() > 0
+            || processor.acceptsMidi() || processor.producesMidi());
 }
 
 bool PluginGraph::isConfiguredByAudioSettings (AudioProcessor& processor)
@@ -378,6 +387,28 @@ PluginWindow* PluginGraph::getOrCreateWindowFor (AudioProcessorGraph::Node* node
 
         if (auto* plugin = dynamic_cast<AudioPluginInstance*> (processor))
         {
+            // A plug-in has only one editor. If one of these windows still has it, e.g. one of
+            // another type, that's shown rather than opening another with JUCE's generic controls,
+            // which it falls back to. Only these windows are looked in: the plug-in's own record of
+            // its editor can outlive the editor if its editor doesn't clear it
+            if (type == PluginWindow::Type::normal)
+            {
+                if (auto* editor = processor->getActiveEditor())
+                {
+                    for (auto* existing : activePluginWindows)
+                    {
+                        if (existing->getContentComponent() == editor)
+                        {
+                            if (existing->isMinimised())
+                                existing->setMinimised (false);
+
+                            existing->setVisible (true);
+                            return existing;
+                        }
+                    }
+                }
+            }
+
             auto* window = activePluginWindows.add (new PluginWindow (node,
                                                                       type,
                                                                       activePluginWindows,
@@ -387,8 +418,19 @@ PluginWindow* PluginGraph::getOrCreateWindowFor (AudioProcessorGraph::Node* node
             window->onClosed = [weakSelf = WeakReference<PluginGraph> (this)]
             {
                 if (auto* self = weakSelf.get())
+                {
                     self->sendChangeMessage();
+                    self->updateBackdropSoon();
+                }
             };
+
+            window->onBoundsChanged = [weakSelf = WeakReference<PluginGraph> (this)]
+            {
+                if (auto* self = weakSelf.get())
+                    self->updateBackdropSoon();
+            };
+
+            updateBackdropSoon();
 
             // As its node is named, so a renamed one matches. Its format is in the node's tooltip
             window->setName (getNodeDisplayName (node->nodeID));
@@ -408,6 +450,8 @@ void PluginGraph::updatePluginWindowTitles()
 
 bool PluginGraph::closeAnyOpenPluginWindows()
 {
+    backdrop.hide();
+
     bool wasEmpty = activePluginWindows.isEmpty();
     activePluginWindows.clear();
     return ! wasEmpty;
@@ -491,6 +535,124 @@ void PluginGraph::setBypassingAll (bool shouldBypass)
     sendChangeMessage();
 }
 
+void PluginGraph::arrangePluginWindows()
+{
+    using namespace Curve::WindowPlacement;
+
+    showPluginWindows();
+
+    // In the order they're in now, reading across and down, so the result is like the layout it tidies
+    Array<PluginWindow*> windows;
+
+    for (auto* w : activePluginWindows)
+        if (w->isVisible())
+            windows.add (w);
+
+    if (windows.isEmpty())
+        return;
+
+    std::stable_sort (windows.begin(), windows.end(), [] (const PluginWindow* a, const PluginWindow* b)
+    {
+        return a->getY() / 40 != b->getY() / 40 ? a->getY() < b->getY() : a->getX() < b->getX();
+    });
+
+    const auto displays = WindowArrangement::getDisplays();
+    const auto* target = findLayoutDisplay (displays, windows);
+
+    if (target == nullptr)
+        return;
+
+    std::vector<Size> sizes;
+
+    for (auto* w : windows)
+        sizes.push_back ({ w->getWidth(), w->getHeight() });
+
+    const auto positions = arrange (sizes, target->usable, windows.getFirst()->hasTitleBar() ? titleBarHeight : 0, 10);
+
+    for (int i = 0; i < windows.size(); ++i)
+        windows[i]->moveContentTo (positions[(size_t) i].x, positions[(size_t) i].y);
+
+    bringPluginWindowsToFront();
+}
+
+const Curve::WindowPlacement::Display* PluginGraph::findLayoutDisplay (const std::vector<Curve::WindowPlacement::Display>& displays,
+                                                                       const Array<PluginWindow*>& windows)
+{
+    using namespace Curve::WindowPlacement;
+    std::map<std::string, int> counts;
+
+    for (auto* w : windows)
+        if (const auto* d = findDisplayFor (displays, { w->getX(), w->getY(), w->getWidth(), w->getHeight() }))
+            ++counts[d->id];
+
+    const Display* target = findMainDisplay (displays);
+
+    for (const auto& [id, count] : counts)
+        if (target == nullptr || count > counts[target->id])
+            target = findDisplay (displays, id);
+
+    return target;
+}
+
+void PluginGraph::updateBackdropSoon()
+{
+    if (std::exchange (backdropUpdatePending, true))
+        return;
+
+    MessageManager::callAsync ([weakSelf = WeakReference<PluginGraph> (this)]
+    {
+        if (auto* self = weakSelf.get())
+        {
+            self->backdropUpdatePending = false;
+            self->updateBackdrop();
+        }
+    });
+}
+
+void PluginGraph::updateBackdrop()
+{
+    using namespace Curve::WindowPlacement;
+
+    if (! PluginWindow::arePositionsLocked() || ! PluginWindow::isBackdropShownWhenLocked())
+    {
+        backdrop.hide();
+        return;
+    }
+
+    Array<PluginWindow*> windows;
+
+    for (auto* w : activePluginWindows)
+        if (w->isVisible() && ! w->isMinimised())
+            windows.add (w);
+
+    const auto displays = WindowArrangement::getDisplays();
+    const auto* display = windows.isEmpty() ? nullptr : findLayoutDisplay (displays, windows);
+
+    if (display == nullptr)
+    {
+        backdrop.hide();
+        return;
+    }
+
+    // Those on the layout's display, with their title bars if they show them
+    std::vector<Rect> frames;
+    Array<Component*> inFront;
+
+    for (auto* w : windows)
+    {
+        const auto titleBar = w->hasTitleBar() ? titleBarHeight : 0;
+        const Rect frame { w->getX(), w->getY() - titleBar, w->getWidth(), w->getHeight() + titleBar };
+
+        if (const auto* d = findDisplayFor (displays, frame); d != nullptr && d->id == display->id)
+        {
+            frames.push_back (frame);
+            inFront.add (w);
+        }
+    }
+
+    backdrop.show (backdropArea (frames, display->usable, 16), inFront, Curve::Colours::canvas, PluginWindow::isShownOnAllSpaces());
+}
+
 void PluginGraph::togglePluginWindows()
 {
     if (activePluginWindows.isEmpty())
@@ -510,6 +672,7 @@ void PluginGraph::togglePluginWindows()
     }
 
     sendChangeMessage();
+    updateBackdropSoon();
 }
 
 bool PluginGraph::arePluginWindowsHidden() const
@@ -530,6 +693,7 @@ void PluginGraph::showPluginWindows()
     }
 
     bringPluginWindowsToFront();
+    updateBackdropSoon();
 }
 
 void PluginGraph::bringPluginWindowsToFront()
@@ -572,6 +736,8 @@ void PluginGraph::closeWindowFor (const AudioProcessorGraph::Node& node, PluginW
     for (int i = activePluginWindows.size(); --i >= 0;)
         if (activePluginWindows.getUnchecked (i)->node.get() == &node && activePluginWindows.getUnchecked (i)->type == type)
             activePluginWindows.remove (i);
+
+    updateBackdropSoon();
 }
 
 void PluginGraph::setWindowKeptOnTop (NodeID nodeID, bool shouldKeepOnTop)
@@ -603,10 +769,40 @@ bool PluginGraph::isWindowKeptOnTop (NodeID nodeID) const
 
 void PluginGraph::setPluginWindowPositionsLocked (bool shouldLock)
 {
-    PluginWindow::setPositionsLocked (shouldLock);
+    if (shouldLock == PluginWindow::arePositionsLocked())
+        return;
+
+    applyWindowLock (shouldLock);
+
+    // Part of the scene, as its window layout is, so saved with it
+    changed();
+}
+
+void PluginGraph::applyWindowLock (bool shouldLock)
+{
+    WindowLock::locked.store (shouldLock);
 
     for (auto* w : activePluginWindows)
-        WindowArrangement::setMovable (*w, ! shouldLock);
+        w->applyLock (shouldLock);
+
+    sendChangeMessage();
+    updateBackdropSoon();
+}
+
+void PluginGraph::setPluginWindowBackdropShownWhenLocked (bool shouldShow)
+{
+    PluginWindow::setBackdropShownWhenLocked (shouldShow);
+    updateBackdropSoon();
+}
+
+void PluginGraph::setPluginWindowTitleBarsHiddenWhenLocked (bool shouldHide)
+{
+    PluginWindow::setTitleBarsHiddenWhenLocked (shouldHide);
+
+    for (auto* w : activePluginWindows)
+        w->applyLock (PluginWindow::arePositionsLocked());
+
+    updateBackdropSoon();
 }
 
 void PluginGraph::setPluginWindowsOnAllSpaces (bool shouldBeOnAll)
@@ -1459,6 +1655,9 @@ std::unique_ptr<XmlElement> PluginGraph::createXml (bool includeStates) const
     auto xml = std::make_unique<XmlElement> ("FILTERGRAPH");
     xml->setAttribute (Curve::Scenes::tempoAttribute, graph.transport.getTempo());
 
+    if (PluginWindow::arePositionsLocked())
+        xml->setAttribute (Curve::Scenes::windowsLockedAttribute, true);
+
     for (auto* node : graph.getNodes())
     {
         auto* e = createNodeXml (node, includeStates);
@@ -1510,6 +1709,9 @@ void PluginGraph::restoreFromXml (const XmlElement& xml, bool restorePluginWindo
     sceneGroup = xml.getStringAttribute (Curve::Scenes::groupAttribute);
     loadedXml = std::make_unique<XmlElement> (xml);
     graph.transport.setTempo (xml.getDoubleAttribute (Curve::Scenes::tempoAttribute, HostTransport::defaultTempo));
+
+    // Before its windows open, so they open locked. Presets from before had none, and load unlocked
+    applyWindowLock (xml.getBoolAttribute (Curve::Scenes::windowsLockedAttribute));
 
     preConfigureGraphChannels (graph, &xml);
 
@@ -1868,6 +2070,7 @@ void PluginGraph::switchScene (const File& file, const XmlElement& scene)
     }
 
     graph.transport.setTempo (scene.getDoubleAttribute (Curve::Scenes::tempoAttribute, HostTransport::defaultTempo));
+    applyWindowLock (scene.getBoolAttribute (Curve::Scenes::windowsLockedAttribute));
 
     // Another preset is loaded, for anything planned for the previous one, e.g. a save
     ++restoreGeneration;

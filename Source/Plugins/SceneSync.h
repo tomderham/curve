@@ -32,6 +32,7 @@ inline constexpr const char* groupAttribute = "sceneGroup";
 inline constexpr const char* varyAttribute  = "varyByScene";
 inline constexpr const char* mutedAttribute = "muted";
 inline constexpr const char* tempoAttribute = "tempo";
+inline constexpr const char* windowsLockedAttribute = "pluginWindowsLocked"; // its plug-in windows locked in place
 
 /** Removes what a plug-in's description records about when it was read, which is new each
     time the plug-in is created, and its version, which an update changes, so a preset just
@@ -113,6 +114,7 @@ inline std::unique_ptr<juce::XmlElement> getSharedPart (const juce::XmlElement& 
     auto shared = std::make_unique<juce::XmlElement> (graph);
     shared->removeAttribute (groupAttribute);
     shared->removeAttribute (tempoAttribute);
+    shared->removeAttribute (windowsLockedAttribute);
 
     for (auto* node : shared->getChildWithTagNameIterator ("FILTER"))
     {
@@ -198,11 +200,14 @@ inline std::unique_ptr<juce::XmlElement> createOtherScene (const juce::XmlElemen
 
     auto result = std::make_unique<juce::XmlElement> (saved);
 
-    // Its own tempo
-    if (other.hasAttribute (tempoAttribute))
-        result->setAttribute (tempoAttribute, other.getStringAttribute (tempoAttribute));
-    else
-        result->removeAttribute (tempoAttribute);
+    // Its own tempo, and its own lock on its plug-in windows, as it has its own window layout
+    for (const auto* attribute : { tempoAttribute, windowsLockedAttribute })
+    {
+        if (other.hasAttribute (attribute))
+            result->setAttribute (attribute, other.getStringAttribute (attribute));
+        else
+            result->removeAttribute (attribute);
+    }
 
     for (auto* node : result->getChildWithTagNameIterator ("FILTER"))
     {

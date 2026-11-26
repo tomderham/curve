@@ -125,6 +125,10 @@ private:
     class BurgerButton;
     std::unique_ptr<BurgerButton> burgerButton;
 
+    // Locking and arranging the plug-in windows, beside the menu
+    class WindowTools;
+    std::unique_ptr<WindowTools> windowTools;
+
     // The preset's tempo and the transport, top right
     class TransportStrip;
     std::unique_ptr<TransportStrip> transportStrip;

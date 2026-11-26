@@ -144,6 +144,73 @@ namespace WindowPlacement
         y = std::max (top, std::min (y, u.bottom() - height));
     }
 
+    struct Size { int width = 0, height = 0; };
+    struct Position { int x = 0, y = 0; };
+
+    /** Arranges windows, given their content sizes in the order to place them, in rows across the
+        area, left to right and top to bottom, with a gap around each. The title bar is above each
+        window's content (0 if hidden). Windows that don't fit go on again from the top left,
+        offset, so they overlap rather than leave the area. Returns where each one's content goes. */
+    inline std::vector<Position> arrange (const std::vector<Size>& sizes, const Rect& area, int titleBar, int gap)
+    {
+        std::vector<Position> positions;
+        int x = area.x + gap, y = area.y + gap, rowHeight = 0, layer = 0;
+
+        for (const auto& size : sizes)
+        {
+            const int width = size.width, height = size.height + titleBar;
+
+            // On to the next row, unless this is the first in its row, which goes in however wide
+            if (x > area.x + gap && x + width > area.right() - gap)
+            {
+                x = area.x + gap + layer * 30;
+                y += rowHeight + gap;
+                rowHeight = 0;
+            }
+
+            // Below the area: start again from the top left, a little further in each time
+            if (y > area.y + gap && y + height > area.bottom() - gap)
+            {
+                ++layer;
+                x = area.x + gap + layer * 30;
+                y = area.y + gap + layer * 30;
+                rowHeight = 0;
+            }
+
+            positions.push_back ({ x, y + titleBar });
+            x += width + gap;
+            rowHeight = std::max (rowHeight, height);
+        }
+
+        return positions;
+    }
+
+    /** The area a backdrop behind these windows covers: all of them, with a margin around, kept to
+        the display's usable area. Empty without any windows. Frames include title bars. */
+    inline Rect backdropArea (const std::vector<Rect>& windows, const Rect& usable, int margin)
+    {
+        if (windows.empty())
+            return {};
+
+        int left = windows.front().x, top = windows.front().y;
+        int right = windows.front().right(), bottom = windows.front().bottom();
+
+        for (const auto& w : windows)
+        {
+            left = std::min (left, w.x);
+            top = std::min (top, w.y);
+            right = std::max (right, w.right());
+            bottom = std::max (bottom, w.bottom());
+        }
+
+        left   = std::max (usable.x, left - margin);
+        top    = std::max (usable.y, top - margin);
+        right  = std::min (usable.right(), right + margin);
+        bottom = std::min (usable.bottom(), bottom + margin);
+
+        return right > left && bottom > top ? Rect { left, top, right - left, bottom - top } : Rect {};
+    }
+
     /** Where a window with content of the given size should reopen. */
     inline Result place (const Saved& saved, int width, int height, const std::vector<Display>& displays)
     {

@@ -1506,6 +1506,88 @@ public:
 };
 
 //==============================================================================
+/*  Beside the menu: locking the plug-in windows' positions, which is done often while laying them
+    out, so it's to hand rather than only in the menu.
+*/
+class GraphEditorPanel::WindowTools final : public Component
+{
+public:
+    explicit WindowTools (PluginGraph& g) : graph (g)
+    {
+        lockButton.isOn = [] { return PluginWindow::arePositionsLocked(); };
+        lockButton.drawGlyph = [] (Graphics& gr, Rectangle<float> r, Colour c) { drawLock (gr, r, c, PluginWindow::arePositionsLocked()); };
+
+        lockButton.setTooltip ("Lock this scene's plug-in windows in place, and hide their title bars (see Preferences). "
+                               "Saved with the scene, as its window layout is");
+        lockButton.onClick = [this]
+        {
+            graph.setPluginWindowPositionsLocked (! PluginWindow::arePositionsLocked());
+            repaint();
+        };
+
+        addAndMakeVisible (lockButton);
+    }
+
+    void resized() override
+    {
+        lockButton.setBounds (getLocalBounds().removeFromLeft (24));
+    }
+
+    // The lock can change from the menus, and with the scene
+    void update()
+    {
+        lockButton.repaint();
+    }
+
+private:
+    struct GlyphButton final : public Button
+    {
+        std::function<void (Graphics&, Rectangle<float>, Colour)> drawGlyph;
+        std::function<bool()> isOn;
+
+        GlyphButton() : Button ({}) { setWantsKeyboardFocus (false); }
+
+        void paintButton (Graphics& g, bool highlighted, bool down) override
+        {
+            const auto bounds = getLocalBounds().toFloat().reduced (1.0f);
+            const bool on = isOn != nullptr && isOn();
+
+            if (highlighted || down)
+            {
+                g.setColour (Colours::white.withAlpha (down ? 0.22f : 0.12f));
+                g.fillRoundedRectangle (bounds, 4.0f);
+            }
+
+            const auto colour = on ? Curve::Colours::accent
+                                   : Colours::white.withAlpha (! isEnabled() ? 0.25f : highlighted ? 0.95f : 0.65f);
+            drawGlyph (g, bounds.withSizeKeepingCentre (14.0f, 14.0f), colour);
+        }
+    };
+
+    static void drawLock (Graphics& g, Rectangle<float> r, Colour c, bool closed)
+    {
+        const auto body = r.removeFromBottom (8.0f);
+        g.setColour (c);
+        g.fillRoundedRectangle (body, 1.5f);
+
+        // The shackle, open to the right when unlocked
+        Path shackle;
+        const auto w = body.getWidth() - 5.0f;
+        const auto x = body.getX() + 2.5f + (closed ? 0.0f : 3.0f);
+        shackle.startNewSubPath (x, body.getY());
+        shackle.lineTo (x, r.getY() + 3.0f);
+        shackle.addCentredArc (x + w * 0.5f, r.getY() + 3.0f, w * 0.5f, 3.0f, 0.0f,
+                               -MathConstants<float>::halfPi, MathConstants<float>::halfPi);
+        shackle.lineTo (x + w, closed ? body.getY() : r.getY() + 4.5f);
+        g.strokePath (shackle, PathStrokeType (1.6f, PathStrokeType::curved, PathStrokeType::rounded));
+    }
+
+    PluginGraph& graph;
+
+    GlyphButton lockButton;
+};
+
+//==============================================================================
 /*  Start/Stop, the tempo, and Tap, for the plug-ins that follow the host's tempo and transport.
     In MIDI Learn, clicking one picks it as the target instead, as the bypass button does.
 */
@@ -1690,6 +1772,9 @@ GraphEditorPanel::GraphEditorPanel (PluginGraph& g)  : graph (g)
     };
     addAndMakeVisible (burgerButton.get());
 
+    windowTools = std::make_unique<WindowTools> (graph);
+    addAndMakeVisible (windowTools.get());
+
     transportStrip = std::make_unique<TransportStrip> (*this);
     transportStrip->playButton.isPlaying = [this] { return graph.getTransport().isPlaying(); };
     transportStrip->tempoLabel.panelIsLearning = [this] { return midiEngine != nullptr && midiEngine->isLearning(); };
@@ -1706,6 +1791,7 @@ GraphEditorPanel::~GraphEditorPanel()
     removeMouseListener (&hoverTracker);
     graph.removeChangeListener (this);
     burgerButton = nullptr;
+    windowTools = nullptr;
     transportStrip = nullptr;
     draggingConnector = nullptr;
     nodes.clear();
@@ -1867,6 +1953,9 @@ void GraphEditorPanel::resized()
     if (burgerButton != nullptr)
         burgerButton->setBounds (10, 8, 24, 24);
 
+    if (windowTools != nullptr)
+        windowTools->setBounds (42, 8, 24, 24);
+
     if (transportStrip != nullptr)
         transportStrip->setBounds (getWidth() - 10 - 170, 8, 170, 24);
 
@@ -1924,9 +2013,12 @@ void GraphEditorPanel::updateComponents()
     }
 
     // Above the nodes, which are added after them
-    for (Component* c : { (Component*) burgerButton.get(), (Component*) transportStrip.get() })
+    for (Component* c : { (Component*) burgerButton.get(), (Component*) windowTools.get(), (Component*) transportStrip.get() })
         if (c != nullptr)
             c->toFront (false);
+
+    if (windowTools != nullptr)
+        windowTools->update();
 
     // After creating nodes, so connectors see rebuilt nodes' pins
     for (auto* cc : connectors)

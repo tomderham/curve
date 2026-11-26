@@ -319,6 +319,14 @@ static void testPluginWindowsAreEachScenes()
     CHECK (node (*createOtherScene (*arranged, *early), 2)->getStringAttribute ("uiLastW_Normal").isEmpty());
     CHECK (node (*createOtherScene (*early, *arranged), 2)->getStringAttribute ("uiDisplay_Normal") == "37D8832A-2D66-02CA-B9F7-8F30A301B230");
 
+    // Nor whether its windows are locked in place: each scene has its own lock, as its own layout
+    auto locked = parse (R"(<FILTERGRAPH sceneGroup="g" pluginWindowsLocked="1">
+  <FILTER uid="2" x="0.5" y="0.4" uiopen_Normal="1" uiLastX_Normal="10" uiLastY_Normal="20"><STATE>eq</STATE></FILTER>
+</FILTERGRAPH>)");
+    CHECK (shareGraph (*early, *locked));
+    CHECK (! createOtherScene (*locked, *early)->hasAttribute ("pluginWindowsLocked"));
+    CHECK (createOtherScene (*early, *locked)->getBoolAttribute ("pluginWindowsLocked"));
+
     // Nor one that the other scene has no position for
     auto noWindow = parse (R"(<FILTERGRAPH sceneGroup="g"><FILTER uid="2" x="0.5" y="0.4"><STATE>eq</STATE></FILTER></FILTERGRAPH>)");
     CHECK (! createOtherScene (*early, *noWindow)->getChildByName ("FILTER")->hasAttribute ("uiLastX_Normal"));
