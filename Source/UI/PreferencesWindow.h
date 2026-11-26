@@ -295,6 +295,9 @@ private:
             showOutput.setButtonText ("Output switches: Mono, Dim and Mute");
             showOutput.onClick = [this] { MenuBarPanel::setSetting (MenuBarPanel::showOutputSetting, showOutput.getToggleState()); };
 
+            solidBackground.setButtonText ("Solid background, rather than macOS's glass");
+            solidBackground.onClick = [this] { MenuBarPanel::setSetting (MenuBarPanel::solidBackgroundSetting, solidBackground.getToggleState()); };
+
             showMeter.setButtonText ("Output level meter");
             showMeter.onClick = [this] { MenuBarPanel::setSetting (MenuBarPanel::showMeterSetting, showMeter.getToggleState()); };
 
@@ -302,7 +305,7 @@ private:
             note.setText ("The panel always shows the presets. Right-click or Control-click the icon for the menu.",
                           juce::dontSendNotification);
 
-            for (auto* c : std::initializer_list<juce::Component*> { &opensLabel, &opens, &showsLabel, &showPlugins, &showOutput, &showVolume, &showMeter, &note })
+            for (auto* c : std::initializer_list<juce::Component*> { &opensLabel, &opens, &showsLabel, &showPlugins, &showOutput, &showVolume, &showMeter, &solidBackground, &note })
                 addAndMakeVisible (c);
         }
 
@@ -315,6 +318,8 @@ private:
             showMeter.setToggleState (MenuBarPanel::getSetting (MenuBarPanel::showMeterSetting, true), juce::dontSendNotification);
             showOutput.setToggleState (MenuBarPanel::getSetting (MenuBarPanel::showOutputSetting, true), juce::dontSendNotification);
             showOutput.setEnabled (! usesMenu);
+            solidBackground.setToggleState (MenuBarPanel::getSetting (MenuBarPanel::solidBackgroundSetting, false), juce::dontSendNotification);
+            solidBackground.setEnabled (! usesMenu);
             showPlugins.setEnabled (! usesMenu);
             showVolume.setEnabled (! usesMenu);
             showMeter.setEnabled (! usesMenu);
@@ -345,13 +350,18 @@ private:
             row.removeFromLeft (labelWidth);
             showMeter.setBounds (row);
 
+            r.removeFromTop (8);
+            row = r.removeFromTop (rowHeight);
+            row.removeFromLeft (labelWidth);
+            solidBackground.setBounds (row);
+
             r.removeFromTop (12);
             note.setBounds (r.removeFromTop (40));
         }
 
         juce::Label opensLabel, showsLabel, note;
         juce::ComboBox opens;
-        juce::ToggleButton showPlugins, showOutput, showVolume, showMeter;
+        juce::ToggleButton showPlugins, showOutput, showVolume, showMeter, solidBackground;
     };
 
     //==============================================================================

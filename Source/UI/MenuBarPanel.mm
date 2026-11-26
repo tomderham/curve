@@ -715,6 +715,10 @@ private:
         addFullWidth (makeSeparator());
         addFullWidth (makeFooter (state));
 
+        // macOS's glass, or a solid background, as set in Preferences
+        [root setWantsLayer: YES];
+        [[root layer] setBackgroundColor: getSetting (solidBackgroundSetting, false) ? [[NSColor windowBackgroundColor] CGColor] : nil];
+
         [root layoutSubtreeIfNeeded];
 
         if (auto scroll = std::exchange (scrollAfterLayout, nullptr))
@@ -969,7 +973,9 @@ private:
         [list setSpacing: 10];
         [list setTranslatesAutoresizingMaskIntoConstraints: NO];
 
-        const CGFloat listWidth = panelWidth - 2 * margin;
+        // Narrower when it scrolls, to leave room for the scrollbar
+        const bool scrolls = state.plugins.size() > 10;
+        const CGFloat listWidth = panelWidth - 2 * margin - (scrolls ? 14 : 0);
 
         for (const auto& plugin : state.plugins)
         {
@@ -1067,7 +1073,7 @@ private:
             [[[row widthAnchor] constraintEqualToConstant: listWidth] setActive: YES];
         }
 
-        if (state.plugins.size() <= 10)
+        if (! scrolls)
         {
             addFullWidth (list);
             return;

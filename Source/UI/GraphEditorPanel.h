@@ -129,6 +129,10 @@ private:
     class WindowTools;
     std::unique_ptr<WindowTools> windowTools;
 
+    // Mono, Dim, Mute and the volume, as the menu bar panel has them, top right
+    class OutputStrip;
+    std::unique_ptr<OutputStrip> outputStrip;
+
     // The preset's tempo and the transport, top right
     class TransportStrip;
     std::unique_ptr<TransportStrip> transportStrip;

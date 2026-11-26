@@ -1588,6 +1588,147 @@ private:
 };
 
 //==============================================================================
+/*  Mono, Dim and Mute, and the volume, as the menu bar panel's Output section has them, for
+    everything Curve plays (see OutputMonitor, VolumeKeyManager). Follows changes made in the panel
+    and by the volume keys.
+*/
+class GraphEditorPanel::OutputStrip final : public Component,
+                                            private Timer
+{
+public:
+    OutputStrip()
+    {
+        const auto setUp = [this] (SwitchButton& b, const char* name, Colour colour, const char* tip, std::atomic<bool>& flag)
+        {
+            b.setButtonText (name);
+            b.onColour = colour;
+            b.setTooltip (tip);
+            b.onClick = [this, &flag] { flag.store (! flag.load()); refresh(); };
+            addAndMakeVisible (b);
+        };
+
+        setUp (monoButton, "Mono", Curve::Colours::accent, "Plays each pair of outputs in mono, e.g. to check a mix", OutputMonitor::mono);
+        setUp (dimButton,  "Dim",  Colour (0xfff59e0b),   "Turns everything Curve plays down by 20 dB, e.g. to talk", OutputMonitor::dimmed);
+        setUp (muteButton, "Mute", Curve::Colours::danger, "Silences everything Curve plays", OutputMonitor::muted);
+
+        volume.setSliderStyle (Slider::LinearHorizontal);
+        volume.setTextBoxStyle (Slider::NoTextBox, false, 0, 0);
+        volume.setColour (Slider::trackColourId, Colours::white.withAlpha (0.55f));
+        volume.setColour (Slider::backgroundColourId, Colours::white.withAlpha (0.12f));
+        volume.setColour (Slider::thumbColourId, Colours::white);
+        volume.onValueChange = [this]
+        {
+            if (kind == VolumeKeyManager::VolumeControl::interface)
+                VolumeKeyManager::setInterfaceVolume ((float) volume.getValue());
+            else if (kind == VolumeKeyManager::VolumeControl::curve)
+                VolumeKeyManager::setVolume (roundToInt (volume.getValue()), false);
+
+            refresh();
+        };
+        addAndMakeVisible (volume);
+
+        volumeLabel.setJustificationType (Justification::centredRight);
+        volumeLabel.setColour (Label::textColourId, Curve::Colours::dimText);
+        volumeLabel.setFont (FontOptions (11.5f));
+        addAndMakeVisible (volumeLabel);
+
+        refresh();
+        startTimerHz (5);
+    }
+
+    // As wide as it needs to be, or less: the volume goes first, then the switches
+    static constexpr int switchWidth = 44, volumeWidth = 140;
+
+    void resized() override
+    {
+        auto r = getLocalBounds();
+        const bool fitsVolume = r.getWidth() >= 3 * switchWidth + 8 + volumeWidth && kind != VolumeKeyManager::VolumeControl::none;
+
+        for (auto* b : { &monoButton, &dimButton, &muteButton })
+        {
+            b->setBounds (r.removeFromLeft (switchWidth).reduced (1, 0));
+            b->setVisible (getWidth() >= 3 * switchWidth);
+        }
+
+        r.removeFromLeft (8);
+        volume.setVisible (fitsVolume);
+        volumeLabel.setVisible (fitsVolume);
+
+        if (fitsVolume)
+        {
+            volumeLabel.setBounds (r.removeFromRight (46));
+            volume.setBounds (r);
+        }
+    }
+
+private:
+    struct SwitchButton final : public Button
+    {
+        SwitchButton() : Button ({}) { setWantsKeyboardFocus (false); }
+        Colour onColour;
+
+        void paintButton (Graphics& g, bool highlighted, bool down) override
+        {
+            const auto area = getLocalBounds().toFloat().reduced (0.5f, 2.0f);
+            const bool on = getToggleState();
+
+            g.setColour (on ? onColour.withAlpha (down ? 0.7f : 0.9f)
+                            : Colours::white.withAlpha (down ? 0.22f : highlighted ? 0.14f : 0.07f));
+            g.fillRoundedRectangle (area, 5.0f);
+
+            g.setColour (on ? Colours::white : Colours::white.withAlpha (highlighted ? 0.95f : 0.75f));
+            g.setFont (FontOptions (12.0f, Font::bold));
+            g.drawText (getButtonText(), area, Justification::centred);
+        }
+    };
+
+    void timerCallback() override   { refresh(); }
+
+    void refresh()
+    {
+        monoButton.setToggleState (OutputMonitor::mono.load(), dontSendNotification);
+        dimButton.setToggleState (OutputMonitor::dimmed.load(), dontSendNotification);
+        muteButton.setToggleState (OutputMonitor::muted.load(), dontSendNotification);
+
+        const auto newKind = VolumeKeyManager::getVolumeControl();
+
+        if (newKind != kind)
+        {
+            kind = newKind;
+
+            if (kind == VolumeKeyManager::VolumeControl::interface)
+                volume.setRange (0.0, 1.0, 0.0);
+            else
+                volume.setRange (0.0, (double) OutputVolume::maxSteps, 1.0);
+
+            volume.setTooltip (kind == VolumeKeyManager::VolumeControl::interface
+                                 ? "The interface's own volume, as macOS's volume menu sets it"
+                                 : "Curve's own volume, as the interface has none that macOS can set");
+            resized();
+        }
+
+        // Not while it's being dragged, which sets it
+        if (! volume.isMouseButtonDown())
+        {
+            if (kind == VolumeKeyManager::VolumeControl::interface)
+                volume.setValue (VolumeKeyManager::getInterfaceVolume(), dontSendNotification);
+            else if (kind == VolumeKeyManager::VolumeControl::curve)
+                volume.setValue (VolumeKeyManager::getVolumeSteps(), dontSendNotification);
+        }
+
+        volumeLabel.setText (kind == VolumeKeyManager::VolumeControl::interface
+                               ? String (roundToInt (VolumeKeyManager::getInterfaceVolume() * 100.0f)) + "%"
+                               : VolumeKeyManager::describeVolume(),
+                             dontSendNotification);
+    }
+
+    SwitchButton monoButton, dimButton, muteButton;
+    Slider volume;
+    Label volumeLabel;
+    VolumeKeyManager::VolumeControl kind = VolumeKeyManager::VolumeControl::none;
+};
+
+//==============================================================================
 /*  Start/Stop, the tempo, and Tap, for the plug-ins that follow the host's tempo and transport.
     In MIDI Learn, clicking one picks it as the target instead, as the bypass button does.
 */
@@ -1775,6 +1916,9 @@ GraphEditorPanel::GraphEditorPanel (PluginGraph& g)  : graph (g)
     windowTools = std::make_unique<WindowTools> (graph);
     addAndMakeVisible (windowTools.get());
 
+    outputStrip = std::make_unique<OutputStrip>();
+    addAndMakeVisible (outputStrip.get());
+
     transportStrip = std::make_unique<TransportStrip> (*this);
     transportStrip->playButton.isPlaying = [this] { return graph.getTransport().isPlaying(); };
     transportStrip->tempoLabel.panelIsLearning = [this] { return midiEngine != nullptr && midiEngine->isLearning(); };
@@ -1792,6 +1936,7 @@ GraphEditorPanel::~GraphEditorPanel()
     graph.removeChangeListener (this);
     burgerButton = nullptr;
     windowTools = nullptr;
+    outputStrip = nullptr;
     transportStrip = nullptr;
     draggingConnector = nullptr;
     nodes.clear();
@@ -1959,6 +2104,14 @@ void GraphEditorPanel::resized()
     if (transportStrip != nullptr)
         transportStrip->setBounds (getWidth() - 10 - 170, 8, 170, 24);
 
+    // Left of the transport, in whatever room there is beside the menu and lock
+    if (outputStrip != nullptr)
+    {
+        const auto right = getWidth() - 10 - 170 - 16;
+        const auto width = jmin (3 * OutputStrip::switchWidth + 8 + OutputStrip::volumeWidth, right - 80);
+        outputStrip->setBounds (right - width, 8, jmax (0, width), 24);
+    }
+
     updateComponents();
 }
 
@@ -2013,7 +2166,7 @@ void GraphEditorPanel::updateComponents()
     }
 
     // Above the nodes, which are added after them
-    for (Component* c : { (Component*) burgerButton.get(), (Component*) windowTools.get(), (Component*) transportStrip.get() })
+    for (Component* c : { (Component*) burgerButton.get(), (Component*) windowTools.get(), (Component*) outputStrip.get(), (Component*) transportStrip.get() })
         if (c != nullptr)
             c->toFront (false);
 

@@ -47,6 +47,7 @@ public:
     static constexpr const char* showVolumeSetting  = "menuBarPanelShowsVolume";
     static constexpr const char* showMeterSetting   = "menuBarPanelShowsMeter";
     static constexpr const char* showOutputSetting  = "menuBarPanelShowsOutputSwitches";
+    static constexpr const char* solidBackgroundSetting = "menuBarPanelSolidBackground"; // rather than macOS's glass
     static constexpr const char* useMenuSetting     = "menuBarIconOpensMenu"; // the menu instead of the panel
 
     static bool getSetting (const char* key, bool defaultValue);
