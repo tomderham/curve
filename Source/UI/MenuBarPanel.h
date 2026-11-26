@@ -54,6 +54,18 @@ public:
     static bool getSetting (const char* key, bool defaultValue);
     static void setSetting (const char* key, bool value);
 
+    /** The panel's background: frosted, as macOS's menus and the menu bar's own panels (e.g.
+        Wi-Fi) are, which stays light over a dark window; the popover's clearer glass, which takes
+        on what's behind it; or solid. Before there was a choice, it was clear glass or solid. */
+    enum class Background { frosted = 0, clearGlass, solid };
+    static Background getBackground();
+    static void setBackground (Background);
+
+    /** Light or dark, or as macOS is set. Curve's own windows are always dark. */
+    enum class Appearance { system = 0, light, dark };
+    static Appearance getAppearance();
+    static void setAppearance (Appearance);
+
     struct Impl;
 
 private:

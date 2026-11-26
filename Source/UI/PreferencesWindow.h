@@ -382,8 +382,20 @@ private:
             showOutput.setButtonText ("Output switches: Mono, Dim and Mute");
             showOutput.onClick = [this] { MenuBarPanel::setSetting (MenuBarPanel::showOutputSetting, showOutput.getToggleState()); };
 
-            solidBackground.setButtonText ("Solid background, rather than macOS's glass");
-            solidBackground.onClick = [this] { MenuBarPanel::setSetting (MenuBarPanel::solidBackgroundSetting, solidBackground.getToggleState()); };
+            backgroundLabel.setText ("Background:", juce::dontSendNotification);
+            background.addItem ("Frosted, as macOS's menus", 1);
+            background.addItem ("Clear glass", 2);
+            background.addItem ("Solid", 3);
+            background.setTooltip ("Frosted stays light over dark windows, as the Wi-Fi and other menu bar panels do. "
+                                   "Clear glass takes on more of what's behind it");
+            background.onChange = [this] { MenuBarPanel::setBackground ((MenuBarPanel::Background) (background.getSelectedId() - 1)); };
+
+            appearanceLabel.setText ("Appearance:", juce::dontSendNotification);
+            appearance.addItem ("Follow System", 1);
+            appearance.addItem ("Light", 2);
+            appearance.addItem ("Dark", 3);
+            appearance.setTooltip ("The panel's, light or dark, or as macOS is set. Curve's own windows are always dark");
+            appearance.onChange = [this] { MenuBarPanel::setAppearance ((MenuBarPanel::Appearance) (appearance.getSelectedId() - 1)); };
 
             showMeter.setButtonText ("Output level meter");
             showMeter.onClick = [this] { MenuBarPanel::setSetting (MenuBarPanel::showMeterSetting, showMeter.getToggleState()); };
@@ -395,7 +407,7 @@ private:
             note.setText ("The panel always shows the presets. Right-click or Control-click the icon for the menu.",
                           juce::dontSendNotification);
 
-            for (auto* c : std::initializer_list<juce::Component*> { &opensLabel, &opens, &showsLabel, &showPlugins, &showOutput, &showVolume, &showMeter, &showTempo, &solidBackground, &note })
+            for (auto* c : std::initializer_list<juce::Component*> { &opensLabel, &opens, &showsLabel, &showPlugins, &showOutput, &showVolume, &showMeter, &showTempo, &backgroundLabel, &background, &appearanceLabel, &appearance, &note })
                 addAndMakeVisible (c);
         }
 
@@ -410,8 +422,10 @@ private:
             showTempo.setEnabled (! usesMenu);
             showOutput.setToggleState (MenuBarPanel::getSetting (MenuBarPanel::showOutputSetting, true), juce::dontSendNotification);
             showOutput.setEnabled (! usesMenu);
-            solidBackground.setToggleState (MenuBarPanel::getSetting (MenuBarPanel::solidBackgroundSetting, false), juce::dontSendNotification);
-            solidBackground.setEnabled (! usesMenu);
+            background.setSelectedId ((int) MenuBarPanel::getBackground() + 1, juce::dontSendNotification);
+            background.setEnabled (! usesMenu);
+            appearance.setSelectedId ((int) MenuBarPanel::getAppearance() + 1, juce::dontSendNotification);
+            appearance.setEnabled (! usesMenu);
             showPlugins.setEnabled (! usesMenu);
             showVolume.setEnabled (! usesMenu);
             showMeter.setEnabled (! usesMenu);
@@ -448,8 +462,12 @@ private:
 
             r.removeFromTop (8);
             row = r.removeFromTop (rowHeight);
-            row.removeFromLeft (labelWidth);
-            solidBackground.setBounds (row);
+            backgroundLabel.setBounds (row.removeFromLeft (labelWidth));
+            background.setBounds (row.removeFromLeft (230).reduced (0, 3));
+
+            row = r.removeFromTop (rowHeight);
+            appearanceLabel.setBounds (row.removeFromLeft (labelWidth));
+            appearance.setBounds (row.removeFromLeft (230).reduced (0, 3));
 
             r.removeFromTop (12);
             note.setBounds (r.removeFromTop (40));
@@ -457,7 +475,9 @@ private:
 
         juce::Label opensLabel, showsLabel, note;
         juce::ComboBox opens;
-        juce::ToggleButton showPlugins, showOutput, showVolume, showMeter, showTempo, solidBackground;
+        juce::ToggleButton showPlugins, showOutput, showVolume, showMeter, showTempo;
+        juce::Label backgroundLabel, appearanceLabel;
+        juce::ComboBox background, appearance;
     };
 
     //==============================================================================

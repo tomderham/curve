@@ -83,6 +83,15 @@ static NSColor* toNS (juce::Colour c)
 //==============================================================================
 // The panel's controls act on the first click, as the preset rows do, even when the panel isn't the
 // key window yet, e.g. while Curve is still becoming active: otherwise that click only focuses it
+// A light wash for what sits on the panel, e.g. its cards: white, so it lightens the panel in light
+// mode too, where a wash of the text colour, black, would darken it under black text
+static NSColor* panelWash (NSView* view, CGFloat lightAlpha, CGFloat darkAlpha)
+{
+    const bool dark = [[view effectiveAppearance] bestMatchFromAppearancesWithNames: @[ NSAppearanceNameAqua, NSAppearanceNameDarkAqua ]]
+                        == NSAppearanceNameDarkAqua;
+    return [[NSColor whiteColor] colorWithAlphaComponent: dark ? darkAlpha : lightAlpha];
+}
+
 @interface CurvePanelButton : NSButton
 @end
 @implementation CurvePanelButton
@@ -209,22 +218,22 @@ static NSColor* toNS (juce::Colour c)
 {
     const NSRect bounds = [self bounds];
 
-    // The current one tinted with the accent and edged in it, so it stands out without a solid
-    // block of colour; the one under the pointer a quieter grey
+    // The current one tinted with the accent, with its checkmark, so it stands out without a solid
+    // block of colour or a second edge inside its card's; the one under the pointer a quieter grey
     NSColor* accent = [NSColor controlAccentColor];
     NSBezierPath* shape = [NSBezierPath bezierPathWithRoundedRect: NSInsetRect (bounds, 4.5, 2) xRadius: 6 yRadius: 6];
 
     if (isCurrent)
     {
-        [[accent colorWithAlphaComponent: isPressed ? 0.42 : isHovered ? 0.36 : 0.3] setFill];
-        [shape fill];
-        [[accent colorWithAlphaComponent: 0.75] setStroke];
-        [shape setLineWidth: 1];
-        [shape stroke];
+        // Across the whole row, to its card's edges, which round its corners, with a gentle gradient
+        const CGFloat strength = isPressed ? 1.3 : isHovered ? 1.15 : 1.0;
+        NSGradient* tint = [[[NSGradient alloc] initWithStartingColor: [accent colorWithAlphaComponent: 0.36 * strength]
+                                                          endingColor: [accent colorWithAlphaComponent: 0.26 * strength]] autorelease];
+        [tint drawInRect: bounds angle: 90];
     }
     else if (isPressed || isHovered)
     {
-        [[[NSColor labelColor] colorWithAlphaComponent: isPressed ? 0.12 : 0.07] setFill];
+        [[[NSColor labelColor] colorWithAlphaComponent: isPressed ? 0.14 : 0.09] setFill];
         [shape fill];
     }
 
@@ -259,7 +268,7 @@ static NSColor* toNS (juce::Colour c)
 
     if (shortcut != nil)
     {
-        [(isCurrent ? [accent colorWithAlphaComponent: 0.35] : [[NSColor labelColor] colorWithAlphaComponent: 0.09]) setFill];
+        [(isCurrent ? [accent colorWithAlphaComponent: 0.35] : panelWash (self, 0.75, 0.12)) setFill];
         [[NSBezierPath bezierPathWithRoundedRect: keycap xRadius: 4 yRadius: 4] fill];
         [shortcut drawAtPoint: NSMakePoint (NSMidX (keycap) - keySize.width / 2, NSMidY (keycap) - keySize.height / 2)
                withAttributes: keyAttributes];
@@ -290,7 +299,7 @@ static NSColor* toNS (juce::Colour c)
 - (void) drawRect: (NSRect) dirty
 {
     NSBezierPath* shape = [NSBezierPath bezierPathWithRoundedRect: [self bounds] xRadius: 9 yRadius: 9];
-    [[[NSColor labelColor] colorWithAlphaComponent: 0.05] setFill];
+    [panelWash (self, 0.36, 0.07) setFill];
     [shape fill];
 
     if (edgeColour != nil)
@@ -707,7 +716,8 @@ static NSColor* levelColour (float db)
     NSBezierPath* shape = [NSBezierPath bezierPathWithRoundedRect: NSInsetRect (bounds, 0.5, 0.5) xRadius: radius yRadius: radius];
 
     NSColor* fill = isOn ? [onColour colorWithAlphaComponent: isPressed ? 0.7 : isHovered ? 0.95 : 0.85]
-                         : [[NSColor labelColor] colorWithAlphaComponent: isPressed ? 0.16 : isHovered ? 0.11 : 0.06];
+                         : isPressed || isHovered ? [[NSColor labelColor] colorWithAlphaComponent: isPressed ? 0.16 : 0.11]
+                                                  : panelWash (self, 0.45, 0.08);
     [fill setFill];
     [shape fill];
 
@@ -848,6 +858,14 @@ struct MenuBarPanel::Impl : private juce::Timer
         if (NSScreen* screen = [[button window] screen] != nil ? [[button window] screen] : [NSScreen mainScreen])
             availableHeight = NSHeight ([screen visibleFrame]) - 24;
 
+        // Light or dark, or as macOS is, as set in Preferences
+        switch (MenuBarPanel::getAppearance())
+        {
+            case MenuBarPanel::Appearance::light:  [popover setAppearance: [NSAppearance appearanceNamed: NSAppearanceNameAqua]]; break;
+            case MenuBarPanel::Appearance::dark:   [popover setAppearance: [NSAppearance appearanceNamed: NSAppearanceNameDarkAqua]]; break;
+            case MenuBarPanel::Appearance::system: [popover setAppearance: nil]; break;
+        }
+
         source.setListening (true);
         source.setMetering (getSetting (showMeterSetting, true));
         rebuild();
@@ -869,7 +887,7 @@ struct MenuBarPanel::Impl : private juce::Timer
 
 private:
     static constexpr CGFloat panelWidth = 320, margin = 12;
-    static constexpr CGFloat tileHeight = 27, tileGap = 1, pluginRowHeight = 30, pluginRowGap = 1, cardPadding = 3;
+    static constexpr CGFloat tileHeight = 30, tileGap = 1, pluginRowHeight = 30, pluginRowGap = 1, cardPadding = 3;
 
     // How tall the panel can be on the screen it opens on: below the menu bar, with room for its arrow
     CGFloat availableHeight = 800;
@@ -918,9 +936,14 @@ private:
     }
 
     // Rows on a rounded card, with hairlines between them from where their text starts
-    static NSView* makeCard (NSArray<NSView*>* rows, CGFloat dividerInset, NSColor* edgeColour = nil)
+    static NSView* makeCard (NSArray<NSView*>* rows, CGFloat dividerInset, NSColor* edgeColour = nil, CGFloat padding = cardPadding)
     {
         CurvePanelCard* card = [[[CurvePanelCard alloc] init] autorelease];
+
+        // Its rows' highlights, e.g. the current preset's, go to its edges, rounded by its corners
+        [card setWantsLayer: YES];
+        [[card layer] setCornerRadius: 9];
+        [[card layer] setMasksToBounds: YES];
         card->edgeColour = [edgeColour retain];
         [card setTranslatesAutoresizingMaskIntoConstraints: NO];
 
@@ -928,7 +951,7 @@ private:
         [stack setOrientation: NSUserInterfaceLayoutOrientationVertical];
         [stack setAlignment: NSLayoutAttributeLeading];
         [stack setSpacing: 0];
-        [stack setEdgeInsets: NSEdgeInsetsMake (cardPadding, 0, cardPadding, 0)];
+        [stack setEdgeInsets: NSEdgeInsetsMake (padding, 0, padding, 0)];
         [stack setTranslatesAutoresizingMaskIntoConstraints: NO];
         [card addSubview: stack];
 
@@ -1211,9 +1234,21 @@ private:
         addFullWidth (makeSeparator());
         addFullWidth (makeFooter (state));
 
-        // macOS's glass, or a solid background, as set in Preferences
+        // Frosted, as macOS's menus and the menu bar's own panels are; the popover's own clearer glass;
+        // or solid, as set in Preferences
+        const auto background = MenuBarPanel::getBackground();
         [root setWantsLayer: YES];
-        [[root layer] setBackgroundColor: getSetting (solidBackgroundSetting, false) ? [[NSColor windowBackgroundColor] CGColor] : nil];
+        [[root layer] setBackgroundColor: background == MenuBarPanel::Background::solid ? [[NSColor windowBackgroundColor] CGColor] : nil];
+
+        if (background == MenuBarPanel::Background::frosted)
+        {
+            NSVisualEffectView* frost = [[[NSVisualEffectView alloc] initWithFrame: [root bounds]] autorelease];
+            [frost setMaterial: NSVisualEffectMaterialMenu];
+            [frost setBlendingMode: NSVisualEffectBlendingModeBehindWindow];
+            [frost setState: NSVisualEffectStateActive];
+            [frost setAutoresizingMask: NSViewWidthSizable | NSViewHeightSizable];
+            [root addSubview: frost positioned: NSWindowBelow relativeTo: nil];
+        }
 
         // Meter plug-ins measure for the panel only while metering's on
         if (! pluginMeters.empty())
@@ -1378,23 +1413,36 @@ private:
 
         NSStackView* list = [[[NSStackView alloc] init] autorelease];
         [list setOrientation: NSUserInterfaceLayoutOrientationVertical];
-        [list setSpacing: 10];
+        [list setSpacing: 5];
         [list setAlignment: NSLayoutAttributeLeading];
 
         CurvePresetTile* currentTile = nil;
         NSMutableArray<NSView*>* rows = [NSMutableArray array];
 
-        // A scene group, which has no name of its own, is shown by its colour down its card's edge
+        // A scene group's scenes share a card, shown by its colour down the card's edge, as a group has
+        // no name of its own, with a little more room around it. A preset on its own has a card of its own
         const auto addCard = [&] (const MenuBarPanelState::Preset& last)
         {
             if ([rows count] == 0)
                 return;
 
+            const bool isGroup = last.group.isNotEmpty();
+            NSView* previous = [[list arrangedSubviews] lastObject];
+
+            // No padding, so the current preset's highlight reaches the card's edges
             NSView* card = makeCard ([[rows copy] autorelease], 30,
-                                     last.group.isNotEmpty() && last.groupColour.has_value() ? toNS (*last.groupColour) : nil);
+                                     isGroup && last.groupColour.has_value() ? toNS (*last.groupColour) : nil, 0);
             [list addArrangedSubview: card];
             [[[card widthAnchor] constraintEqualToAnchor: [list widthAnchor]] setActive: YES];
             [rows removeAllObjects];
+
+            if (isGroup)
+            {
+                if (previous != nil)
+                    [list setCustomSpacing: 10 afterView: previous];
+
+                [list setCustomSpacing: 10 afterView: card];
+            }
         };
 
         for (size_t k = 0; k < order.size(); ++k)
@@ -1416,6 +1464,9 @@ private:
 
             if (preset.isCurrent)
                 currentTile = tile;
+
+            if (preset.group.isEmpty())
+                addCard (preset);
         }
 
         addCard (state.presets.getReference ((int) order.back()));
@@ -2029,6 +2080,46 @@ bool MenuBarPanel::getSetting (const char* key, bool defaultValue)
         return settings->getBoolValue (key, defaultValue);
 
     return defaultValue;
+}
+
+MenuBarPanel::Background MenuBarPanel::getBackground()
+{
+    if (auto* settings = getUserSettings())
+    {
+        if (settings->containsKey ("menuBarPanelBackground"))
+            return (Background) juce::jlimit (0, 2, settings->getIntValue ("menuBarPanelBackground"));
+
+        if (settings->getBoolValue (solidBackgroundSetting, false))
+            return Background::solid;
+    }
+
+    return Background::frosted;
+}
+
+MenuBarPanel::Appearance MenuBarPanel::getAppearance()
+{
+    if (auto* settings = getUserSettings())
+        return (Appearance) juce::jlimit (0, 2, settings->getIntValue ("menuBarPanelAppearance", 0));
+
+    return Appearance::system;
+}
+
+void MenuBarPanel::setAppearance (Appearance appearance)
+{
+    if (auto* settings = getUserSettings())
+    {
+        settings->setValue ("menuBarPanelAppearance", (int) appearance);
+        settings->saveIfNeeded();
+    }
+}
+
+void MenuBarPanel::setBackground (Background background)
+{
+    if (auto* settings = getUserSettings())
+    {
+        settings->setValue ("menuBarPanelBackground", (int) background);
+        settings->saveIfNeeded();
+    }
 }
 
 void MenuBarPanel::setSetting (const char* key, bool value)
