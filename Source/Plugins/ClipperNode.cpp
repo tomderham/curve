@@ -13,6 +13,7 @@
 */
 
 #include "ClipperNode.h"
+#include "../UI/CurveColours.h"
 
 //==============================================================================
 class ClipperEditor final : public juce::AudioProcessorEditor,
@@ -39,7 +40,7 @@ public:
                            juce::dontSendNotification);
         infoLabel.setFont (juce::FontOptions (11.0f));
         infoLabel.setJustificationType (juce::Justification::centred);
-        infoLabel.setColour (juce::Label::textColourId, juce::Colours::lightgrey);
+        infoLabel.setColour (juce::Label::textColourId, Curve::Colours::dimText);
         addAndMakeVisible (infoLabel);
 
         startTimerHz (30);
@@ -53,16 +54,16 @@ public:
 
     void paint (juce::Graphics& g) override
     {
-        g.fillAll (juce::Colour (0xff18181c));
+        g.fillAll (Curve::Colours::canvas);
 
-        g.setColour (juce::Colour (0xff2a2a32));
+        g.setColour (Curve::Colours::edge);
         g.drawRect (getLocalBounds().toFloat(), 1.0f);
 
         // Clip indicator
         const auto led = getClipIndicatorBounds();
-        g.setColour (clipHoldTicks > 0 ? juce::Colours::red : juce::Colour (0xff3a1a1a));
+        g.setColour (clipHoldTicks > 0 ? Curve::Colours::danger : Curve::Colours::danger.withAlpha (0.18f));
         g.fillEllipse (led);
-        g.setColour (juce::Colours::lightgrey);
+        g.setColour (Curve::Colours::dimText);
         g.setFont (juce::FontOptions (11.0f));
         g.drawText ("CLIP", led.translated (16.0f, 0.0f).withWidth (40.0f), juce::Justification::centredLeft);
     }

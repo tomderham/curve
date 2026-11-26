@@ -13,6 +13,7 @@
 */
 
 #include "StereoUtilityNode.h"
+#include "../UI/CurveColours.h"
 
 //==============================================================================
 class StereoUtilityEditor final : public juce::AudioProcessorEditor
@@ -51,9 +52,9 @@ public:
 
     void paint (juce::Graphics& g) override
     {
-        g.fillAll (juce::Colour (0xff18181c));
+        g.fillAll (Curve::Colours::canvas);
 
-        g.setColour (juce::Colour (0xff2a2a32));
+        g.setColour (Curve::Colours::edge);
         g.drawRect (getLocalBounds().toFloat(), 1.0f);
     }
 

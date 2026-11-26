@@ -246,11 +246,31 @@ class CurveLookAndFeel : public juce::LookAndFeel_V4
 public:
     CurveLookAndFeel()
     {
-        setColour (juce::PopupMenu::backgroundColourId, juce::Colour (0xff222222));
-        setColour (juce::PopupMenu::textColourId, juce::Colours::white);
-        setColour (juce::PopupMenu::highlightedBackgroundColourId, juce::Colour (0xff0066cc));
-        setColour (juce::PopupMenu::highlightedTextColourId, juce::Colours::white);
-        setColour (juce::PopupMenu::headerTextColourId, juce::Colour (0xff999999));
+        namespace C = Curve::Colours;
+
+        setColourScheme ({ C::canvas,   // window background
+                           C::control,  // widget background
+                           C::menu,     // menu background
+                           C::edge,     // outline
+                           C::text,     // default text
+                           C::accent,   // default fill
+                           juce::Colours::white, // highlighted text
+                           C::accent,   // highlighted fill
+                           C::text });  // menu text
+
+        // Where the scheme's colours don't suit: lists are panels rather than controls, scrollbars
+        // and tooltips are quiet rather than in the accent, and a focused field shows the accent
+        setColour (juce::ListBox::backgroundColourId, C::surface);
+        setColour (juce::ScrollBar::thumbColourId, juce::Colours::white.withAlpha (0.25f));
+        setColour (juce::TooltipWindow::backgroundColourId, C::menu);
+        setColour (juce::TooltipWindow::textColourId, C::text);
+        setColour (juce::TooltipWindow::outlineColourId, C::edge);
+        setColour (juce::TextEditor::focusedOutlineColourId, C::accent);
+        setColour (juce::ComboBox::focusedOutlineColourId, C::accent);
+        setColour (juce::ComboBox::buttonColourId, C::control);
+        setColour (juce::HyperlinkButton::textColourId, C::link);
+        setColour (juce::AlertWindow::backgroundColourId, C::surface);
+        setColour (juce::PopupMenu::headerTextColourId, C::dimText);
     }
 
     void drawPopupMenuItem (juce::Graphics& g, const juce::Rectangle<int>& area,
@@ -263,7 +283,7 @@ public:
         if (isSeparator)
         {
             auto r = area.reduced (8, 0);
-            g.setColour (juce::Colour (0xff484848)); // Solid, crisp, visible separator line
+            g.setColour (Curve::Colours::edge); // Solid, crisp, visible separator line
             g.fillRect (r.getX(), area.getCentreY(), r.getWidth(), 1);
             return;
         }

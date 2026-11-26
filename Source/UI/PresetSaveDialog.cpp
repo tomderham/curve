@@ -1,4 +1,5 @@
 #include "PresetSaveDialog.h"
+#include "CurveColours.h"
 #include "DefaultPresets.h"
 
 // Appends the preset suffix rather than using File::withFileExtension, which
@@ -39,7 +40,7 @@ void RadioToggle::paintButton (juce::Graphics& g, bool shouldDrawButtonAsHighlig
 
     if (getToggleState())
     {
-        g.setColour (juce::Colour (0xff0078d4));
+        g.setColour (Curve::Colours::accent);
         g.fillEllipse (circle.reduced (size * 0.27f));
     }
 
@@ -95,8 +96,8 @@ PresetSaveDialog::PresetSaveDialog (PluginGraph& g)
     // List Box
     presetListBox.setModel (this);
     presetListBox.setRowHeight (28);
-    presetListBox.setColour (juce::ListBox::backgroundColourId, juce::Colour (0xff1e1e1e));
-    presetListBox.setColour (juce::ListBox::outlineColourId, juce::Colour (0xff383838));
+    presetListBox.setColour (juce::ListBox::backgroundColourId, Curve::Colours::surface);
+    presetListBox.setColour (juce::ListBox::outlineColourId, Curve::Colours::edge);
     addAndMakeVisible (presetListBox);
 
     // Name Prompt & Editor
@@ -108,10 +109,10 @@ PresetSaveDialog::PresetSaveDialog (PluginGraph& g)
     auto currentTitle = graph.getDocumentTitle();
     nameEditor.setText (currentTitle.isEmpty() || currentTitle == "Unnamed" ? "" : currentTitle);
     nameEditor.setFont (juce::FontOptions (13.0f));
-    nameEditor.setColour (juce::TextEditor::backgroundColourId, juce::Colour (0xff282828));
+    nameEditor.setColour (juce::TextEditor::backgroundColourId, Curve::Colours::control);
     nameEditor.setColour (juce::TextEditor::textColourId, juce::Colours::white);
-    nameEditor.setColour (juce::TextEditor::outlineColourId, juce::Colour (0xff484848));
-    nameEditor.setColour (juce::TextEditor::focusedOutlineColourId, juce::Colour (0xff0078d4));
+    nameEditor.setColour (juce::TextEditor::outlineColourId, Curve::Colours::edge);
+    nameEditor.setColour (juce::TextEditor::focusedOutlineColourId, Curve::Colours::accent);
     nameEditor.addListener (this);
     addAndMakeVisible (nameEditor);
 
@@ -137,8 +138,8 @@ PresetSaveDialog::PresetSaveDialog (PluginGraph& g)
         addChildComponent (label);
     }
 
-    sharesLabel.setColour (juce::Label::textColourId, juce::Colour (0xffffc04d));
-    changesLabel.setColour (juce::Label::textColourId, juce::Colour (0xffffc04d));
+    sharesLabel.setColour (juce::Label::textColourId, Curve::Colours::warning);
+    changesLabel.setColour (juce::Label::textColourId, Curve::Colours::warning);
     sceneHintLabel.setColour (juce::Label::textColourId, juce::Colours::white.withAlpha (0.6f));
 
     // A scene only when chosen, as saving one can change other presets
@@ -155,7 +156,7 @@ PresetSaveDialog::PresetSaveDialog (PluginGraph& g)
 
     saveButton.setButtonText ("Save");
     saveButton.onClick = [this] { attemptSave(); };
-    saveButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff0066cc));
+    saveButton.setColour (juce::TextButton::buttonColourId, Curve::Colours::accent);
     saveButton.setColour (juce::TextButton::textColourOffId, juce::Colours::white);
     addAndMakeVisible (saveButton);
 
@@ -403,9 +404,9 @@ void PresetSaveDialog::paintListBoxItem (int rowNumber, juce::Graphics& g, int w
 
     if (rowIsSelected)
     {
-        g.setColour (juce::Colour (0xff005fb8).withAlpha (0.45f));
+        g.setColour (Curve::Colours::accent.withAlpha (0.3f));
         g.fillRoundedRectangle (2.0f, 2.0f, (float) width - 4.0f, (float) height - 4.0f, 4.0f);
-        g.setColour (juce::Colour (0xff0078d4));
+        g.setColour (Curve::Colours::accent);
         g.drawRoundedRectangle (2.0f, 2.0f, (float) width - 4.0f, (float) height - 4.0f, 4.0f, 1.0f);
     }
     else if (inSelectedGroup)
@@ -451,9 +452,9 @@ void PresetSaveDialog::paintListBoxItem (int rowNumber, juce::Graphics& g, int w
     if (isActive)
     {
         auto badgeBounds = juce::Rectangle<float> ((float) width - 72.0f, ((float) height - 18.0f) * 0.5f, 60.0f, 18.0f);
-        g.setColour (juce::Colour (0xff28a745).withAlpha (0.25f));
+        g.setColour (Curve::Colours::success.withAlpha (0.18f));
         g.fillRoundedRectangle (badgeBounds, 4.0f);
-        g.setColour (juce::Colour (0xff4cd964));
+        g.setColour (Curve::Colours::success);
         g.drawRoundedRectangle (badgeBounds, 4.0f, 1.0f);
 
         g.setFont (juce::FontOptions (10.0f, juce::Font::bold));
@@ -837,7 +838,7 @@ void PresetSaveDialog::updateSceneChoice()
 
     // Only amber when it changes how they sound
     changesLabel.setColour (juce::Label::textColourId, plan != nullptr && plan->changes.changesSound()
-                                                         ? juce::Colour (0xffffc04d) : juce::Colours::white.withAlpha (0.6f));
+                                                         ? Curve::Colours::warning : juce::Colours::white.withAlpha (0.6f));
 
     if (saveButton.getButtonText() != saveText)
         saveButton.setButtonText (saveText);

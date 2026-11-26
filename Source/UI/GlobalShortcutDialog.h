@@ -15,6 +15,7 @@
 
 #include <JuceHeader.h>
 #include "GlobalShortcutManager.h"
+#include "CurveColours.h"
 
 class GlobalShortcutDialog : public juce::Component {
 public:
@@ -42,22 +43,22 @@ public:
         descLabel.setText("Open Curve's menu bar popup from anywhere on macOS, even when running in the background.",
                           juce::dontSendNotification);
         descLabel.setFont(juce::FontOptions(12.0f));
-        descLabel.setColour(juce::Label::textColourId, juce::Colour(0xffcccccc));
+        descLabel.setColour(juce::Label::textColourId, Curve::Colours::text);
         descLabel.setJustificationType(juce::Justification::centred);
         addAndMakeVisible(descLabel);
 
         updateShortcutDisplay();
         shortcutBox.setFont(juce::FontOptions(22.0f, juce::Font::bold));
         shortcutBox.setColour(juce::Label::textColourId, juce::Colours::white);
-        shortcutBox.setColour(juce::Label::backgroundColourId, juce::Colour(0xff222222));
-        shortcutBox.setColour(juce::Label::outlineColourId, juce::Colour(0xff444444));
+        shortcutBox.setColour(juce::Label::backgroundColourId, Curve::Colours::control);
+        shortcutBox.setColour(juce::Label::outlineColourId, Curve::Colours::edge);
         shortcutBox.setJustificationType(juce::Justification::centred);
         addAndMakeVisible(shortcutBox);
 
         hintLabel.setText("Click 'Record Shortcut' below, then press your desired key combination.",
                           juce::dontSendNotification);
         hintLabel.setFont(juce::FontOptions(11.0f));
-        hintLabel.setColour(juce::Label::textColourId, juce::Colour(0xff999999));
+        hintLabel.setColour(juce::Label::textColourId, Curve::Colours::dimText);
         hintLabel.setJustificationType(juce::Justification::centred);
         addAndMakeVisible(hintLabel);
 
@@ -104,7 +105,7 @@ public:
     void startRecording() {
         isRecording = true;
         shortcutBox.setText("Press key combination...", juce::dontSendNotification);
-        shortcutBox.setColour(juce::Label::outlineColourId, juce::Colour(0xff007acc));
+        shortcutBox.setColour(juce::Label::outlineColourId, Curve::Colours::accent);
         hintLabel.setText("Press keys now (e.g. ⌥⇧C). Press Esc to cancel.", juce::dontSendNotification);
         grabKeyboardFocus();
     }
@@ -177,7 +178,7 @@ public:
         juce::DialogWindow::LaunchOptions options;
         options.dialogTitle = "Global Menu Shortcut";
         options.content.setOwned(dialogComp);
-        options.dialogBackgroundColour = juce::Colour(0xff2d2d2d);
+        options.dialogBackgroundColour = Curve::Colours::surface;
         options.escapeKeyTriggersCloseButton = true;
         options.useNativeTitleBar = true;
         options.resizable = false;
@@ -189,11 +190,11 @@ private:
     void updateShortcutDisplay() {
         if (!isEnabled) {
             shortcutBox.setText("(Disabled)", juce::dontSendNotification);
-            shortcutBox.setColour(juce::Label::outlineColourId, juce::Colour(0xff555555));
+            shortcutBox.setColour(juce::Label::outlineColourId, Curve::Colours::dimText);
         } else {
             shortcutBox.setText(currentText.isNotEmpty() ? currentText : GlobalShortcutManager::defaultShortcutText(),
                                 juce::dontSendNotification);
-            shortcutBox.setColour(juce::Label::outlineColourId, juce::Colour(0xff444444));
+            shortcutBox.setColour(juce::Label::outlineColourId, Curve::Colours::edge);
         }
     }
 

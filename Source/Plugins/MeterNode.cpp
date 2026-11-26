@@ -19,17 +19,17 @@ namespace
 {
 namespace Palette
 {
-    const juce::Colour background { 0xff141418 };
-    const juce::Colour panel      { 0xff1d1d23 };
+    const juce::Colour background = Curve::Colours::canvas;
+    const juce::Colour panel      = Curve::Colours::surface;
     const juce::Colour panelEdge  { 0xff2c2c35 };
-    const juce::Colour text       { 0xffe8e8ec };
-    const juce::Colour dimText    { 0xff8c8c98 };
+    const juce::Colour text       = Curve::Colours::text;
+    const juce::Colour dimText    = Curve::Colours::dimText;
     const juce::Colour grid       { 0xff2e2e38 };
     const juce::Colour blue       { Curve::Colours::accent };
     const juce::Colour teal       { 0xff2dd4bf };
-    const juce::Colour green      { 0xff4ade80 };
-    const juce::Colour amber      { 0xfffbbf24 };
-    const juce::Colour red        { 0xffef4444 };
+    const juce::Colour green      = Curve::Colours::success;
+    const juce::Colour amber      = Curve::Colours::warning;
+    const juce::Colour red        = Curve::Colours::danger;
 }
 
 constexpr int timerHz = 30;

@@ -7,6 +7,7 @@
 */
 
 #include "OnlineCalibrationDialog.h"
+#include "CurveColours.h"
 #include <cmath>
 #include <complex>
 
@@ -204,8 +205,8 @@ void OnlineCalibrationCurveComponent::paint (juce::Graphics& g)
     auto bounds = getLocalBounds().toFloat();
 
     // Background
-    g.fillAll (juce::Colour (0xff141414));
-    g.setColour (juce::Colour (0xff303030));
+    g.fillAll (Curve::Colours::canvas);
+    g.setColour (Curve::Colours::edge);
     g.drawRect (bounds, 1.0f);
 
     auto inner = bounds.reduced (8.0f);
@@ -225,10 +226,10 @@ void OnlineCalibrationCurveComponent::paint (juce::Graphics& g)
         float logF = std::log10 (f);
         float x = inner.getX() + inner.getWidth() * ((logF - logMin) / (logMax - logMin));
 
-        g.setColour (juce::Colour (0xff252525));
+        g.setColour (Curve::Colours::surface);
         g.drawVerticalLine ((int) x, inner.getY(), inner.getBottom());
 
-        g.setColour (juce::Colour (0xff666666));
+        g.setColour (Curve::Colours::dimText);
         g.drawText (freqLabels[i], (int) x - 25, (int) inner.getBottom() - 14, 50, 12, juce::Justification::centred);
     }
 
@@ -242,10 +243,10 @@ void OnlineCalibrationCurveComponent::paint (juce::Graphics& g)
         float norm = (db - minDb) / (maxDb - minDb);
         float y = inner.getBottom() - (norm * inner.getHeight());
 
-        g.setColour (db == 0.0f ? juce::Colour (0xff404040) : juce::Colour (0xff202020));
+        g.setColour (db == 0.0f ? Curve::Colours::edge : Curve::Colours::surface);
         g.drawHorizontalLine ((int) y, inner.getX(), inner.getRight());
 
-        g.setColour (db == 0.0f ? juce::Colour (0xff999999) : juce::Colour (0xff555555));
+        g.setColour (db == 0.0f ? Curve::Colours::dimText : Curve::Colours::dimText.withAlpha (0.6f));
         juce::String label = (db > 0.0f ? "+" : "") + juce::String ((int) db) + " dB";
         g.drawText (label, (int) inner.getX() + 2, (int) y - 6, 45, 12, juce::Justification::left);
     }
@@ -268,7 +269,7 @@ void OnlineCalibrationCurveComponent::paint (juce::Graphics& g)
         g.fillPath (fillPath);
 
         // Stroke
-        g.setColour (juce::Colour (0xff4a90e2));
+        g.setColour (Curve::Colours::accent);
         g.strokePath (curvePath, juce::PathStrokeType (2.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
         if (currentProfile.has_value())
@@ -279,14 +280,14 @@ void OnlineCalibrationCurveComponent::paint (juce::Graphics& g)
             if (currentProfile->target.isNotEmpty())
                 infoText << "Target: " << currentProfile->target;
 
-            g.setColour (juce::Colour (0xff80a0c0));
+            g.setColour (Curve::Colours::link);
             g.setFont (juce::FontOptions (10.5f));
             g.drawText (infoText, (int) inner.getRight() - 280, (int) inner.getY() + 4, 276, 14, juce::Justification::topRight);
         }
     }
     else if (! currentProfile.has_value())
     {
-        g.setColour (juce::Colour (0xff888888));
+        g.setColour (Curve::Colours::dimText);
         g.setFont (juce::FontOptions (12.0f));
         g.drawText ("Select a headphone model to view response curve", bounds, juce::Justification::centred);
     }
@@ -315,7 +316,7 @@ OnlineCalibrationDialog::OnlineCalibrationDialog (Mode dialogMode)
                                 : "Select a headphone model from the AutoEQ database to configure the selected Parametric EQ node.",
                            juce::dontSendNotification);
     subtitleLabel.setFont (juce::FontOptions (12.0f));
-    subtitleLabel.setColour (juce::Label::textColourId, juce::Colour (0xffa0a0a0));
+    subtitleLabel.setColour (juce::Label::textColourId, Curve::Colours::dimText);
     addAndMakeVisible (subtitleLabel);
 
     refreshButton.setButtonText ("Sync Index");
@@ -340,14 +341,14 @@ OnlineCalibrationDialog::OnlineCalibrationDialog (Mode dialogMode)
     addAndMakeVisible (refreshButton);
 
     statusLabel.setFont (juce::FontOptions (11.0f));
-    statusLabel.setColour (juce::Label::textColourId, juce::Colour (0xff4cd964)); // Pleasant green status
+    statusLabel.setColour (juce::Label::textColourId, Curve::Colours::success); // Pleasant green status
     addAndMakeVisible (statusLabel);
 
     searchLabel.setText ("Search:", juce::dontSendNotification);
     searchLabel.setFont (juce::FontOptions (13.0f));
     addAndMakeVisible (searchLabel);
 
-    searchEditor.setTextToShowWhenEmpty ("e.g. HD 650, WH-1000XM4, AirPods...", juce::Colour (0xff777777));
+    searchEditor.setTextToShowWhenEmpty ("e.g. HD 650, WH-1000XM4, AirPods...", Curve::Colours::dimText);
     searchEditor.addListener (this);
     addAndMakeVisible (searchEditor);
 
@@ -357,8 +358,8 @@ OnlineCalibrationDialog::OnlineCalibrationDialog (Mode dialogMode)
 
     resultListBox.setModel (this);
     resultListBox.setRowHeight (28);
-    resultListBox.setColour (juce::ListBox::backgroundColourId, juce::Colour (0xff1e1e1e));
-    resultListBox.setColour (juce::ListBox::outlineColourId, juce::Colour (0xff383838));
+    resultListBox.setColour (juce::ListBox::backgroundColourId, Curve::Colours::surface);
+    resultListBox.setColour (juce::ListBox::outlineColourId, Curve::Colours::edge);
     addAndMakeVisible (resultListBox);
 
     // Right Details
@@ -372,9 +373,9 @@ OnlineCalibrationDialog::OnlineCalibrationDialog (Mode dialogMode)
     filterSummaryEditor.setMultiLine (true);
     filterSummaryEditor.setReadOnly (true);
     filterSummaryEditor.setCaretVisible (false);
-    filterSummaryEditor.setColour (juce::TextEditor::backgroundColourId, juce::Colour (0xff181818));
-    filterSummaryEditor.setColour (juce::TextEditor::outlineColourId, juce::Colour (0xff303030));
-    filterSummaryEditor.setColour (juce::TextEditor::textColourId, juce::Colour (0xffcccccc));
+    filterSummaryEditor.setColour (juce::TextEditor::backgroundColourId, Curve::Colours::surface);
+    filterSummaryEditor.setColour (juce::TextEditor::outlineColourId, Curve::Colours::edge);
+    filterSummaryEditor.setColour (juce::TextEditor::textColourId, Curve::Colours::text);
     filterSummaryEditor.setFont (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(), 11.0f, juce::Font::plain));
     addAndMakeVisible (filterSummaryEditor);
 
@@ -389,7 +390,7 @@ OnlineCalibrationDialog::OnlineCalibrationDialog (Mode dialogMode)
     // Footer informational hints (3 separate lines)
     footerCustomLabel.setText ("For further customization, visit ", juce::dontSendNotification);
     footerCustomLabel.setFont (juce::FontOptions (11.0f));
-    footerCustomLabel.setColour (juce::Label::textColourId, juce::Colour (0xff707070));
+    footerCustomLabel.setColour (juce::Label::textColourId, Curve::Colours::dimText);
     footerCustomLabel.setBorderSize (juce::BorderSize<int> (0));
     footerCustomLabel.setJustificationType (juce::Justification::centredLeft);
     addAndMakeVisible (footerCustomLabel);
@@ -398,20 +399,20 @@ OnlineCalibrationDialog::OnlineCalibrationDialog (Mode dialogMode)
     autoEqLinkButton.setURL (juce::URL ("https://autoeq.app"));
     autoEqLinkButton.setTooltip ("Open AutoEQ in browser to fine-tune target curves and sound signature, and export EQ curves");
     autoEqLinkButton.setFont (juce::FontOptions (11.0f, juce::Font::underlined), false);
-    autoEqLinkButton.setColour (juce::HyperlinkButton::textColourId, juce::Colour (0xff4da6ff));
+    autoEqLinkButton.setColour (juce::HyperlinkButton::textColourId, Curve::Colours::link);
     autoEqLinkButton.setJustificationType (juce::Justification::centredLeft);
     addAndMakeVisible (autoEqLinkButton);
 
     footerCustomDotLabel.setText (".", juce::dontSendNotification);
     footerCustomDotLabel.setFont (juce::FontOptions (11.0f));
-    footerCustomDotLabel.setColour (juce::Label::textColourId, juce::Colour (0xff707070));
+    footerCustomDotLabel.setColour (juce::Label::textColourId, Curve::Colours::dimText);
     footerCustomDotLabel.setBorderSize (juce::BorderSize<int> (0));
     footerCustomDotLabel.setJustificationType (juce::Justification::centredLeft);
     addAndMakeVisible (footerCustomDotLabel);
 
     footerMissingLabel.setText ("If your headphone is not in the list, try ", juce::dontSendNotification);
     footerMissingLabel.setFont (juce::FontOptions (11.0f));
-    footerMissingLabel.setColour (juce::Label::textColourId, juce::Colour (0xff707070));
+    footerMissingLabel.setColour (juce::Label::textColourId, Curve::Colours::dimText);
     footerMissingLabel.setBorderSize (juce::BorderSize<int> (0));
     footerMissingLabel.setJustificationType (juce::Justification::centredLeft);
     addAndMakeVisible (footerMissingLabel);
@@ -420,20 +421,20 @@ OnlineCalibrationDialog::OnlineCalibrationDialog (Mode dialogMode)
     squigLinkButton.setURL (juce::URL ("https://squig.link"));
     squigLinkButton.setTooltip ("Browse crowd-sourced headphone and IEM measurements, and export EQ curves");
     squigLinkButton.setFont (juce::FontOptions (11.0f, juce::Font::underlined), false);
-    squigLinkButton.setColour (juce::HyperlinkButton::textColourId, juce::Colour (0xff4da6ff));
+    squigLinkButton.setColour (juce::HyperlinkButton::textColourId, Curve::Colours::link);
     squigLinkButton.setJustificationType (juce::Justification::centredLeft);
     addAndMakeVisible (squigLinkButton);
 
     footerMissingDotLabel.setText (".", juce::dontSendNotification);
     footerMissingDotLabel.setFont (juce::FontOptions (11.0f));
-    footerMissingDotLabel.setColour (juce::Label::textColourId, juce::Colour (0xff707070));
+    footerMissingDotLabel.setColour (juce::Label::textColourId, Curve::Colours::dimText);
     footerMissingDotLabel.setBorderSize (juce::BorderSize<int> (0));
     footerMissingDotLabel.setJustificationType (juce::Justification::centredLeft);
     addAndMakeVisible (footerMissingDotLabel);
 
     footerImportLabel.setText ("You can import EQ curves from AutoEQ, Squig.link, or REW using 'Parametric EQ (import from file...)'", juce::dontSendNotification);
     footerImportLabel.setFont (juce::FontOptions (11.0f));
-    footerImportLabel.setColour (juce::Label::textColourId, juce::Colour (0xff707070));
+    footerImportLabel.setColour (juce::Label::textColourId, Curve::Colours::dimText);
     footerImportLabel.setBorderSize (juce::BorderSize<int> (0));
     footerImportLabel.setJustificationType (juce::Justification::centredLeft);
     addAndMakeVisible (footerImportLabel);
@@ -474,7 +475,7 @@ void OnlineCalibrationDialog::parentHierarchyChanged()
 
 void OnlineCalibrationDialog::paint (juce::Graphics& g)
 {
-    g.fillAll (juce::Colour (0xff252525));
+    g.fillAll (Curve::Colours::canvas);
 }
 
 void OnlineCalibrationDialog::resized()
@@ -602,22 +603,22 @@ void OnlineCalibrationDialog::paintListBoxItem (int rowNumber, juce::Graphics& g
 
     if (rowIsSelected)
     {
-        g.fillAll (juce::Colour (0xff005fb8));
+        g.fillAll (Curve::Colours::accent.withAlpha (0.35f));
     }
     else if (rowNumber % 2 == 1)
     {
-        g.fillAll (juce::Colour (0xff222222));
+        g.fillAll (Curve::Colours::control.withAlpha (0.5f));
     }
 
     g.setFont (juce::FontOptions (12.0f));
-    g.setColour (rowIsSelected ? juce::Colours::white : juce::Colour (0xffe0e0e0));
+    g.setColour (rowIsSelected ? juce::Colours::white : Curve::Colours::text);
 
     auto textRect = juce::Rectangle<int> (8, 0, width - 125, height);
     g.drawText (entry.name, textRect, juce::Justification::centredLeft, true);
 
     // Source / Target badge
     g.setFont (juce::FontOptions (10.0f));
-    g.setColour (rowIsSelected ? juce::Colour (0xffd0e0ff) : juce::Colour (0xff888888));
+    g.setColour (rowIsSelected ? Curve::Colours::text : Curve::Colours::dimText);
     auto sourceRect = juce::Rectangle<int> (width - 120, 0, 115, height);
 
     juce::String badgeText = entry.source;

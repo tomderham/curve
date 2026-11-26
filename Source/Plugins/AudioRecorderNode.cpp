@@ -13,6 +13,7 @@
 */
 
 #include "AudioRecorderNode.h"
+#include "../UI/CurveColours.h"
 
 //==============================================================================
 class AudioRecorderEditor final : public juce::AudioProcessorEditor,
@@ -51,7 +52,7 @@ public:
 
         fileLabel.setJustificationType (juce::Justification::centred);
         fileLabel.setFont (juce::FontOptions (11.0f));
-        fileLabel.setColour (juce::Label::textColourId, juce::Colours::grey);
+        fileLabel.setColour (juce::Label::textColourId, Curve::Colours::dimText);
         addAndMakeVisible (fileLabel);
 
         startTimerHz (20);
@@ -66,14 +67,14 @@ public:
 
     void paint (juce::Graphics& g) override
     {
-        g.fillAll (juce::Colour (0xff18181c));
+        g.fillAll (Curve::Colours::canvas);
 
-        g.setColour (juce::Colour (0xff2a2a32));
+        g.setColour (Curve::Colours::edge);
         g.drawRect (getLocalBounds().toFloat(), 1.0f);
 
         if (recorderNode.isRecording())
         {
-            g.setColour (juce::Colours::red);
+            g.setColour (Curve::Colours::danger);
 
             const auto textWidth = juce::GlyphArrangement::getStringWidth (statusLabel.getFont(), statusLabel.getText());
             const auto dotX = juce::jmax (4.0f, ((float) getWidth() - textWidth) * 0.5f - 18.0f);
@@ -117,7 +118,7 @@ private:
             int ms = (int) ((seconds - (int) seconds) * 100);
 
             statusLabel.setText (juce::String::formatted ("RECORDING [%02d:%02d.%02d]  (%s)", mins, secs, ms, chStr.toRawUTF8()), juce::dontSendNotification);
-            statusLabel.setColour (juce::Label::textColourId, juce::Colours::red);
+            statusLabel.setColour (juce::Label::textColourId, Curve::Colours::danger);
         }
         else
         {
