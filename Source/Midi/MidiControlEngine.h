@@ -143,6 +143,7 @@ private:
     bool isSkippedWhileMuted (const Table&, const MidiMapping&) const;
     void stepPreset (int delta);
     void loadPresetAt (int index);
+    void loadPresetForProgram (int program);
     void parameterTouched (AudioProcessorGraph::NodeID, int paramIndex);
     String describeTarget (const MidiMappingTarget&) const;
     void showLearnStatus (const String& detail = {});

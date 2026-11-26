@@ -924,7 +924,7 @@ public:
         addChildComponent (loudnessView);
         addChildComponent (spectrumView);
 
-        dsp.setMeasuring (true);
+        meterNode.addMeasurer();
         lastBlocksProcessed = dsp.getBlocksProcessed();
 
         // Setting the limits resizes the editor, which updates the saved size
@@ -944,7 +944,7 @@ public:
     {
         stopTimer();
         meterNode.setSpectrumWanted (false);
-        dsp.setMeasuring (false);
+        meterNode.removeMeasurer();
         meterNode.editorBeingDeleted (this);
     }
 

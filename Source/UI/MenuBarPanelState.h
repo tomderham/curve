@@ -28,6 +28,8 @@ namespace MenuBarPanelState
         std::optional<juce::Colour> groupColour; // Scenes of a group share a colour
         juce::String group;                       // The group's name, for a scene with others
         juce::String shortcut;                    // e.g. "1", "⌥3"
+        int keySlot = -1;                         // Which key selects it (see PresetSlots), -1 if none
+        bool isKeyAssigned = false;               // Its own, rather than from its place in the order
     };
 
     struct Plugin
@@ -36,6 +38,7 @@ namespace MenuBarPanelState
         juce::String label;
         bool canBypass = false, isBypassed = false, isMuted = false;
         bool hasEditor = false, isWindowOpen = false, isWindowKeptOnTop = false;
+        bool isMeter = false; // One of Curve's Meter plug-ins, whose level the panel can show
     };
 
     struct State
@@ -60,6 +63,10 @@ namespace MenuBarPanelState
 
         bool isEditorShowing = false;
 
+        // The preset's tempo and transport (see HostTransport)
+        double tempo = 120.0;
+        bool isTransportPlaying = false;
+
         int numPluginWindows = 0;          // Open, shown or hidden
         bool arePluginWindowsHidden = false;
         bool arePluginWindowPositionsLocked = false;
@@ -82,6 +89,9 @@ namespace MenuBarPanelState
         std::function<void()> onChange;
 
         virtual void loadPreset (const juce::File&) = 0;
+
+        /** Gives a preset a key (see PresetSlots), taking it from any other; -1 for automatic. */
+        virtual void assignKey (const juce::File&, int keySlot) = 0;
         virtual void saveAsPreset() = 0;
         virtual void setBypassed (juce::uint32 nodeID, bool) = 0;
         virtual void setMuted (juce::uint32 nodeID, bool) = 0;
@@ -97,6 +107,13 @@ namespace MenuBarPanelState
         /** The output's peak levels since the last read, 0 to 1, while metering is on. */
         virtual void setMetering (bool) = 0;
         virtual void readOutputPeaks (float& left, float& right) = 0;
+
+        /** A Meter plug-in's level, 0 to 1, while metering is on. */
+        virtual void readPluginLevels (juce::uint32 nodeID, float& left, float& right) = 0;
+
+        virtual void setTempo (double bpm) = 0;
+        virtual void tapTempo() = 0;
+        virtual void setTransportPlaying (bool) = 0;
         virtual void setWindowKeptOnTop (juce::uint32 nodeID, bool) = 0;
         virtual void setPluginWindowPositionsLocked (bool) = 0;
     };

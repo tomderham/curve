@@ -59,6 +59,10 @@ public:
 
     //==============================================================================
     MeterDsp& getDsp() noexcept { return dsp; }
+
+    /** It measures while anything shows it: its window, or the menu bar panel. Message thread. */
+    void addMeasurer()      { if (measurers++ == 0) dsp.setMeasuring (true); }
+    void removeMeasurer()   { if (measurers > 0 && --measurers == 0) dsp.setMeasuring (false); }
     double getCurrentSampleRate() const noexcept { return currentSampleRate.load (std::memory_order_relaxed); }
 
     Mode getMode() const noexcept { return mode; }
@@ -82,6 +86,7 @@ private:
     void pushSpectrumSamples (const float* left, const float* right, int numSamples) noexcept;
 
     MeterDsp dsp;
+    int measurers = 0;
     std::atomic<double> currentSampleRate { 0.0 };
     std::atomic<bool> spectrumWanted { false };
 

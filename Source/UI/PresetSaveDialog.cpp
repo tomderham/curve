@@ -1,6 +1,7 @@
 #include "PresetSaveDialog.h"
 #include "CurveColours.h"
 #include "DefaultPresets.h"
+#include "PresetSlots.h"
 
 // Appends the preset suffix rather than using File::withFileExtension, which
 // would treat everything after the last dot in the name ("EQ v1.2") as an extension.
@@ -331,6 +332,14 @@ void PresetSaveDialog::refreshPresetList()
             ++sceneGroupSizes[group];
     }
 
+    // As the menu bar panel shows them, with each scene group's scenes together
+    juce::StringArray shownGroups;
+
+    for (const auto& file : presetFiles)
+        shownGroups.add (getSceneGroupOf (file));
+
+    keySlots = PresetSlots::resolveKeys (presetFiles, shownGroups);
+
     updateSceneNames();
     updateSceneChoice();
 
@@ -432,8 +441,19 @@ void PresetSaveDialog::paintListBoxItem (int rowNumber, juce::Graphics& g, int w
     g.setFont (juce::FontOptions (13.0f));
     g.setColour (juce::Colours::white);
     auto name = file.getFileNameWithoutExtension();
-    auto textBounds = juce::Rectangle<int> (10, 0, width - 150, height);
+    auto textBounds = juce::Rectangle<int> (10, 0, width - 192, height);
     g.drawFittedText (name, textBounds, juce::Justification::centredLeft, 1);
+
+    // The key that selects it, on a keycap, as in the menu bar panel. Right-click to change it
+    if (const auto slot = (size_t) rowNumber < keySlots.size() ? keySlots[(size_t) rowNumber] : -1; slot >= 0)
+    {
+        const auto keycap = juce::Rectangle<float> ((float) width - 174.0f, ((float) height - 18.0f) * 0.5f, 30.0f, 18.0f);
+        g.setColour (juce::Colours::white.withAlpha (0.09f));
+        g.fillRoundedRectangle (keycap, 4.0f);
+        g.setColour (Curve::Colours::dimText);
+        g.setFont (juce::FontOptions (11.0f).withFeatureEnabled ("tnum"));
+        g.drawText (PresetSlots::describeKey (slot), keycap, juce::Justification::centred);
+    }
 
     // Scene Badge: shares its graph with other presets
     if (group.isNotEmpty())
@@ -501,6 +521,29 @@ void PresetSaveDialog::showRowContextMenu (const juce::File& file)
     menu.addItem (1, "Rename...");
     menu.addItem (2, "Move to Trash");
 
+    // Which key selects it: its own, taken from any other preset, or from its place in the list
+    juce::PopupMenu keys;
+    const auto assigned = PresetSlots::getAssignedSlot (PresetSlots::Kind::key, file);
+    keys.addItem (keyMenuAutomatic, "Automatic, from Its Place in the List", true, assigned < 0);
+
+    for (int slot = 0; slot < 30; ++slot)
+    {
+        if (slot % 10 == 0)
+            keys.addSeparator();
+
+        juce::String title = PresetSlots::describeKey (slot);
+
+        for (size_t i = 0; i < keySlots.size(); ++i)
+            if (keySlots[i] == slot && presetFiles[(int) i] != file)
+                title << "    " << presetFiles[(int) i].getFileNameWithoutExtension();
+
+        keys.addItem (keyMenuFirst + slot, title, true, assigned == slot);
+    }
+
+    const auto index = presetFiles.indexOf (file);
+    const auto current = index >= 0 && (size_t) index < keySlots.size() ? keySlots[(size_t) index] : -1;
+    menu.addSubMenu (current >= 0 ? "Key: " + PresetSlots::describeKey (current) : juce::String ("Key"), keys);
+
     if (isSceneWithOthers (file))
         menu.addItem (4, "Convert to Standalone Preset");
 
@@ -521,6 +564,11 @@ void PresetSaveDialog::showRowContextMenu (const juce::File& file)
             file.revealToUser();
         else if (result == 4)
             safeThis->promptMakeSeparate (file);
+        else if (result >= keyMenuAutomatic && result < keyMenuFirst + 30)
+        {
+            PresetSlots::assign (PresetSlots::Kind::key, file, result == keyMenuAutomatic ? -1 : result - keyMenuFirst);
+            safeThis->refreshPresetList();
+        }
     });
 }
 
@@ -882,6 +930,7 @@ void PresetSaveDialog::promptRename (const juce::File& file)
                     else if (file.moveFileTo (newFile))
                     {
                         DefaultPresets::presetRenamed (file, newFile);
+                        PresetSlots::presetRenamed (file, newFile);
 
                         if (safeThis->graph.getFile() == file)
                             safeThis->graph.setFile (newFile);
@@ -914,6 +963,8 @@ void PresetSaveDialog::promptMoveToTrash (const juce::File& file)
         {
             if (file.moveToTrash())
             {
+                PresetSlots::presetRemoved (file);
+
                 if (safeThis->graph.getFile() == file)
                     safeThis->graph.forgetFile();
 

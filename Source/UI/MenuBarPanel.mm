@@ -13,6 +13,7 @@
 
 #define DONT_SET_USING_JUCE_NAMESPACE 1
 #include "MenuBarPanel.h"
+#include "PresetSlots.h"
 
 #import <AppKit/AppKit.h>
 #import <Carbon/Carbon.h> // kVK_ key codes
@@ -88,6 +89,7 @@ static NSColor* toNS (juce::Colour c)
     NSString* shortcut;
     BOOL isCurrent, isHovered, isPressed;
     std::function<void()> onClick;
+    std::function<NSMenu*()> makeMenu; // Its right-click menu
     id scrollObserver;
 }
 - (void) refreshHover;
@@ -152,6 +154,7 @@ static NSColor* toNS (juce::Colour c)
 
 - (BOOL) isFlipped { return YES; }
 - (NSSize) intrinsicContentSize { return NSMakeSize (NSViewNoIntrinsicMetric, 30); }
+- (NSMenu*) menuForEvent: (NSEvent*) event { return makeMenu ? makeMenu() : nil; }
 - (BOOL) acceptsFirstMouse: (NSEvent*) event { return YES; }
 
 - (void) updateTrackingAreas
@@ -727,6 +730,9 @@ private:
     NSSlider* volumeSlider = nil;
     NSTextField* volumeLabel = nil;
     NSButton* muteButton = nil;
+    NSTextField* tempoField = nil;
+    NSButton* playButton = nil;
+    std::vector<std::pair<juce::uint32, CurvePanelMeter*>> pluginMeters; // Meter plug-ins' levels
 
     juce::Array<juce::File> presetFiles; // In the order of their keys
 
@@ -803,13 +809,24 @@ private:
             [meter showPeaks: left right: right];
         }
 
-        // The volume can change from the volume keys while the panel is open
-        if (volumeSlider != nil && ++ticksSinceVolume >= 8)
+        for (auto& [id, pluginMeter] : pluginMeters)
+        {
+            float left = 0.0f, right = 0.0f;
+            source.readPluginLevels (id, left, right);
+            [pluginMeter showPeaks: left right: right];
+        }
+
+        // The volume can change from the volume keys while the panel is open, and the tempo and
+        // transport from MIDI or the editor
+        if ((volumeSlider != nil || tempoField != nil) && ++ticksSinceVolume >= 8)
         {
             ticksSinceVolume = 0;
+            const auto state = source.getState();
 
-            if ([[NSApp currentEvent] type] != NSEventTypeLeftMouseDragged)
-                updateVolume (source.getState());
+            if (volumeSlider != nil && [[NSApp currentEvent] type] != NSEventTypeLeftMouseDragged)
+                updateVolume (state);
+
+            updateTempo (state);
         }
     }
 
@@ -887,6 +904,9 @@ private:
         pluginsHeight = nil;
         meter = nil;
         volumeSlider = nil;
+        tempoField = nil;
+        playButton = nil;
+        pluginMeters.clear();
         volumeLabel = nil;
         muteButton = nil;
 
@@ -921,6 +941,12 @@ private:
             addPlugins (state, addFullWidth);
         }
 
+        if (getSetting (showTempoSetting, false) && state.deviceName.isNotEmpty())
+        {
+            addFullWidth (makeSeparator());
+            addFullWidth (makeTempo (state));
+        }
+
         addOutput (state, addFullWidth);
 
         addFullWidth (makeSeparator());
@@ -929,6 +955,10 @@ private:
         // macOS's glass, or a solid background, as set in Preferences
         [root setWantsLayer: YES];
         [[root layer] setBackgroundColor: getSetting (solidBackgroundSetting, false) ? [[NSColor windowBackgroundColor] CGColor] : nil];
+
+        // Meter plug-ins measure for the panel only while metering's on
+        if (! pluginMeters.empty())
+            source.setMetering (true);
 
         [root layoutSubtreeIfNeeded];
 
@@ -1066,28 +1096,26 @@ private:
             return;
         }
 
-        // The keys follow the presets' order, alphabetical, as MIDI program changes do, whatever order
-        // they're shown in
+        // What each key selects, whatever order the presets are shown in (see PresetSlots)
+        presetFiles.insertMultiple (0, juce::File(), 30);
+        std::map<int, juce::String> keyUsers;
+
         for (const auto& preset : state.presets)
-            presetFiles.add (preset.file);
+            if (juce::isPositiveAndBelow (preset.keySlot, 30))
+            {
+                presetFiles.set (preset.keySlot, preset.file);
+                keyUsers[preset.keySlot] = preset.name;
+            }
 
         // Shown in that order, but with each scene group's scenes together, on a card of their own,
         // where its first scene would be, and the presets between on others. A name too long for its
         // row is cut short, and shown in full as its tooltip
-        std::vector<int> order;
-        std::set<juce::String> placedGroups;
+        std::vector<std::string> groups;
 
-        for (int i = 0; i < state.presets.size(); ++i)
-        {
-            const auto& group = state.presets.getReference (i).group;
+        for (const auto& preset : state.presets)
+            groups.push_back (preset.group.toStdString());
 
-            if (group.isEmpty())
-                order.push_back (i);
-            else if (placedGroups.insert (group).second)
-                for (int j = i; j < state.presets.size(); ++j)
-                    if (state.presets.getReference (j).group == group)
-                        order.push_back (j);
-        }
+        const auto order = PresetSlotsCore::groupedOrder (groups);
 
         NSStackView* list = [[[NSStackView alloc] init] autorelease];
         [list setOrientation: NSUserInterfaceLayoutOrientationVertical];
@@ -1112,16 +1140,17 @@ private:
 
         for (size_t k = 0; k < order.size(); ++k)
         {
-            const auto& preset = state.presets.getReference (order[k]);
+            const auto& preset = state.presets.getReference ((int) order[k]);
 
-            if (k > 0 && preset.group != state.presets.getReference (order[k - 1]).group)
-                addCard (state.presets.getReference (order[k - 1]));
+            if (k > 0 && preset.group != state.presets.getReference ((int) order[k - 1]).group)
+                addCard (state.presets.getReference ((int) order[k - 1]));
 
             CurvePresetTile* tile = [[[CurvePresetTile alloc] init] autorelease];
             tile->name = [toNS (preset.name) retain];
             tile->shortcut = preset.shortcut.isNotEmpty() ? [toNS (preset.shortcut) retain] : nil;
             tile->isCurrent = preset.isCurrent;
             tile->onClick = [this, file = preset.file] { source.loadPreset (file); };
+            tile->makeMenu = [this, preset, keyUsers] { return makeKeyMenu (preset, keyUsers); };
             [tile setToolTip: toNS (preset.name)];
             [[[tile heightAnchor] constraintEqualToConstant: tileHeight] setActive: YES];
             [rows addObject: tile];
@@ -1130,7 +1159,7 @@ private:
                 currentTile = tile;
         }
 
-        addCard (state.presets.getReference (order.back()));
+        addCard (state.presets.getReference ((int) order.back()));
 
         // Scrolls past about ten rows, or fewer on a short screen, or if the panel would be taller
         // than the screen (see rebuild())
@@ -1227,6 +1256,17 @@ private:
             [name setToolTip: toNS (plugin.label)];
 
             NSMutableArray<NSView*>* views = [NSMutableArray arrayWithObjects: name, makeSpacer(), nil];
+
+            // A Meter plug-in's level, wherever it is in the chain
+            if (plugin.isMeter)
+            {
+                CurvePanelMeter* level = [[[CurvePanelMeter alloc] initWithFrame: NSMakeRect (0, 0, 64, 6)] autorelease];
+                [[[level widthAnchor] constraintEqualToConstant: 64] setActive: YES];
+                [[[level heightAnchor] constraintEqualToConstant: 7] setActive: YES];
+                [level setToolTip: @"The level where this meter is"];
+                [views addObject: level];
+                pluginMeters.emplace_back (nodeID, level);
+            }
 
             if (plugin.hasEditor)
             {
@@ -1454,6 +1494,117 @@ private:
         return makeRow (@[ muteButton, volumeSlider, volumeLabel ]);
     }
 
+    // A preset's right-click menu: which key selects it
+    NSMenu* makeKeyMenu (const MenuBarPanelState::Preset& preset, const std::map<int, juce::String>& keyUsers)
+    {
+        NSMenu* keys = [[[NSMenu alloc] initWithTitle: @"Key"] autorelease];
+        [keys setAutoenablesItems: NO];
+
+        const auto add = [this, keys] (NSString* title, bool ticked, std::function<void()> f)
+        {
+            auto* action = makeAction ([f] (id) { f(); });
+            NSMenuItem* item = [[[NSMenuItem alloc] initWithTitle: title action: @selector (perform:) keyEquivalent: @""] autorelease];
+            [item setTarget: action];
+            [item setRepresentedObject: action]; // An item doesn't keep its target, and the panel can rebuild while its menu is open
+            [item setState: ticked ? NSControlStateValueOn : NSControlStateValueOff];
+            [keys addItem: item];
+        };
+
+        const auto assign = [this, file = preset.file] (int slot)
+        {
+            source.assignKey (file, slot);
+            callAsyncWhileAlive ([this] { if (isOpen()) rebuild(); });
+        };
+
+        add (@"Automatic, from Its Place in the List", ! preset.isKeyAssigned, [assign] { assign (-1); });
+
+        for (int slot = 0; slot < 30; ++slot)
+        {
+            if (slot % 10 == 0)
+                [keys addItem: [NSMenuItem separatorItem]];
+
+            juce::String title = PresetSlots::describeKey (slot);
+
+            // Whose it is now, as giving it to this one takes it from them
+            if (auto user = keyUsers.find (slot); user != keyUsers.end() && user->second != preset.name)
+                title << "    " << user->second;
+
+            add (toNS (title), preset.isKeyAssigned && preset.keySlot == slot, [assign, slot] { assign (slot); });
+        }
+
+        NSMenu* menu = [[[NSMenu alloc] init] autorelease];
+        NSMenuItem* keyItem = [[[NSMenuItem alloc] initWithTitle: preset.keySlot >= 0 ? toNS ("Key: " + preset.shortcut) : @"Key"
+                                                          action: nil keyEquivalent: @""] autorelease];
+        [keyItem setSubmenu: keys];
+        [menu addItem: keyItem];
+        return menu;
+    }
+
+    // The preset's tempo, which a click types, Tap, and the transport's Play/Stop
+    NSView* makeTempo (const MenuBarPanelState::State& state)
+    {
+        playButton = makeSymbolButton (@"play.fill", @"Play", [this] (id)
+        {
+            source.setTransportPlaying (! source.getState().isTransportPlaying);
+            updateTempo (source.getState());
+        });
+
+        auto* typed = makeAction ([this] (id sender)
+        {
+            if (const auto bpm = [[(NSTextField*) sender stringValue] doubleValue]; bpm > 0.0)
+                source.setTempo (bpm);
+
+            [[root window] makeFirstResponder: root]; // So the number keys select presets again
+            updateTempo (source.getState());
+        });
+
+        tempoField = [NSTextField textFieldWithString: @""];
+        [tempoField setFont: [NSFont monospacedDigitSystemFontOfSize: 12 weight: NSFontWeightMedium]];
+        [tempoField setAlignment: NSTextAlignmentRight];
+        [tempoField setBezelStyle: NSTextFieldRoundedBezel];
+        [tempoField setControlSize: NSControlSizeSmall];
+        [tempoField setTarget: typed];
+        [tempoField setAction: @selector (perform:)];
+        [tempoField setToolTip: @"The preset's tempo, for tempo-synced plug-ins and the Looper. Click to type it"];
+        [[[tempoField widthAnchor] constraintEqualToConstant: 54] setActive: YES];
+
+        auto* tapped = makeAction ([this] (id)
+        {
+            source.tapTempo();
+            updateTempo (source.getState());
+        });
+
+        NSButton* tap = [NSButton buttonWithTitle: @"Tap" target: tapped action: @selector (perform:)];
+        [tap setBezelStyle: NSBezelStyleRounded];
+        [tap setControlSize: NSControlSizeSmall];
+        [tap setToolTip: @"Tap in time, twice or more, to set the tempo"];
+
+        NSStackView* row = makeRow (@[ makeSectionHeader (@"Tempo"), makeSpacer(), playButton, tempoField,
+                                       makeLabel (@"BPM", 11, NSFontWeightRegular, [NSColor secondaryLabelColor]), tap ]);
+        [row setSpacing: 6];
+        updateTempo (state);
+        return row;
+    }
+
+    void updateTempo (const MenuBarPanelState::State& state)
+    {
+        if (tempoField == nil)
+            return;
+
+        // Not while it's being typed in
+        if ([[tempoField window] firstResponder] != [tempoField currentEditor] || [tempoField currentEditor] == nil)
+        {
+            const auto whole = std::abs (state.tempo - std::round (state.tempo)) < 0.05;
+            [tempoField setStringValue: toNS (juce::String (state.tempo, whole ? 0 : 1))];
+        }
+
+        const bool playing = state.isTransportPlaying;
+        [playButton setImage: [NSImage imageWithSystemSymbolName: playing ? @"stop.fill" : @"play.fill"
+                                        accessibilityDescription: playing ? @"Stop" : @"Play"]];
+        [playButton setContentTintColor: playing ? [NSColor controlAccentColor] : [NSColor secondaryLabelColor]];
+        [playButton setToolTip: playing ? @"Stops the transport, for plug-ins that follow it" : @"Starts the transport, for plug-ins that follow it, e.g. a drum machine"];
+    }
+
     void updateVolume (const MenuBarPanelState::State& state)
     {
         using Kind = MenuBarPanelState::State::VolumeKind;
@@ -1527,7 +1678,7 @@ private:
         const int bank = (flags & NSEventModifierFlagShift) != 0 ? 2 : (flags & NSEventModifierFlagOption) != 0 ? 1 : 0;
         const int index = bank * 10 + digit->second;
 
-        if (! juce::isPositiveAndBelow (index, presetFiles.size()))
+        if (! juce::isPositiveAndBelow (index, presetFiles.size()) || presetFiles[index] == juce::File())
             return false;
 
         source.loadPreset (presetFiles[index]);

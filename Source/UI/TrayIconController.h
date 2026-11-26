@@ -14,6 +14,7 @@
 #include "GitHubUpdater.h"
 #include "GlobalShortcutDialog.h"
 #include "GlobalShortcutManager.h"
+#include "PresetSlots.h"
 #include "GraphEditorPanel.h"
 #include "DockIconManager.h"
 #include "HelpBookManager.h"
@@ -354,7 +355,20 @@ public:
         ++groupSizes[groups.strings.getLast()];
     }
 
-    for (int i = 0; i < files.size(); ++i) {
+    // As the menu bar panel shows them: each scene group's scenes together, where its first comes,
+    // and the keys as assigned, the rest running down that order (see PresetSlots)
+    juce::StringArray shownGroups;
+    std::vector<std::string> groupNames;
+
+    for (const auto &g : groups) {
+      shownGroups.add(g.isNotEmpty() && groupSizes[g] > 1 ? g : juce::String());
+      groupNames.push_back(shownGroups.strings.getLast().toStdString());
+    }
+
+    const auto keySlots = PresetSlots::resolveKeys(files, shownGroups);
+
+    for (const auto shownIndex : PresetSlotsCore::groupedOrder(groupNames)) {
+      const int i = (int) shownIndex;
       const auto &file = files[i];
       juce::String name = file.getFileNameWithoutExtension();
       bool isCurrent = (file == activeFile);
@@ -377,25 +391,12 @@ public:
       };
       item.setAction(action);
 
-      // Support up to 30 fast presets:
-      // Index 0..9   -> Keys 1..9, 0 (Bank_None, badges "1".."9", "0")
-      // Index 10..19 -> Keys Option + 1..9, 0 (Bank_Option, badges "⌥1".."⌥0")
-      // Index 20..29 -> Keys Shift + 1..9, 0 (Bank_Shift, badges "⇧1".."⇧0")
-      if (i < 30) {
-        GlobalShortcutManager::ModifierBank bank = GlobalShortcutManager::Bank_None;
-        juce::String badgePrefix;
-        if (i >= 10 && i < 20) {
-          bank = GlobalShortcutManager::Bank_Option;
-          badgePrefix = juce::String::fromUTF8("\xe2\x8c\xa5"); // ⌥
-        } else if (i >= 20) {
-          bank = GlobalShortcutManager::Bank_Shift;
-          badgePrefix = juce::String::fromUTF8("\xe2\x87\xa7"); // ⇧
-        }
+      // Up to 30 presets have keys: 1..9 and 0, then with Option, then with Shift
+      if (const auto slot = keySlots[(size_t) i]; slot >= 0) {
+        const auto bank = static_cast<GlobalShortcutManager::ModifierBank>(PresetSlots::getKeyBank(slot));
+        const char keyChar = PresetSlots::getKeyChar(slot);
 
-        int digitIndex = (i % 10) + 1; // 1..10
-        char keyChar = (digitIndex == 10) ? '0' : static_cast<char>('0' + digitIndex);
-
-        item.shortcutKeyDescription = badgePrefix + juce::String::charToString(keyChar);
+        item.shortcutKeyDescription = PresetSlots::describeKey(slot);
 
         if (outLocalActions != nullptr) {
           GlobalShortcutManager::LocalShortcutKey key { bank, keyChar };

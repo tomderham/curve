@@ -16,6 +16,7 @@
 #include "../UI/MainHostWindow.h"
 #include "../UI/IdleReleaseController.h"
 #include "../UI/OutputMonitor.h"
+#include "../UI/PresetSlots.h"
 
 static constexpr const char* globalMappingsKey = "midiPresetMappings";
 static constexpr const char* programChangeSelectsPresetKey = "midiProgramChangeSelectsPreset";
@@ -347,7 +348,7 @@ void MidiControlEngine::handleAsyncUpdate()
         }
 
         if (! matched && t->programChangeSelectsPreset && p.message.isProgramChange())
-            loadPresetAt (p.message.getProgramChangeNumber());
+            loadPresetForProgram (p.message.getProgramChangeNumber());
     }
 
     if (! presetLoaded)
@@ -557,6 +558,16 @@ void MidiControlEngine::stepPreset (int delta)
                                     : (current + delta + files.size()) % files.size();
 
     loadPresetAt (index);
+}
+
+// As assigned in Preferences > MIDI, the rest following the presets' order (see PresetSlots)
+void MidiControlEngine::loadPresetForProgram (int program)
+{
+    const auto file = PresetSlots::findPreset (PresetSlots::Kind::program, program, PluginGraph::getPresetFiles());
+    const auto index = PluginGraph::getPresetFiles().indexOf (file);
+
+    if (index >= 0)
+        loadPresetAt (index);
 }
 
 void MidiControlEngine::loadPresetAt (int index)

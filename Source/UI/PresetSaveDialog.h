@@ -70,6 +70,8 @@ private:
     std::function<void()> closeCallback;
 
     juce::Array<juce::File> presetFiles;
+    std::vector<int> keySlots; // The key of each, -1 for none (see PresetSlots)
+    static constexpr int keyMenuAutomatic = 100, keyMenuFirst = 101;
     juce::File currentActivePreset;
     juce::uint32 shownGraphGeneration = 0;   // the loaded preset the list, plans and hints are for
 

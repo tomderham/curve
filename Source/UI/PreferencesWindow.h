@@ -25,6 +25,7 @@
 #include "VolumeKeyManager.h"
 #include "MenuBarPanel.h"
 #include "CurveFolders.h"
+#include "ProgramNumbersComponent.h"
 
 inline bool attemptToEnableLoginItem()
 {
@@ -379,11 +380,14 @@ private:
             showMeter.setButtonText ("Output level meter");
             showMeter.onClick = [this] { MenuBarPanel::setSetting (MenuBarPanel::showMeterSetting, showMeter.getToggleState()); };
 
+            showTempo.setButtonText ("Tempo, with Tap and Play/Stop, for tempo-synced plug-ins");
+            showTempo.onClick = [this] { MenuBarPanel::setSetting (MenuBarPanel::showTempoSetting, showTempo.getToggleState()); };
+
             styleNote (note);
             note.setText ("The panel always shows the presets. Right-click or Control-click the icon for the menu.",
                           juce::dontSendNotification);
 
-            for (auto* c : std::initializer_list<juce::Component*> { &opensLabel, &opens, &showsLabel, &showPlugins, &showOutput, &showVolume, &showMeter, &solidBackground, &note })
+            for (auto* c : std::initializer_list<juce::Component*> { &opensLabel, &opens, &showsLabel, &showPlugins, &showOutput, &showVolume, &showMeter, &showTempo, &solidBackground, &note })
                 addAndMakeVisible (c);
         }
 
@@ -394,6 +398,8 @@ private:
             showPlugins.setToggleState (MenuBarPanel::getSetting (MenuBarPanel::showPluginsSetting, true), juce::dontSendNotification);
             showVolume.setToggleState (MenuBarPanel::getSetting (MenuBarPanel::showVolumeSetting, true), juce::dontSendNotification);
             showMeter.setToggleState (MenuBarPanel::getSetting (MenuBarPanel::showMeterSetting, true), juce::dontSendNotification);
+            showTempo.setToggleState (MenuBarPanel::getSetting (MenuBarPanel::showTempoSetting, false), juce::dontSendNotification);
+            showTempo.setEnabled (! usesMenu);
             showOutput.setToggleState (MenuBarPanel::getSetting (MenuBarPanel::showOutputSetting, true), juce::dontSendNotification);
             showOutput.setEnabled (! usesMenu);
             solidBackground.setToggleState (MenuBarPanel::getSetting (MenuBarPanel::solidBackgroundSetting, false), juce::dontSendNotification);
@@ -428,6 +434,10 @@ private:
             row.removeFromLeft (labelWidth);
             showMeter.setBounds (row);
 
+            row = r.removeFromTop (rowHeight);
+            row.removeFromLeft (labelWidth);
+            showTempo.setBounds (row);
+
             r.removeFromTop (8);
             row = r.removeFromTop (rowHeight);
             row.removeFromLeft (labelWidth);
@@ -439,7 +449,7 @@ private:
 
         juce::Label opensLabel, showsLabel, note;
         juce::ComboBox opens;
-        juce::ToggleButton showPlugins, showOutput, showVolume, showMeter, solidBackground;
+        juce::ToggleButton showPlugins, showOutput, showVolume, showMeter, showTempo, solidBackground;
     };
 
     //==============================================================================
@@ -580,6 +590,20 @@ private:
                     engine->setProgramChangePresetSelectEnabled (programChange.getToggleState());
             };
 
+            programNumbers.setButtonText ("Program Numbers...");
+            programNumbers.setTooltip ("Which program change selects each preset, and giving a preset a number of its own");
+            programNumbers.onClick = []
+            {
+                juce::DialogWindow::LaunchOptions options;
+                options.content.setOwned (new ProgramNumbersComponent());
+                options.dialogTitle = "Program Numbers";
+                options.dialogBackgroundColour = Curve::Colours::canvas;
+                options.useNativeTitleBar = true;
+                options.resizable = true;
+                options.launchAsync();
+            };
+            addAndMakeVisible (programNumbers);
+
             switchingHeader.setText ("Changing Presets", juce::dontSendNotification);
             switchingHeader.setFont (juce::FontOptions (14.0f, juce::Font::bold));
 
@@ -699,7 +723,11 @@ private:
 
             // Program Change and the Next/Previous controls are all app-wide ways to change preset
             switchingHeader.setBounds (r.removeFromTop (24));
-            programChange.setBounds (r.removeFromTop (rowHeight));
+            {
+                auto row = r.removeFromTop (rowHeight);
+                programNumbers.setBounds (row.removeFromRight (150).reduced (0, 3));
+                programChange.setBounds (row);
+            }
 
             for (const bool next : { true, false })
             {
@@ -759,6 +787,7 @@ private:
 
         juce::Component::SafePointer<MainHostWindow> window;
         juce::ToggleButton programChange;
+        juce::TextButton programNumbers;
         juce::TextButton learnNext, learnPrevious, clear;
         juce::Label switchingHeader, nextLabel, nextControl, previousLabel, previousControl, controlsHeader, note;
         juce::OwnedArray<ControlRow> rows;

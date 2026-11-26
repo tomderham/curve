@@ -20,6 +20,8 @@
 #include "OutputVolume.h"
 #include "OutputMeter.h"
 #include "OutputMonitor.h"
+#include "PresetSlots.h"
+#include "../Plugins/MeterNode.h"
 
 //==============================================================================
 /**
@@ -44,6 +46,7 @@ public:
     ~MenuBarPanelModel() override
     {
         setListening (false);
+        setMetering (false);
     }
 
     void setListening (bool shouldListen) override
@@ -129,6 +132,13 @@ public:
         state.isVolumeMuted = VolumeKeyManager::isVolumeMuted();
         state.maxVolumeSteps = OutputVolume::maxSteps;
         state.isEditorShowing = mainWindow.isVisible();
+
+        if (graph != nullptr)
+        {
+            state.tempo = graph->getTransport().getTempo();
+            state.isTransportPlaying = graph->getTransport().isPlaying();
+        }
+
         state.isMuted = OutputMonitor::muted.load();
         state.isDimmed = OutputMonitor::dimmed.load();
         state.isMono = OutputMonitor::mono.load();
@@ -137,6 +147,51 @@ public:
 
     //==============================================================================
     void loadPreset (const juce::File& file) override  { mainWindow.loadPreset (file); }
+    void assignKey (const juce::File& file, int slot) override { PresetSlots::assign (PresetSlots::Kind::key, file, slot); }
+
+    void setTempo (double bpm) override
+    {
+        if (auto* graph = getGraph())
+            graph->getTransport().setTempo (bpm);
+    }
+
+    void tapTempo() override
+    {
+        if (auto* graph = getGraph())
+            graph->getTransport().tap();
+    }
+
+    void setTransportPlaying (bool shouldPlay) override
+    {
+        if (auto* graph = getGraph())
+            graph->getTransport().setPlaying (shouldPlay);
+    }
+
+    // A Meter plug-in measures only while something shows it, so the panel asks it to while it's open
+    void readPluginLevels (juce::uint32 id, float& left, float& right) override
+    {
+        left = right = 0.0f;
+
+        if (! metering)
+            return;
+
+        auto* graph = getGraph();
+        auto node = graph != nullptr ? graph->graph.getNodeForId (NodeID { id }) : nullptr;
+        auto* meter = node != nullptr ? dynamic_cast<MeterNode*> (node->getProcessor()) : nullptr;
+
+        if (meter == nullptr)
+            return;
+
+        if (std::none_of (measured.begin(), measured.end(), [&node] (const auto& n) { return n.get() == node; }))
+        {
+            meter->addMeasurer();
+            measured.push_back (node);
+        }
+
+        const auto channels = meter->getTotalNumInputChannels();
+        left = meter->getDsp().getRms (0);
+        right = channels > 1 ? meter->getDsp().getRms (1) : left;
+    }
     void saveAsPreset() override                       { mainWindow.saveAsPreset(); }
 
     void setBypassed (juce::uint32 id, bool shouldBypass) override
@@ -197,7 +252,20 @@ public:
             graph->setPluginWindowPositionsLocked (shouldLock);
     }
 
-    void setMetering (bool shouldMeter) override                 { OutputMeter::setEnabled (shouldMeter); }
+    void setMetering (bool shouldMeter) override
+    {
+        OutputMeter::setEnabled (shouldMeter);
+        metering = shouldMeter;
+
+        if (! shouldMeter)
+        {
+            for (auto& node : measured)
+                if (auto* meter = dynamic_cast<MeterNode*> (node->getProcessor()))
+                    meter->removeMeasurer();
+
+            measured.clear();
+        }
+    }
     void readOutputPeaks (float& left, float& right) override    { OutputMeter::read (left, right); }
 
     void setOutputSwitch (MenuBarPanelState::OutputSwitch which, bool on) override
@@ -235,22 +303,13 @@ public:
             mainWindow.showWindow();
     }
 
-    /** The menu bar panel's preset shortcuts: 1-9 and 0 for the first ten, then with Option, then
-        with Shift, as the menu had. */
-    static juce::String getShortcut (int index)
-    {
-        if (index < 0 || index >= 30)
-            return {};
-
-        const auto digit = index % 10 == 9 ? juce::String ("0") : juce::String (index % 10 + 1);
-
-        if (index >= 20) return juce::String::fromUTF8 ("\xe2\x87\xa7") + digit; // ⇧
-        if (index >= 10) return juce::String::fromUTF8 ("\xe2\x8c\xa5") + digit; // ⌥
-        return digit;
-    }
-
 private:
     using NodeID = juce::AudioProcessorGraph::NodeID;
+
+    // The Meter plug-ins the panel has asked to measure while it's open; held, so one removed from
+    // the graph meanwhile can still be told to stop
+    bool metering = false;
+    std::vector<juce::AudioProcessorGraph::Node::Ptr> measured;
 
     PluginGraph* getGraph() const
     {
@@ -274,13 +333,24 @@ private:
                 ++groupSizes[groups.strings.getLast()];
         }
 
+        // A group's, if it has others in it: as shown, with each group's scenes together
+        juce::StringArray shownGroups;
+
+        for (const auto& g : groups)
+            shownGroups.add (g.isNotEmpty() && groupSizes[g] > 1 ? g : juce::String());
+
+        const auto keys = PresetSlots::resolveKeys (files, shownGroups);
+        const auto assigned = PresetSlots::load (PresetSlots::Kind::key);
+
         for (int i = 0; i < files.size(); ++i)
         {
             Preset preset;
             preset.name = files[i].getFileNameWithoutExtension();
             preset.file = files[i];
             preset.isCurrent = files[i] == current;
-            preset.shortcut = getShortcut (i);
+            preset.keySlot = keys[(size_t) i];
+            preset.shortcut = PresetSlots::describeKey (preset.keySlot);
+            preset.isKeyAssigned = assigned.count (preset.keySlot) > 0 && juce::String (assigned.at (preset.keySlot)) == preset.name;
 
             if (groups[i].isNotEmpty() && groupSizes[groups[i]] > 1)
             {
@@ -314,6 +384,7 @@ private:
             plugin.hasEditor = processor->hasEditor() && ! PluginGraph::isConfiguredByAudioSettings (*processor);
             plugin.isWindowOpen = graph.isWindowShowing (*node, PluginWindow::Type::normal);
             plugin.isWindowKeptOnTop = graph.isWindowKeptOnTop (node->nodeID);
+            plugin.isMeter = dynamic_cast<MeterNode*> (processor) != nullptr;
 
             // The graph's I/O and the loopback nodes are set up in Audio Settings, not here
             const bool isIO = dynamic_cast<IOProcessor*> (processor) != nullptr
