@@ -32,8 +32,9 @@
     fixed level. In the second case Curve takes the keys only while the preset has a connected
     loopback node.
 
-    Curve's volume applies only while Curve is taking the keys; otherwise the audio is
-    left at full level. All functions are for the message thread.
+    Curve's volume applies while Curve is taking the keys, and also whenever its output interface
+    has no volume macOS can set, as then it's the only volume there is (set from the menu bar
+    panel); otherwise the audio is left at full level. All functions are for the message thread.
 */
 namespace VolumeKeyManager
 {
@@ -77,6 +78,17 @@ namespace VolumeKeyManager
 
     /** True while the graph has an Interface Loopback (In) node that's connected and not bypassed. */
     bool hasConnectedLoopback();
+
+    /** What the menu bar panel's volume slider sets: Curve's own volume while Curve takes the keys,
+        or whenever its output interface has no volume macOS can set (when Curve's volume applies
+        whether or not the keys are on); otherwise the interface's own volume, as macOS's volume
+        menu sets it. None without an output interface. */
+    enum class VolumeControl { none, curve, interface };
+    VolumeControl getVolumeControl();
+
+    /** The output interface's own volume, 0 to 1, for Curve's output channels. */
+    float getInterfaceVolume();
+    void setInterfaceVolume (float);
 
     /** The volume, in OutputVolume's steps, which the volume keys and the menu bar panel set. */
     int getVolumeSteps();

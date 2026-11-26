@@ -45,6 +45,8 @@ public:
     // Settings for which sections the panel shows
     static constexpr const char* showPluginsSetting = "menuBarPanelShowsPlugins";
     static constexpr const char* showVolumeSetting  = "menuBarPanelShowsVolume";
+    static constexpr const char* showMeterSetting   = "menuBarPanelShowsMeter";
+    static constexpr const char* showOutputSetting  = "menuBarPanelShowsOutputSwitches";
     static constexpr const char* useMenuSetting     = "menuBarIconOpensMenu"; // the menu instead of the panel
 
     static bool getSetting (const char* key, bool defaultValue);

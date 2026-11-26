@@ -53,6 +53,8 @@
 #include "../AudioConstants.h"
 #include "IdleReleaseController.h"
 #include "OutputVolume.h"
+#include "OutputMeter.h"
+#include "OutputMonitor.h"
 
 class MainHostWindow;
 
@@ -220,6 +222,7 @@ public:
         volumeTarget = volume.target;
         volumeGain.setCurrentAndTargetValue (volume.outputGain());
         isFadedOut.store (false, std::memory_order_release);
+        monitor.prepare (sr);
     }
 
     void audioDeviceStopped() override
@@ -356,12 +359,19 @@ public:
                 }
             }
         }
+
+        // Mute, Dim and Mono, last, so they apply whatever the preset plays
+        monitor.process (outputChannelData, numOutputChannels, numSamples);
+
+        // What's heard, for the menu bar panel's meter while it's open
+        OutputMeter::measure (outputChannelData, numOutputChannels, numSamples);
     }
 
 private:
     AudioProcessorPlayer player;
     juce::LinearSmoothedValue<float> fadeGain { 1.0f };
     juce::LinearSmoothedValue<float> volumeGain { 1.0f };
+    OutputMonitor::Processor monitor; // audio thread only
     std::uint32_t volumeTarget = OutputVolume::none; // audio thread only
     std::atomic<float> targetGain { 1.0f };
     std::atomic<bool> isFadedOut { false };

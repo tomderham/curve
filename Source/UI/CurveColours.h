@@ -14,17 +14,17 @@ namespace Curve
 namespace Colours
 {
     // Surfaces, darkest first: window backgrounds, then panels, cards and lists on them, then
-    // controls such as buttons, text fields and graph nodes
-    inline const juce::Colour canvas  { 0xff141418 };
-    inline const juce::Colour surface { 0xff1d1d23 };
-    inline const juce::Colour control { 0xff26262e };
-    inline const juce::Colour menu    { 0xff1f1f25 };
+    // controls such as buttons, text fields and graph nodes. About as light as macOS's own dark windows
+    inline const juce::Colour canvas  { 0xff24252a };
+    inline const juce::Colour surface { 0xff2b2c32 };
+    inline const juce::Colour control { 0xff35363d };
+    inline const juce::Colour menu    { 0xff2e2f35 };
 
     // Edges of panels and controls
-    inline const juce::Colour edge    { 0xff34343e };
+    inline const juce::Colour edge    { 0xff47484f };
 
     inline const juce::Colour text    { 0xffe8e8ec };
-    inline const juce::Colour dimText { 0xff8c8c98 }; // Secondary text, hints and units
+    inline const juce::Colour dimText { 0xff9a9ba5 }; // Secondary text, hints and units
 
     // Primary accent: active/enabled states and hover highlights
     inline const juce::Colour accent { 0xff3b82f6 };

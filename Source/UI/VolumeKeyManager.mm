@@ -376,6 +376,10 @@ namespace
     // thread, read by the tap, which passes every key through while it's false.
     std::atomic<bool> takingKeys { false };
 
+    // True while Curve's output interface has no volume macOS can set, so Curve's own volume is
+    // the only one there is, and applies whether or not Curve takes the keys. Message thread writes
+    std::atomic<bool> curveVolumeIsOnlyVolume { false };
+
     // Written by the tap while it runs, and on the message thread only before it starts
     std::atomic<int> volumeSteps { OutputVolume::maxSteps };
     std::atomic<bool> volumeMuted { false };
@@ -385,7 +389,7 @@ namespace
 
     void applyGain()
     {
-        if (! takingKeys.load())
+        if (! takingKeys.load() && ! curveVolumeIsOnlyVolume.load())
         {
             OutputVolume::setting.store ({ 1.0f, OutputVolume::none });
             return;
@@ -766,10 +770,36 @@ namespace
 
             tapFailed = take && ! tap.isRunning();
 
+            // Whether Curve's own volume applies without the keys. The gain is only published here
+            // while the tap isn't running, which applies it itself
+            const auto device = (AudioObjectID) IdleReleaseCoreAudio::findDeviceID (curveOutputDevice);
+            const bool onlyVolume = curveOutputDevice.isNotEmpty() && device != kAudioObjectUnknown
+                                 && ! macOSVolumeReachesChannels (device, curveOutputChannels);
+
+            if (onlyVolume != curveVolumeIsOnlyVolume.load())
+            {
+                curveVolumeIsOnlyVolume.store (onlyVolume);
+
+                if (! tap.isRunning())
+                    applyGain();
+            }
+
             if (wanted && (! trusted || tapFailed))
                 startTimer (2000);
             else
                 stopTimer();
+        }
+
+        // The interface's own volume, which macOS's volume menu sets, for Curve's output channels
+        AudioObjectID getInterfaceWithVolume() const
+        {
+            const auto device = (AudioObjectID) IdleReleaseCoreAudio::findDeviceID (curveOutputDevice);
+
+            if (curveOutputDevice.isEmpty() || device == kAudioObjectUnknown
+                || ! macOSVolumeReachesChannels (device, curveOutputChannels))
+                return kAudioObjectUnknown;
+
+            return device;
         }
 
         // From the menu bar panel's slider: as a key press would set it, without the overlay
@@ -981,6 +1011,43 @@ namespace VolumeKeyManager
     {
         if (controller != nullptr)
             controller->setVolume (steps, muted);
+    }
+
+    VolumeControl getVolumeControl()
+    {
+        if (takingKeys.load())
+            return VolumeControl::curve;
+
+        if (controller != nullptr && controller->getInterfaceWithVolume() != kAudioObjectUnknown)
+            return VolumeControl::interface;
+
+        return curveVolumeIsOnlyVolume.load() ? VolumeControl::curve : VolumeControl::none;
+    }
+
+    static constexpr AudioObjectPropertyAddress interfaceVolumeAddress {
+        kAudioHardwareServiceDeviceProperty_VirtualMainVolume, kAudioDevicePropertyScopeOutput, kAudioObjectPropertyElementMain
+    };
+
+    float getInterfaceVolume()
+    {
+        const auto device = controller != nullptr ? controller->getInterfaceWithVolume() : kAudioObjectUnknown;
+        Float32 volume = 0.0f;
+        UInt32 size = sizeof (volume);
+
+        if (device == kAudioObjectUnknown
+            || AudioObjectGetPropertyData (device, &interfaceVolumeAddress, 0, nullptr, &size, &volume) != noErr)
+            return 0.0f;
+
+        return volume;
+    }
+
+    void setInterfaceVolume (float volume)
+    {
+        const auto device = controller != nullptr ? controller->getInterfaceWithVolume() : kAudioObjectUnknown;
+        Float32 value = juce::jlimit (0.0f, 1.0f, volume);
+
+        if (device != kAudioObjectUnknown)
+            AudioObjectSetPropertyData (device, &interfaceVolumeAddress, 0, nullptr, sizeof (value), &value);
     }
 
     juce::String describeVolume()

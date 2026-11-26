@@ -48,17 +48,26 @@ namespace MenuBarPanelState
         double sampleRate = 0.0;
         int bufferSize = 0, latencySamples = 0;
 
-        bool canSetVolume = false; // Only while Curve controls the volume (see VolumeKeyManager)
+        // What the volume slider sets (see VolumeKeyManager::getVolumeControl()): Curve's own volume,
+        // in steps, or the interface's, 0 to 1
+        enum class VolumeKind { none, curve, interface };
+        VolumeKind volumeKind = VolumeKind::none;
         int volumeSteps = 0, maxVolumeSteps = 64;
         bool isVolumeMuted = false;
-        juce::String volumeDescription; // e.g. "-11.9 dB"
+        float interfaceVolume = 0.0f;
+        juce::String volumeDescription; // e.g. "-11.9 dB", "60%"
 
         bool isEditorShowing = false;
 
         int numPluginWindows = 0;          // Open, shown or hidden
         bool arePluginWindowsHidden = false;
         bool arePluginWindowPositionsLocked = false;
+
+        // The output switches (see OutputMonitor), and Bypass All (see PluginGraph::setBypassingAll())
+        bool isBypassingAll = false, isMuted = false, isDimmed = false, isMono = false;
     };
+
+    enum class OutputSwitch { bypassAll, mute, dim, mono };
 
     class Source
     {
@@ -78,8 +87,14 @@ namespace MenuBarPanelState
         virtual void toggleEditor (juce::uint32 nodeID) = 0; // Opens or closes the plug-in's window
         virtual void hideFromPanel (juce::uint32 nodeID) = 0;
         virtual void setVolume (int steps, bool muted) = 0;
+        virtual void setInterfaceVolume (float) = 0;
         virtual void toggleGraphEditor() = 0;
         virtual void togglePluginWindows() = 0;
+        virtual void setOutputSwitch (OutputSwitch, bool) = 0;
+
+        /** The output's peak levels since the last read, 0 to 1, while metering is on. */
+        virtual void setMetering (bool) = 0;
+        virtual void readOutputPeaks (float& left, float& right) = 0;
         virtual void setWindowKeptOnTop (juce::uint32 nodeID, bool) = 0;
         virtual void setPluginWindowPositionsLocked (bool) = 0;
     };

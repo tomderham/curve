@@ -2466,6 +2466,16 @@ void GraphDocumentComponent::init()
             if (const auto latency = graph->graph.getLatencySamples(); latency > 0)
                 text << dot << "Plug-in latency " << String (1000.0 * latency / rate, 1) << " ms";
 
+        // The menu bar panel's output switches, which apply to everything until switched off
+        StringArray switches;
+        if (graph != nullptr && graph->isBypassingAll())   switches.add ("All Effects Bypassed");
+        if (OutputMonitor::muted.load())                   switches.add ("Muted");
+        if (OutputMonitor::dimmed.load())                  switches.add ("Dimmed");
+        if (OutputMonitor::mono.load())                    switches.add ("Mono");
+
+        if (! switches.isEmpty())
+            text << dot << switches.joinIntoString (", ");
+
         return text;
     };
 

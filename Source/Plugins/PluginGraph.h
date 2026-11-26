@@ -138,6 +138,7 @@ public:
     void setPluginWindowPositionsLocked (bool shouldLock);
 
     bool hasWindowFor (const AudioProcessorGraph::Node&, PluginWindow::Type) const;
+    bool isWindowShowing (const AudioProcessorGraph::Node&, PluginWindow::Type) const; // open, and not hidden or minimised
     void closeWindowFor (const AudioProcessorGraph::Node&, PluginWindow::Type);
 
     static inline const Identifier openWithPresetProp { "openWithPreset" };
@@ -161,6 +162,12 @@ public:
 
     // Sets the node's bypass and notifies the graph, so the UI and the loopback tap follow.
     void setNodeBypassed (NodeID, bool shouldBeBypassed);
+
+    // Bypasses every effect that's on, to hear the preset's sources without them, and turns them back
+    // on. Doesn't change the preset: it isn't marked as changed, and a save keeps them on. Ends when
+    // another preset or scene loads. The graph's I/O, loopback, instruments and meters are left alone
+    void setBypassingAll (bool shouldBypass);
+    bool isBypassingAll() const   { return ! bypassedForComparison.empty(); }
 
     // A node that varies by scene keeps its own settings in each scene of the preset, rather
     // than sharing them. Bypass always varies by scene.
@@ -302,6 +309,8 @@ private:
     bool pluginWindowsFloating = false;
     MidiMappingSet midiMappings;
 
+
+    std::set<uint32> bypassedForComparison; // by setBypassingAll(), to turn back on
 
     // Moves plug-in windows back onto a display when it's connected again
     std::unique_ptr<MacOSDisplayChangeNotifierBase> displayChangeNotifier;

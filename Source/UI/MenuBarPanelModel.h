@@ -18,6 +18,8 @@
 #include "MenuBarPanelState.h"
 #include "VolumeKeyManager.h"
 #include "OutputVolume.h"
+#include "OutputMeter.h"
+#include "OutputMonitor.h"
 
 //==============================================================================
 /**
@@ -87,12 +89,14 @@ public:
 
         if (graph != nullptr)
         {
-            state.isPresetModified = graph->hasChangedSinceSaved();
+            // Only a saved preset can have changes; a new graph counts as changed from the start
+            state.isPresetModified = graph->getFile().existsAsFile() && graph->hasChangedSinceSaved();
             addPlugins (state, *graph);
             state.latencySamples = graph->graph.getLatencySamples();
             state.numPluginWindows = graph->getNumPluginWindows();
             state.arePluginWindowsHidden = graph->arePluginWindowsHidden();
             state.arePluginWindowPositionsLocked = PluginWindow::arePositionsLocked();
+            state.isBypassingAll = graph->isBypassingAll();
         }
 
         if (auto* device = mainWindow.getDeviceManager().getCurrentAudioDevice())
@@ -102,12 +106,32 @@ public:
             state.bufferSize = device->getCurrentBufferSizeSamples();
         }
 
-        state.canSetVolume = VolumeKeyManager::isControllingVolume();
+        using Kind = MenuBarPanelState::State::VolumeKind;
+
+        switch (VolumeKeyManager::getVolumeControl())
+        {
+            case VolumeKeyManager::VolumeControl::curve:
+                state.volumeKind = Kind::curve;
+                state.volumeDescription = VolumeKeyManager::describeVolume();
+                break;
+
+            case VolumeKeyManager::VolumeControl::interface:
+                state.volumeKind = Kind::interface;
+                state.interfaceVolume = VolumeKeyManager::getInterfaceVolume();
+                state.volumeDescription = juce::String (juce::roundToInt (state.interfaceVolume * 100.0f)) + "%";
+                break;
+
+            case VolumeKeyManager::VolumeControl::none:
+                break;
+        }
+
         state.volumeSteps = VolumeKeyManager::getVolumeSteps();
         state.isVolumeMuted = VolumeKeyManager::isVolumeMuted();
         state.maxVolumeSteps = OutputVolume::maxSteps;
-        state.volumeDescription = VolumeKeyManager::describeVolume();
         state.isEditorShowing = mainWindow.isVisible();
+        state.isMuted = OutputMonitor::muted.load();
+        state.isDimmed = OutputMonitor::dimmed.load();
+        state.isMono = OutputMonitor::mono.load();
         return state;
     }
 
@@ -133,10 +157,12 @@ public:
         {
             if (auto node = graph->graph.getNodeForId (NodeID (id)))
             {
-                if (graph->hasWindowFor (*node, PluginWindow::Type::normal))
+                // Showing: closed. Hidden with the others, or minimised: shown again
+                if (graph->isWindowShowing (*node, PluginWindow::Type::normal))
                     graph->closeWindowFor (*node, PluginWindow::Type::normal);
+                // In front without taking the keys, which would close the panel
                 else if (auto* w = graph->getOrCreateWindowFor (node, PluginWindow::Type::normal))
-                    w->toFront (true);
+                    WindowArrangement::bringToFront ({ w });
 
                 triggerAsyncUpdate();
             }
@@ -157,6 +183,7 @@ public:
     }
 
     void setVolume (int steps, bool muted) override  { VolumeKeyManager::setVolume (steps, muted); }
+    void setInterfaceVolume (float volume) override  { VolumeKeyManager::setInterfaceVolume (volume); }
 
     void setWindowKeptOnTop (juce::uint32 id, bool shouldKeepOnTop) override
     {
@@ -170,6 +197,24 @@ public:
             graph->setPluginWindowPositionsLocked (shouldLock);
         else
             PluginWindow::setPositionsLocked (shouldLock);
+    }
+
+    void setMetering (bool shouldMeter) override                 { OutputMeter::enabled.store (shouldMeter); }
+    void readOutputPeaks (float& left, float& right) override    { OutputMeter::read (left, right); }
+
+    void setOutputSwitch (MenuBarPanelState::OutputSwitch which, bool on) override
+    {
+        using S = MenuBarPanelState::OutputSwitch;
+
+        switch (which)
+        {
+            case S::bypassAll:  if (auto* graph = getGraph()) graph->setBypassingAll (on); break;
+            case S::mute:       OutputMonitor::muted.store (on); break;
+            case S::dim:        OutputMonitor::dimmed.store (on); break;
+            case S::mono:       OutputMonitor::mono.store (on); break;
+        }
+
+        triggerAsyncUpdate();
     }
 
     void togglePluginWindows() override
@@ -260,7 +305,7 @@ private:
             plugin.isBypassed = node->isBypassed();
             plugin.isMuted = graph.isNodeMuted (node->nodeID);
             plugin.hasEditor = processor->hasEditor() && ! PluginGraph::isConfiguredByAudioSettings (*processor);
-            plugin.isWindowOpen = graph.hasWindowFor (*node, PluginWindow::Type::normal);
+            plugin.isWindowOpen = graph.isWindowShowing (*node, PluginWindow::Type::normal);
             plugin.isWindowKeptOnTop = graph.isWindowKeptOnTop (node->nodeID);
 
             // The graph's I/O and the loopback nodes are set up in Audio Settings, not here

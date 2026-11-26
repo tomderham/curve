@@ -308,6 +308,7 @@ void PluginGraph::removeNode (NodeID nodeID)
 
 void PluginGraph::clear()
 {
+    bypassedForComparison.clear();
     ++restoreGeneration;
     pendingAsyncRestores = 0;
     pluginsFailedToRestore.clear();
@@ -357,6 +358,9 @@ PluginWindow* PluginGraph::getOrCreateWindowFor (AudioProcessorGraph::Node* node
     {
         if (w->node.get() == node && w->type == type)
         {
+            if (w->isMinimised())
+                w->setMinimised (false);
+
             if (! w->isVisible())
                 w->setVisible (true);
 
@@ -379,6 +383,12 @@ PluginWindow* PluginGraph::getOrCreateWindowFor (AudioProcessorGraph::Node* node
                                                                       activePluginWindows,
                                                                       getCommandManager().getKeyMappings()));
             window->setAlwaysOnTop (pluginWindowsFloating || window->isKeptOnTop());
+
+            window->onClosed = [weakSelf = WeakReference<PluginGraph> (this)]
+            {
+                if (auto* self = weakSelf.get())
+                    self->sendChangeMessage();
+            };
 
             // As its node is named, so a renamed one matches. Its format is in the node's tooltip
             window->setName (getNodeDisplayName (node->nodeID));
@@ -433,6 +443,52 @@ void PluginGraph::openPresetPluginWindows()
     // Those already open too: a scene switch keeps them, wherever they've got to behind other apps,
     // or hidden
     showPluginWindows();
+}
+
+void PluginGraph::setBypassingAll (bool shouldBypass)
+{
+    if (shouldBypass == isBypassingAll())
+        return;
+
+    // As restoring does: the bypasses notify the graph, which would mark the preset as changed
+    const bool wasChanged = hasChangedSinceSaved();
+    graph.removeChangeListener (this);
+
+    if (shouldBypass)
+    {
+        for (auto* node : graph.getNodes())
+        {
+            auto* processor = node->getProcessor();
+
+            // Effects only: an instrument, with no audio in, would go silent
+            if (processor == nullptr || ! canBeBypassed (*processor) || isConfiguredByAudioSettings (*processor)
+                || processor->getTotalNumInputChannels() == 0 || node->isBypassed() || isNodeMuted (node->nodeID))
+                continue;
+
+            bypassedForComparison.insert (node->nodeID.uid);
+            setNodeBypassed (node->nodeID, true);
+        }
+    }
+    else
+    {
+        for (const auto uid : std::exchange (bypassedForComparison, {}))
+            setNodeBypassed (NodeID (uid), false);
+    }
+
+    setChangedFlag (wasChanged);
+
+    MessageManager::callAsync ([weakSelf = WeakReference<PluginGraph> (this), wasChanged, generation = restoreGeneration]
+    {
+        if (auto* self = weakSelf.get())
+        {
+            if (self->restoreGeneration == generation)
+                self->setChangedFlag (wasChanged);
+
+            self->graph.addChangeListener (self);
+        }
+    });
+
+    sendChangeMessage();
 }
 
 void PluginGraph::togglePluginWindows()
@@ -501,6 +557,14 @@ bool PluginGraph::hasWindowFor (const AudioProcessorGraph::Node& node, PluginWin
 {
     return std::any_of (activePluginWindows.begin(), activePluginWindows.end(),
                         [&] (const PluginWindow* w) { return w->node.get() == &node && w->type == type; });
+}
+
+bool PluginGraph::isWindowShowing (const AudioProcessorGraph::Node& node, PluginWindow::Type type) const
+{
+    return std::any_of (activePluginWindows.begin(), activePluginWindows.end(), [&] (const PluginWindow* w)
+    {
+        return w->node.get() == &node && w->type == type && w->isVisible() && ! w->isMinimised();
+    });
 }
 
 void PluginGraph::closeWindowFor (const AudioProcessorGraph::Node& node, PluginWindow::Type type)
@@ -1399,6 +1463,10 @@ std::unique_ptr<XmlElement> PluginGraph::createXml (bool includeStates) const
     {
         auto* e = createNodeXml (node, includeStates);
 
+        // Bypassed only to compare, so saved as it was
+        if (bypassedForComparison.count (node->nodeID.uid) > 0)
+            e->removeAttribute ("bypassed");
+
         // As in the file, while the plug-in reports what it did when that was loaded or saved
         if (auto saved = statesAsSaved.find (node->nodeID.uid); saved != statesAsSaved.end())
         {
@@ -1705,6 +1773,9 @@ std::unique_ptr<XmlElement> PluginGraph::prepareSceneSwitch (const File& file, S
 
 void PluginGraph::switchScene (const File& file, const XmlElement& scene)
 {
+    // The scene sets each node's bypass as it has it
+    bypassedForComparison.clear();
+
     // Setting plug-ins' state changes them, which isn't an edit to this scene
     graph.removeChangeListener (this);
 

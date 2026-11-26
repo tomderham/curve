@@ -267,14 +267,20 @@ private:
             showPlugins.setButtonText ("Plug-ins, to bypass them and open their windows");
             showPlugins.onClick = [this] { MenuBarPanel::setSetting (MenuBarPanel::showPluginsSetting, showPlugins.getToggleState()); };
 
-            showVolume.setButtonText ("Output volume, while Curve controls it");
+            showVolume.setButtonText ("Output volume: the interface's, or Curve's if it has none");
             showVolume.onClick = [this] { MenuBarPanel::setSetting (MenuBarPanel::showVolumeSetting, showVolume.getToggleState()); };
+
+            showOutput.setButtonText ("Output switches: Mono, Dim and Mute");
+            showOutput.onClick = [this] { MenuBarPanel::setSetting (MenuBarPanel::showOutputSetting, showOutput.getToggleState()); };
+
+            showMeter.setButtonText ("Output level meter");
+            showMeter.onClick = [this] { MenuBarPanel::setSetting (MenuBarPanel::showMeterSetting, showMeter.getToggleState()); };
 
             styleNote (note);
             note.setText ("The panel always shows the presets. Right-click or Control-click the icon for the menu.",
                           juce::dontSendNotification);
 
-            for (auto* c : std::initializer_list<juce::Component*> { &opensLabel, &opens, &showsLabel, &showPlugins, &showVolume, &note })
+            for (auto* c : std::initializer_list<juce::Component*> { &opensLabel, &opens, &showsLabel, &showPlugins, &showOutput, &showVolume, &showMeter, &note })
                 addAndMakeVisible (c);
         }
 
@@ -284,8 +290,12 @@ private:
             opens.setSelectedId (usesMenu ? 2 : 1, juce::dontSendNotification);
             showPlugins.setToggleState (MenuBarPanel::getSetting (MenuBarPanel::showPluginsSetting, true), juce::dontSendNotification);
             showVolume.setToggleState (MenuBarPanel::getSetting (MenuBarPanel::showVolumeSetting, true), juce::dontSendNotification);
+            showMeter.setToggleState (MenuBarPanel::getSetting (MenuBarPanel::showMeterSetting, true), juce::dontSendNotification);
+            showOutput.setToggleState (MenuBarPanel::getSetting (MenuBarPanel::showOutputSetting, true), juce::dontSendNotification);
+            showOutput.setEnabled (! usesMenu);
             showPlugins.setEnabled (! usesMenu);
             showVolume.setEnabled (! usesMenu);
+            showMeter.setEnabled (! usesMenu);
         }
 
         void resized() override
@@ -303,7 +313,15 @@ private:
 
             row = r.removeFromTop (rowHeight);
             row.removeFromLeft (labelWidth);
+            showOutput.setBounds (row);
+
+            row = r.removeFromTop (rowHeight);
+            row.removeFromLeft (labelWidth);
             showVolume.setBounds (row);
+
+            row = r.removeFromTop (rowHeight);
+            row.removeFromLeft (labelWidth);
+            showMeter.setBounds (row);
 
             r.removeFromTop (12);
             note.setBounds (r.removeFromTop (40));
@@ -311,7 +329,7 @@ private:
 
         juce::Label opensLabel, showsLabel, note;
         juce::ComboBox opens;
-        juce::ToggleButton showPlugins, showVolume;
+        juce::ToggleButton showPlugins, showOutput, showVolume, showMeter;
     };
 
     //==============================================================================

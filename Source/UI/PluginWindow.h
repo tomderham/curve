@@ -257,6 +257,16 @@ public:
         rememberBounds();
     }
 
+    // JUCE's windows take the keys as they're shown (TopLevelWindow::visibilityChanged()), which
+    // closed the menu bar panel when a window opened from it, and took them from the graph editor
+    // as a preset's windows opened. A plug-in window comes to the front, and takes the keys only
+    // when none of Curve's other windows has them; one opened from its node is given them anyway
+    void visibilityChanged() override
+    {
+        if (isShowing())
+            WindowArrangement::bringToFront ({ this });
+    }
+
     void resized() override
     {
         DocumentWindow::resized();
@@ -300,8 +310,16 @@ public:
 
     void closeButtonPressed() override
     {
+        // Before this is deleted with the window
+        const auto notify = onClosed;
         activeWindowList.removeObject (this);
+
+        if (notify != nullptr)
+            notify();
     }
+
+    /** Called after the window's own close button closes it, e.g. for the menu bar panel to follow */
+    std::function<void()> onClosed;
 
     /** Whether plug-in windows show on every Space, rather than only the one each is on. Off by
         default: windows stay on the Space they're put on (see PluginGraph::openPresetPluginWindows()). */
