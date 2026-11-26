@@ -46,6 +46,7 @@
 
 #include <JuceHeader.h>
 #include "MainHostWindow.h"
+#include "CurveColours.h"
 #include "AudioResilienceManager.h"
 #include "IdleReleaseController.h"
 #include "FilteredAudioDeviceSelectorComponent.h"
@@ -262,6 +263,9 @@ public:
                                PropertiesFile* props,
                                bool async)
         : PluginListComponent (manager, listToRepresent, pedal, props, async),
+          formatManager (manager),
+          list (listToRepresent),
+          properties (props),
           rowsModel (*this, manager, listToRepresent, pedal)
     {
 
@@ -269,12 +273,42 @@ public:
         getAppProperties().getUserSettings()->setValue (scanModeKey, juce::var (1));
 
         getTableListBox().setModel (&rowsModel);
+        // JUCE draws the text at 70% of the row height: about 13 pt, as Curve's other windows have
+        getTableListBox().setRowHeight (19);
+        getTableListBox().getHeader().setSize (getTableListBox().getHeader().getWidth(), 24);
+        getTableListBox().getHeader().setStretchToFitActive (true);
 
+        // The things done most, scanning after installing plug-ins and removing them, as buttons,
+        // and the rest in a menu, in place of JUCE's single Options menu
+        getOptionsButton().setVisible (false);
+
+        scanButton.setButtonText ("Scan for New Plug-ins");
+        scanButton.setTooltip ("Finds plug-ins installed or updated since the last scan");
+        scanButton.onClick = [this] { scanAllFormats(); };
+
+        removeButton.setButtonText ("Remove");
+        removeButton.setTooltip ("Removes the selected plug-ins from the list. Scanning finds them again.");
+        removeButton.onClick = [this] { rowsModel.removeRows (rowsModel.getSelectedRows()); };
+
+        moreButton.setButtonText ("More...");
+        moreButton.onClick = [this] { showMoreMenu(); };
+
+        countLabel.setColour (Label::textColourId, Curve::Colours::dimText);
+        countLabel.setFont (FontOptions (12.5f));
+
+        for (auto* c : std::initializer_list<Component*> { &scanButton, &removeButton, &moreButton, &countLabel })
+            addAndMakeVisible (c);
+
+        listListener.onChange = [this] { updateControls(); };
+        listToRepresent.addChangeListener (&listListener);
+
+        updateControls();
         handleResize();
     }
 
     ~CustomPluginListComponent() override
     {
+        list.removeChangeListener (&listListener);
         getTableListBox().setModel (rowsModel.getJuceModel());
     }
 
@@ -283,10 +317,34 @@ public:
         handleResize();
     }
 
+    void updateControls()
+    {
+        // Curve's own plug-ins aren't shown or counted
+        const auto types = list.getTypes();
+        const auto numTypes = (int) std::count_if (types.begin(), types.end(), [] (const PluginDescription& d)
+        {
+            return d.pluginFormatName != InternalPluginFormat::getIdentifier();
+        });
+        const auto numFailed = list.getBlacklistedFiles().size();
+
+        String count = String (numTypes) + (numTypes == 1 ? " plug-in" : " plug-ins");
+
+        if (numFailed > 0)
+            count << ", " << numFailed << " failed to scan";
+
+        countLabel.setText (count, dontSendNotification);
+        removeButton.setEnabled (getTableListBox().getNumSelectedRows() > 0);
+        scanButton.setEnabled (! isScanning() && pendingScans.isEmpty());
+    }
+
 private:
     /*  Sits in front of JUCE's table model and takes over the rows for plug-ins that failed to
         scan. JUCE shows those by raw identifier, skips them on every rescan, and doesn't say
         that they must be removed before they can be tried again.
+
+        It also leaves out Curve's own plug-ins, which are always in the list (Curve adds them
+        at launch, for presets to find) and so would come back after being removed. Each table
+        row is mapped to its row in JUCE's, which has the known plug-ins and then the failed ones.
     */
     class FailedPluginRowsModel final : public TableListBoxModel
     {
@@ -305,28 +363,85 @@ private:
 
         TableListBoxModel* getJuceModel() const         { return &juceModel; }
 
-        int getNumRows() override                       { return juceModel.getNumRows(); }
-        void deleteKeyPressed (int row) override        { juceModel.deleteKeyPressed (row); }
+        int getNumRows() override
+        {
+            listRows.clear();
+            const auto types = list.getTypes();
+
+            for (int i = 0; i < types.size(); ++i)
+                if (types.getReference (i).pluginFormatName != InternalPluginFormat::getIdentifier())
+                    listRows.push_back (i);
+
+            for (int i = 0; i < list.getBlacklistedFiles().size(); ++i)
+                listRows.push_back (types.size() + i);
+
+            return (int) listRows.size();
+        }
+
+        // The row in JUCE's table for a row of this one, or -1
+        int toListRow (int row) const
+        {
+            return isPositiveAndBelow (row, (int) listRows.size()) ? listRows[(size_t) row] : -1;
+        }
+
+        void deleteKeyPressed (int) override            { removeRows (getTargetRows (-1)); }
+
+        // Removes these rows of the table from the list. A failed one is cleared, so it's tried again
+        void removeRows (const Array<int>& rows)
+        {
+            StringArray failed;
+            Array<PluginDescription> known;
+            const auto types = list.getTypes();
+
+            for (const auto row : rows)
+            {
+                const auto listRow = toListRow (row);
+
+                if (isPositiveAndBelow (listRow, types.size()))
+                    known.add (types.getReference (listRow));
+                else if (const auto identifier = getFailedPlugin (listRow); identifier.isNotEmpty())
+                    failed.add (identifier);
+            }
+
+            for (const auto& identifier : failed)
+                clearFailure (identifier);
+
+            for (const auto& type : known)
+                list.removeType (type);
+        }
+
+        Array<int> getSelectedRows() const              { return getTargetRows (-1); }
         void sortOrderChanged (int column, bool forwards) override { juceModel.sortOrderChanged (column, forwards); }
 
         void paintRowBackground (Graphics& g, int row, int width, int height, bool selected) override
         {
-            juceModel.paintRowBackground (g, row, width, height, selected);
+            ignoreUnused (width, height);
+
+            if (selected)
+                g.fillAll (Curve::Colours::accent.withAlpha (0.35f));
+            else if (row % 2 == 1)
+                g.fillAll (Colours::white.withAlpha (0.025f));
+        }
+
+        void selectedRowsChanged (int lastRowSelected) override
+        {
+            juceModel.selectedRowsChanged (lastRowSelected);
+            owner.updateControls();
         }
 
         void paintCell (Graphics& g, int row, int columnId, int width, int height, bool selected) override
         {
-            const auto identifier = getFailedPlugin (row);
+            const auto identifier = getFailedPlugin (toListRow (row));
 
             if (identifier.isEmpty())
             {
-                juceModel.paintCell (g, row, columnId, width, height, selected);
+                juceModel.paintCell (g, toListRow (row), columnId, width, height, selected);
                 return;
             }
 
             if (const auto text = getCellText (identifier, columnId); text.isNotEmpty())
             {
-                g.setColour (Colours::red);
+                g.setColour (Curve::Colours::danger);
                 g.setFont (owner.withDefaultMetrics (FontOptions ((float) height * 0.7f, Font::bold)));
                 g.drawFittedText (text, 4, 0, width - 6, height, Justification::centredLeft, 1, 0.9f);
             }
@@ -334,13 +449,13 @@ private:
 
         void cellClicked (int row, int columnId, const MouseEvent& e) override
         {
-            const auto identifier = getFailedPlugin (row);
+            const auto identifier = getFailedPlugin (toListRow (row));
             const auto rows = getTargetRows (row);
 
             // JUCE's own menu only acts on the clicked row
             if (! e.mods.isPopupMenu() || (identifier.isEmpty() && rows.size() < 2))
             {
-                juceModel.cellClicked (row, columnId, e);
+                juceModel.cellClicked (toListRow (row), columnId, e);
                 return;
             }
 
@@ -348,8 +463,10 @@ private:
             Array<PluginDescription> knownTargets;
             const auto types = list.getTypes();
 
-            for (const auto targetRow : rows)
+            for (const auto tableRow : rows)
             {
+                const auto targetRow = toListRow (tableRow);
+
                 if (isPositiveAndBelow (targetRow, types.size()))
                     knownTargets.add (types.getReference (targetRow));
                 else if (const auto failed = getFailedPlugin (targetRow); failed.isNotEmpty())
@@ -398,17 +515,20 @@ private:
 
     private:
         // Failed plug-ins follow the known ones in JUCE's table. Empty for a known plug-in.
-        String getFailedPlugin (int row) const
+        String getFailedPlugin (int listRow) const
         {
-            return list.getBlacklistedFiles()[row - list.getNumTypes()];
+            if (listRow < list.getNumTypes())
+                return {};
+
+            return list.getBlacklistedFiles()[listRow - list.getNumTypes()];
         }
 
-        // The menu acts on the whole selection, unless the clicked row isn't part of it
+        // The menu acts on the whole selection, unless the clicked row isn't part of it. -1 for the selection
         Array<int> getTargetRows (int clickedRow) const
         {
             auto& table = owner.getTableListBox();
 
-            if (! table.isRowSelected (clickedRow))
+            if (clickedRow >= 0 && ! table.isRowSelected (clickedRow))
                 return { clickedRow };
 
             Array<int> rows;
@@ -489,6 +609,7 @@ private:
         AudioPluginFormatManager& formatManager;
         KnownPluginList& list;
         File crashedPluginsFile;
+        std::vector<int> listRows; // see toListRow()
         TableListBoxModel& juceModel;
         std::map<String, String> displayNames;
 
@@ -498,7 +619,143 @@ private:
     void handleResize()
     {
         PluginListComponent::resized();
+
+        auto r = getLocalBounds();
+        auto bar = r.removeFromBottom (40).reduced (10, 7);
+
+        scanButton.setBounds (bar.removeFromLeft (scanButton.getBestWidthForHeight (bar.getHeight()) + 16));
+        bar.removeFromLeft (6);
+        removeButton.setBounds (bar.removeFromLeft (removeButton.getBestWidthForHeight (bar.getHeight()) + 16));
+        moreButton.setBounds (bar.removeFromRight (moreButton.getBestWidthForHeight (bar.getHeight()) + 16));
+        bar.removeFromRight (8);
+        countLabel.setBounds (bar.withTrimmedLeft (8));
+        countLabel.setJustificationType (Justification::centredRight);
+
+        getTableListBox().setBounds (r);
     }
+
+    // Each format that can be scanned in turn, as only one scan can run at a time
+    void scanAllFormats()
+    {
+        pendingScans.clear();
+
+        for (auto* format : formatManager.getFormats())
+            if (format->canScanForPlugins())
+                pendingScans.add (format);
+
+        startNextScan();
+    }
+
+    void startNextScan()
+    {
+        if (isScanning())
+        {
+            Timer::callAfterDelay (300, [safeThis = SafePointer<CustomPluginListComponent> (this)]
+            {
+                if (safeThis != nullptr)
+                    safeThis->startNextScan();
+            });
+            return;
+        }
+
+        // A format that scans folders is given the files in the ones last chosen, or its default
+        // ones, as JUCE otherwise asks which folders to scan every time. Unchanged ones are skipped
+        if (! pendingScans.isEmpty())
+        {
+            auto& format = *pendingScans.removeAndReturn (0);
+
+            if (format.getDefaultLocationsToSearch().getNumPaths() > 0 && properties != nullptr)
+            {
+                // None there, e.g. no LV2 plug-ins installed, is nothing to scan. JUCE would take
+                // an empty list as a reason to ask for folders
+                const auto files = format.searchPathsForPlugins (getLastSearchPath (*properties, format), true, true);
+
+                if (! files.isEmpty())
+                    scanFor (format, files);
+            }
+            else
+            {
+                scanFor (format);
+            }
+        }
+
+        updateControls();
+
+        if (! pendingScans.isEmpty() || isScanning())
+            Timer::callAfterDelay (300, [safeThis = SafePointer<CustomPluginListComponent> (this)]
+            {
+                if (safeThis != nullptr)
+                    safeThis->startNextScan();
+            });
+    }
+
+    void showMoreMenu()
+    {
+        PopupMenu menu;
+        auto& table = getTableListBox();
+        const auto selectedRow = rowsModel.toListRow (table.getSelectedRow());
+        const auto types = list.getTypes();
+
+        const auto selectedFile = isPositiveAndBelow (selectedRow, types.size())
+                                    ? File::createFileWithoutCheckingPath (types.getReference (selectedRow).fileOrIdentifier)
+                                    : File();
+
+        menu.addItem (PopupMenu::Item ("Show in Finder")
+                        .setEnabled (File::isAbsolutePath (selectedFile.getFullPathName()) && selectedFile.exists())
+                        .setAction ([selectedFile] { selectedFile.revealToUser(); }));
+
+        menu.addSeparator();
+
+        for (auto* format : formatManager.getFormats())
+            if (format->canScanForPlugins())
+                menu.addItem (PopupMenu::Item ("Scan " + format->getName() + " Plug-ins Only"
+                                               + (format->getDefaultLocationsToSearch().getNumPaths() > 0 ? String ("...") : String()))
+                                .setEnabled (! isScanning())
+                                .setAction ([this, format] { scanFor (*format); }));
+
+        menu.addSeparator();
+
+        menu.addItem (PopupMenu::Item ("Remove Plug-ins That No Longer Exist")
+                        .setAction ([this] { removeMissing(); }));
+
+        menu.addItem (PopupMenu::Item ("Clear List...")
+                        .setAction ([this]
+                        {
+                            AlertWindow::showOkCancelBox (MessageBoxIconType::QuestionIcon, "Clear the Plug-in List?",
+                                                          "Every plug-in is removed from the list until you scan again. "
+                                                          "Presets that use them can't load them meanwhile.",
+                                                          "Clear List", "Cancel", this,
+                                                          ModalCallbackFunction::create ([safeThis = SafePointer<CustomPluginListComponent> (this)] (int result)
+                                                          {
+                                                              if (result == 1 && safeThis != nullptr)
+                                                                  safeThis->list.clear();
+                                                          }));
+                        }));
+
+        menu.showMenuAsync (PopupMenu::Options().withTargetComponent (&moreButton));
+    }
+
+    void removeMissing()
+    {
+        for (const auto& type : list.getTypes())
+            for (auto* format : formatManager.getFormats())
+                if (format->getName() == type.pluginFormatName && ! format->doesPluginStillExist (type))
+                    list.removeType (type);
+    }
+
+    struct ListListener final : public juce::ChangeListener
+    {
+        std::function<void()> onChange;
+        void changeListenerCallback (ChangeBroadcaster*) override { if (onChange != nullptr) onChange(); }
+    };
+
+    AudioPluginFormatManager& formatManager;
+    KnownPluginList& list;
+    PropertiesFile* properties;
+    ListListener listListener;
+    TextButton scanButton, removeButton, moreButton;
+    Label countLabel;
+    Array<AudioPluginFormat*> pendingScans;
 
     FailedPluginRowsModel rowsModel;
 
@@ -510,7 +767,7 @@ class MainHostWindow::PluginListWindow final : public DocumentWindow
 {
 public:
     PluginListWindow (MainHostWindow& mw, AudioPluginFormatManager& pluginFormatManager)
-        : DocumentWindow ("Available Plugins",
+        : DocumentWindow ("Plug-in Manager",
                           LookAndFeel::getDefaultLookAndFeel().findColour (ResizableWindow::backgroundColourId),
                           DocumentWindow::minimiseButton | DocumentWindow::closeButton),
           owner (mw)

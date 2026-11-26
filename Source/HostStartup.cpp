@@ -306,6 +306,12 @@ public:
 
     static constexpr float corner = 6.0f;
 
+    // No larger than Curve's other text, however tall the button
+    juce::Font getTextButtonFont (juce::TextButton&, int buttonHeight) override
+    {
+        return juce::FontOptions (juce::jmin (14.0f, (float) buttonHeight * 0.6f));
+    }
+
     void drawButtonBackground (juce::Graphics& g, juce::Button& button, const juce::Colour& background,
                                bool isHighlighted, bool isDown) override
     {
@@ -431,6 +437,50 @@ public:
         g.setColour (button.isFrontTab() ? Curve::Colours::text : Curve::Colours::dimText);
         g.setFont (juce::FontOptions (13.0f, button.isFrontTab() ? juce::Font::bold : juce::Font::plain));
         g.drawFittedText (button.getButtonText().trim(), area.toNearestInt(), juce::Justification::centred, 1);
+    }
+
+    // Table headers, e.g. the Plug-in Manager's: quiet column names, with an edge below
+    void drawTableHeaderBackground (juce::Graphics& g, juce::TableHeaderComponent& header) override
+    {
+        g.fillAll (Curve::Colours::surface);
+        g.setColour (Curve::Colours::edge);
+        g.fillRect (header.getLocalBounds().removeFromBottom (1));
+
+        // Between the columns
+        for (int i = header.getNumColumns (true) - 1; --i >= 0;)
+        {
+            const auto x = header.getColumnPosition (i).getRight() - 1;
+            g.fillRect (x, 6, 1, header.getHeight() - 12);
+        }
+    }
+
+    void drawTableHeaderColumn (juce::Graphics& g, juce::TableHeaderComponent&, const juce::String& columnName, int,
+                                int width, int height, bool isMouseOver, bool isMouseDown, int columnFlags) override
+    {
+        if (isMouseDown || isMouseOver)
+        {
+            g.setColour (juce::Colours::white.withAlpha (isMouseDown ? 0.08f : 0.04f));
+            g.fillRect (0, 0, width, height);
+        }
+
+        auto area = juce::Rectangle<int> (width, height).reduced (8, 0);
+
+        if ((columnFlags & (juce::TableHeaderComponent::sortedForwards | juce::TableHeaderComponent::sortedBackwards)) != 0)
+        {
+            const auto arrowArea = area.removeFromRight (10).toFloat().withSizeKeepingCentre (8.0f, 5.0f);
+            const bool forwards = (columnFlags & juce::TableHeaderComponent::sortedForwards) != 0;
+
+            juce::Path arrow;
+            arrow.addTriangle (arrowArea.getX(), forwards ? arrowArea.getBottom() : arrowArea.getY(),
+                               arrowArea.getRight(), forwards ? arrowArea.getBottom() : arrowArea.getY(),
+                               arrowArea.getCentreX(), forwards ? arrowArea.getY() : arrowArea.getBottom());
+            g.setColour (Curve::Colours::dimText);
+            g.fillPath (arrow);
+        }
+
+        g.setColour (Curve::Colours::dimText);
+        g.setFont (juce::FontOptions (12.0f, juce::Font::bold));
+        g.drawFittedText (columnName, area, juce::Justification::centredLeft, 1);
     }
 
     void drawTabbedButtonBarBackground (juce::TabbedButtonBar&, juce::Graphics&) override {}
