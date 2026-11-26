@@ -62,6 +62,9 @@ public:
     /** Waits for one MIDI control and assigns it to showing and hiding the plug-in windows. */
     void learnPluginWindowsControl (std::function<void (const MidiTrigger&)> onLearned);
 
+    /** Waits for one MIDI control and assigns it to an app-wide control (see MidiMappingTarget::forGlobal()). */
+    void learnGlobalControl (const MidiMappingTarget&, std::function<void (const MidiTrigger&)> onLearned);
+
     /** Stops waiting for either. */
     void cancelPresetStepLearn();
 

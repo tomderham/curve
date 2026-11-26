@@ -512,7 +512,10 @@ private:
 
                 auto& learn = next ? learnNext : learnPrevious;
                 learn.setButtonText ("MIDI Learn...");
-                learn.onClick = [this, next] { learnControl (next); };
+                learn.onClick = [this, next]
+                {
+                    learnControl (MidiMappingTarget::forPresetStep (next), next ? "Next Preset Control" : "Previous Preset Control");
+                };
             }
 
             clear.setButtonText ("Clear Preset Controls");
@@ -526,26 +529,22 @@ private:
                 refresh();
             };
 
-            windowsHeader.setText ("Plug-in Windows", juce::dontSendNotification);
-            windowsHeader.setFont (juce::FontOptions (14.0f, juce::Font::bold));
-            windowsLabel.setText ("Show/Hide Control:", juce::dontSendNotification);
-            learnWindows.setButtonText ("MIDI Learn...");
-            learnWindows.onClick = [this] { learnControl (std::nullopt); };
-            clearWindows.setButtonText ("Clear");
-            clearWindows.onClick = [this]
-            {
-                if (auto* engine = getEngine())
-                    engine->clearGlobalMapping (MidiMappingTarget::forPluginWindows());
-                refresh();
-            };
+            // App-wide controls, each with its own row
+            controlsHeader.setText ("Plug-in Windows and Output", juce::dontSendNotification);
+            controlsHeader.setFont (juce::FontOptions (14.0f, juce::Font::bold));
+
+            using K = MidiMappingTarget::Kind;
+            addRow (K::pluginWindows, "Show/Hide Windows:", "Show/Hide Plug-in Windows Control");
+            addRow (K::outputMono,    "Mono:",              "Mono Control");
+            addRow (K::outputDim,     "Dim:",               "Dim Control");
+            addRow (K::outputMute,    "Mute Output:",       "Mute Output Control");
 
             note.setText ("Controllers must be enabled under MIDI Inputs in Audio Settings.", juce::dontSendNotification);
             styleNote (note);
 
             for (auto* c : std::initializer_list<juce::Component*> { &switchingHeader, &programChange, &nextLabel, &nextControl, &learnNext,
                                                                     &previousLabel, &previousControl, &learnPrevious, &clear,
-                                                                    &windowsHeader, &windowsLabel, &windowsControl, &learnWindows,
-                                                                    &clearWindows, &note })
+                                                                    &controlsHeader, &note })
                 addAndMakeVisible (c);
         }
 
@@ -562,35 +561,31 @@ private:
 
             programChange.setToggleState (MidiControlEngine::isProgramChangePresetSelectEnabled(), juce::dontSendNotification);
 
-            for (const bool next : { true, false })
-            {
-                juce::String text = "None";
-                if (engine != nullptr)
-                    if (auto* mapping = engine->getGlobalMappings().findFor (MidiMappingTarget::forPresetStep (next)))
-                        text = mapping->trigger.describe();
-
-                (next ? nextControl : previousControl).setText (text, juce::dontSendNotification);
-            }
-
             const auto& global = engine != nullptr ? engine->getGlobalMappings() : MidiMappingSet();
+            const auto describe = [&global] (const MidiMappingTarget& t)
+            {
+                const auto* m = global.findFor (t);
+                return m != nullptr ? m->trigger.describe() : juce::String ("None");
+            };
+
+            nextControl.setText (describe (MidiMappingTarget::forPresetStep (true)), juce::dontSendNotification);
+            previousControl.setText (describe (MidiMappingTarget::forPresetStep (false)), juce::dontSendNotification);
             clear.setEnabled (global.findFor (MidiMappingTarget::forPresetStep (true)) != nullptr
                            || global.findFor (MidiMappingTarget::forPresetStep (false)) != nullptr);
 
-            const auto* windows = global.findFor (MidiMappingTarget::forPluginWindows());
-            windowsControl.setText (windows != nullptr ? windows->trigger.describe() : juce::String ("None"), juce::dontSendNotification);
-            clearWindows.setEnabled (windows != nullptr);
+            for (auto* row : rows)
+            {
+                row->control.setText (describe (row->target), juce::dontSendNotification);
+                row->clear.setEnabled (global.findFor (row->target) != nullptr);
+            }
         }
 
-        // Waits for the next MIDI control, with a window the user can cancel: for the next or previous
-        // preset, or without either, for showing and hiding the plug-in windows
-        void learnControl (std::optional<bool> next)
+        // Waits for the next MIDI control for an app-wide control, with a window the user can cancel
+        void learnControl (const MidiMappingTarget& target, const juce::String& title)
         {
             auto* engine = getEngine();
             if (engine == nullptr)
                 return;
-
-            const auto title = ! next.has_value() ? "Show/Hide Plug-in Windows Control"
-                             : *next ? "Next Preset Control" : "Previous Preset Control";
 
             auto* alert = new juce::AlertWindow (title,
                                                  "Press a button or pad on your MIDI controller.\n\n"
@@ -601,16 +596,11 @@ private:
             juce::Component::SafePointer<juce::AlertWindow> safeAlert (alert);
             juce::Component::SafePointer<MidiPage> safeThis (this);
 
-            const auto onLearned = [safeAlert] (const MidiTrigger&)
+            engine->learnGlobalControl (target, [safeAlert] (const MidiTrigger&)
             {
                 if (auto* a = safeAlert.getComponent())
                     a->exitModalState (1);
-            };
-
-            if (next.has_value())
-                engine->learnPresetStep (*next, onLearned);
-            else
-                engine->learnPluginWindowsControl (onLearned);
+            });
 
             alert->enterModalState (true, juce::ModalCallbackFunction::create ([safeThis] (int result)
             {
@@ -646,23 +636,54 @@ private:
             clear.setTopLeftPosition (r.getX(), r.getY());
             r.removeFromTop (rowHeight + 8);
 
-            windowsHeader.setBounds (r.removeFromTop (24));
-            auto row = r.removeFromTop (rowHeight);
-            windowsLabel.setBounds (row.removeFromLeft (labelWidth));
-            clearWindows.setBounds (row.removeFromRight (60).reduced (0, 3));
-            row.removeFromRight (6);
-            learnWindows.setBounds (row.removeFromRight (110).reduced (0, 3));
-            windowsControl.setBounds (row);
+            controlsHeader.setBounds (r.removeFromTop (24));
+
+            for (auto* row : rows)
+            {
+                auto area = r.removeFromTop (rowHeight);
+                row->label.setBounds (area.removeFromLeft (labelWidth));
+                row->clear.setBounds (area.removeFromRight (60).reduced (0, 3));
+                area.removeFromRight (6);
+                row->learn.setBounds (area.removeFromRight (110).reduced (0, 3));
+                row->control.setBounds (area);
+            }
 
             r.removeFromTop (8);
             note.setBounds (r.removeFromTop (rowHeight));
         }
 
+        // An app-wide control: what it's mapped to, and buttons to learn and clear it
+        struct ControlRow
+        {
+            MidiMappingTarget target;
+            juce::Label label, control;
+            juce::TextButton learn, clear;
+        };
+
+        void addRow (MidiMappingTarget::Kind kind, const juce::String& name, const juce::String& title)
+        {
+            auto* row = rows.add (new ControlRow());
+            row->target = MidiMappingTarget::forGlobal (kind);
+            row->label.setText (name, juce::dontSendNotification);
+            row->learn.setButtonText ("MIDI Learn...");
+            row->learn.onClick = [this, target = row->target, title] { learnControl (target, title); };
+            row->clear.setButtonText ("Clear");
+            row->clear.onClick = [this, target = row->target]
+            {
+                if (auto* engine = getEngine())
+                    engine->clearGlobalMapping (target);
+                refresh();
+            };
+
+            for (auto* c : std::initializer_list<juce::Component*> { &row->label, &row->control, &row->learn, &row->clear })
+                addAndMakeVisible (c);
+        }
+
         juce::Component::SafePointer<MainHostWindow> window;
         juce::ToggleButton programChange;
-        juce::TextButton learnNext, learnPrevious, clear, learnWindows, clearWindows;
-        juce::Label switchingHeader, nextLabel, nextControl, previousLabel, previousControl, note;
-        juce::Label windowsHeader, windowsLabel, windowsControl;
+        juce::TextButton learnNext, learnPrevious, clear;
+        juce::Label switchingHeader, nextLabel, nextControl, previousLabel, previousControl, controlsHeader, note;
+        juce::OwnedArray<ControlRow> rows;
     };
 
     //==============================================================================

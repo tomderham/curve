@@ -946,6 +946,9 @@ String PluginGraph::describeMidiMappingTarget (const MidiMappingTarget& target) 
         case MidiMappingTarget::Kind::nextPreset:       return "Next Preset";
         case MidiMappingTarget::Kind::previousPreset:   return "Previous Preset";
         case MidiMappingTarget::Kind::pluginWindows:    return "Show/Hide Plug-in Windows";
+        case MidiMappingTarget::Kind::outputMono:       return "Mono";
+        case MidiMappingTarget::Kind::outputDim:        return "Dim";
+        case MidiMappingTarget::Kind::outputMute:       return "Mute Output";
         case MidiMappingTarget::Kind::parameter:        break;
     }
 

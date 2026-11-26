@@ -15,6 +15,7 @@
 #include "../Plugins/PluginGraph.h"
 #include "../UI/MainHostWindow.h"
 #include "../UI/IdleReleaseController.h"
+#include "../UI/OutputMonitor.h"
 
 static constexpr const char* globalMappingsKey = "midiPresetMappings";
 static constexpr const char* programChangeSelectsPresetKey = "midiProgramChangeSelectsPreset";
@@ -373,6 +374,9 @@ void MidiControlEngine::applyMapping (const MidiMapping& m, int controlValue)
         case MidiMappingTarget::Kind::nextPreset:
         case MidiMappingTarget::Kind::previousPreset:
         case MidiMappingTarget::Kind::pluginWindows:
+        case MidiMappingTarget::Kind::outputMono:
+        case MidiMappingTarget::Kind::outputDim:
+        case MidiMappingTarget::Kind::outputMute:
         {
             if (m.trigger.type == MidiTrigger::Type::controller)
             {
@@ -399,6 +403,13 @@ void MidiControlEngine::applyMapping (const MidiMapping& m, int controlValue)
             {
                 if (onTogglePluginWindows != nullptr)
                     onTogglePluginWindows();
+            }
+            else if (m.target.isOutputSwitch())
+            {
+                auto& flag = m.target.kind == MidiMappingTarget::Kind::outputMono ? OutputMonitor::mono
+                           : m.target.kind == MidiMappingTarget::Kind::outputDim  ? OutputMonitor::dimmed
+                                                                                  : OutputMonitor::muted;
+                flag.store (! flag.load());
             }
             else
             {
@@ -724,7 +735,12 @@ void MidiControlEngine::learnPresetStep (bool next, std::function<void (const Mi
 
 void MidiControlEngine::learnPluginWindowsControl (std::function<void (const MidiTrigger&)> onLearned)
 {
-    presetStepTarget = MidiMappingTarget::forPluginWindows();
+    learnGlobalControl (MidiMappingTarget::forPluginWindows(), std::move (onLearned));
+}
+
+void MidiControlEngine::learnGlobalControl (const MidiMappingTarget& target, std::function<void (const MidiTrigger&)> onLearned)
+{
+    presetStepTarget = target;
     heldPresetStepControls.clear();
     onPresetStepLearned = std::move (onLearned);
     updateCapturing();

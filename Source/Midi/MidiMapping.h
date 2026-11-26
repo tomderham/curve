@@ -45,7 +45,8 @@ struct MidiTrigger
 /** What a mapping controls. */
 struct MidiMappingTarget
 {
-    enum class Kind { parameter, bypass, nextPreset, previousPreset, mute, tempo, tapTempo, transport, pluginWindows };
+    enum class Kind { parameter, bypass, nextPreset, previousPreset, mute, tempo, tapTempo, transport, pluginWindows,
+                      outputMono, outputDim, outputMute };
 
     Kind kind = Kind::parameter;
     AudioProcessorGraph::NodeID nodeID;
@@ -57,6 +58,10 @@ struct MidiMappingTarget
     static MidiMappingTarget forMute (AudioProcessorGraph::NodeID);
     static MidiMappingTarget forPresetStep (bool next);
     static MidiMappingTarget forPluginWindows();  // shows or hides them, app-wide like the preset steps
+    static MidiMappingTarget forGlobal (Kind);    // any app-wide control: preset steps, plug-in windows, output switches
+
+    // Mono, Dim and Mute for everything Curve plays (see OutputMonitor), app-wide
+    bool isOutputSwitch() const { return kind == Kind::outputMono || kind == Kind::outputDim || kind == Kind::outputMute; }
     static MidiMappingTarget forHost (Kind);   // tempo, tapTempo or transport
 
     bool isNodeTarget() const { return kind == Kind::parameter || kind == Kind::bypass || kind == Kind::mute; }

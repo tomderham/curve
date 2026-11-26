@@ -116,8 +116,13 @@ MidiMappingTarget MidiMappingTarget::forPresetStep (bool next)
 
 MidiMappingTarget MidiMappingTarget::forPluginWindows()
 {
+    return forGlobal (Kind::pluginWindows);
+}
+
+MidiMappingTarget MidiMappingTarget::forGlobal (Kind kind)
+{
     MidiMappingTarget t;
-    t.kind = Kind::pluginWindows;
+    t.kind = kind;
     return t;
 }
 
@@ -212,6 +217,9 @@ static const char* toString (MidiMappingTarget::Kind k)
         case MidiMappingTarget::Kind::nextPreset:       return "nextPreset";
         case MidiMappingTarget::Kind::previousPreset:   return "previousPreset";
         case MidiMappingTarget::Kind::pluginWindows:    return "pluginWindows";
+        case MidiMappingTarget::Kind::outputMono:       return "outputMono";
+        case MidiMappingTarget::Kind::outputDim:        return "outputDim";
+        case MidiMappingTarget::Kind::outputMute:       return "outputMute";
     }
 
     return "parameter";
@@ -275,7 +283,8 @@ std::optional<MidiMapping> MidiMapping::fromXml (const XmlElement& e)
                                     MidiMappingTarget::Kind::nextPreset, MidiMappingTarget::Kind::previousPreset,
                                     MidiMappingTarget::Kind::mute, MidiMappingTarget::Kind::tempo,
                                     MidiMappingTarget::Kind::tapTempo, MidiMappingTarget::Kind::transport,
-                                    MidiMappingTarget::Kind::pluginWindows });
+                                    MidiMappingTarget::Kind::pluginWindows, MidiMappingTarget::Kind::outputMono,
+                                    MidiMappingTarget::Kind::outputDim, MidiMappingTarget::Kind::outputMute });
 
     if (! type.has_value() || ! kind.has_value())
         return std::nullopt;
