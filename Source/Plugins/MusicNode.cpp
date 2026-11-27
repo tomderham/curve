@@ -87,6 +87,10 @@ public:
 
     std::atomic<bool> watching { false };
 
+    // On the worker's thread. Given up on after five seconds, e.g. an app that isn't answering, or
+    // one waiting for macOS to ask whether Curve may control it, or as the worker stops. Its output
+    // is read once it's finished: reading waits for it to close, so a hung script would never time
+    // out. The scripts' output is small, well within what the pipe holds meanwhile
     static juce::String runScript (const juce::String& script)
     {
         juce::ChildProcess process;
@@ -95,15 +99,50 @@ public:
                              juce::ChildProcess::wantStdOut | juce::ChildProcess::wantStdErr))
             return "error: osascript";
 
-        auto output = process.readAllProcessOutput();
+        const auto deadline = juce::Time::getMillisecondCounter() + 5000;
 
-        if (! process.waitForProcessToFinish (5000))
+        while (process.isRunning())
         {
-            process.kill();
-            return "error: timed out";
+            if (juce::Thread::currentThreadShouldExit() || juce::Time::getMillisecondCounter() > deadline)
+            {
+                process.kill();
+                return "error: timed out";
+            }
+
+            juce::Thread::sleep (10);
         }
 
+        const auto output = process.readAllProcessOutput();
         return process.getExitCode() == 0 ? output.trimEnd() : "error: " + output.trim();
+    }
+
+    // A download, given up on after a few seconds, or as the worker stops
+    static juce::MemoryBlock download (const juce::String& url)
+    {
+        juce::MemoryBlock data;
+        auto stream = juce::URL (url).createInputStream (juce::URL::InputStreamOptions (juce::URL::ParameterHandling::inAddress)
+                                                             .withConnectionTimeoutMs (3000));
+
+        if (stream == nullptr)
+            return data;
+
+        const auto deadline = juce::Time::getMillisecondCounter() + 8000;
+        char chunk[8192];
+
+        while (! stream->isExhausted() && data.getSize() < 10 * 1024 * 1024)
+        {
+            if (juce::Thread::currentThreadShouldExit() || juce::Time::getMillisecondCounter() > deadline)
+                return {};
+
+            const auto read = stream->read (chunk, (int) sizeof (chunk));
+
+            if (read <= 0)
+                break;
+
+            data.append (chunk, (size_t) read);
+        }
+
+        return data;
     }
 
 private:
@@ -356,9 +395,11 @@ public:
         artArea = top.removeFromLeft (128);
         top.removeFromLeft (16);
         infoArea = top.removeFromTop (84);
-        allowButton.setBounds (infoArea.getX(), infoArea.getY() + 80, 200, 26);
 
+        // In the transport's place, as there's nothing to control until Curve's allowed to
         auto transport = top.removeFromBottom (40);
+        allowButton.setBounds (transport.withWidth (juce::jmin (transport.getWidth(), 220)).withSizeKeepingCentre (juce::jmin (transport.getWidth(), 220), 26));
+
         previousButton.setBounds (transport.removeFromLeft (36).withSizeKeepingCentre (36, 36));
         transport.removeFromLeft (8);
         playButton.setBounds (transport.removeFromLeft (40));
@@ -455,7 +496,11 @@ private:
         catalogueButton.setVisible (! spotify && searchTab.getToggleState());
         list.setVisible (! spotify);
         updateEmptyLabel();
-        allowButton.setVisible (music.getProblem().containsIgnoreCase ("allow"));
+        const bool notAllowed = music.getProblem().containsIgnoreCase ("allow");
+        allowButton.setVisible (notAllowed);
+
+        for (auto* b : { &previousButton, &playButton, &nextButton })
+            b->setVisible (! notAllowed);
     }
 
     void runSearch()
@@ -465,14 +510,18 @@ private:
 
         if (text.isEmpty())
         {
+            ++searchNumber; // One still running is out of date
             searchResults.clear();
             showResults (searchResults);
             return;
         }
 
-        music.search (text, [safeThis = SafePointer<MusicEditor> (this)] (juce::Array<MusicNode::Item> items)
+        // Only the latest search's results, which may come back after an earlier one's
+        const auto thisSearch = ++searchNumber;
+
+        music.search (text, [safeThis = SafePointer<MusicEditor> (this), thisSearch] (juce::Array<MusicNode::Item> items)
         {
-            if (safeThis != nullptr)
+            if (safeThis != nullptr && safeThis->searchNumber == thisSearch)
             {
                 safeThis->searchResults = items;
 
@@ -556,6 +605,7 @@ private:
     juce::ListBox list;
     juce::Array<MusicNode::Item> searchResults, playlists, shown;
     juce::uint32 searchPending = 0;
+    int searchNumber = 0;
     juce::Rectangle<int> artArea, infoArea, positionArea, timesArea;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MusicEditor)
@@ -618,6 +668,10 @@ MusicNode::Worker& MusicNode::getWorker()
         worker = std::make_unique<Worker> ([this, weak = std::weak_ptr<bool> (alive)]
         {
             const auto musicOutput = Worker::runScript (musicNowPlayingScript);
+
+            if (juce::Thread::currentThreadShouldExit())
+                return;
+
             const auto spotifyOutput = isSpotifyInstalled() ? Worker::runScript (spotifyNowPlayingScript) : juce::String();
 
             juce::MessageManager::callAsync ([this, weak, musicOutput, spotifyOutput]
@@ -644,8 +698,28 @@ void MusicNode::run (const juce::String& script, std::function<void (const juce:
 // To whichever app is playing, or was last, or Music
 juce::String MusicNode::controlScript (const juce::String& musicCommand, const juce::String& spotifyCommand) const
 {
-    return getNowPlaying().app == App::spotify ? "tell application \"Spotify\" to " + spotifyCommand
-                                               : "tell application \"Music\" to " + musicCommand;
+    const auto app = getNowPlaying().app;
+
+    if (app == App::spotify)
+        return "tell application \"Spotify\" to " + spotifyCommand;
+
+    // Not known, as the window, which watches what's playing, hasn't been open, e.g. a footswitch
+    // mapped to it: the app that's playing, or else that's open, rather than always Music
+    if (app == App::none && isSpotifyInstalled())
+        return R"(
+set target to "Music"
+if application "Spotify" is running then
+    tell application "Spotify" to set spotifyPlaying to (player state is playing)
+    if spotifyPlaying or application "Music" is not running then set target to "Spotify"
+end if
+if target is "Spotify" then
+    tell application "Spotify" to )" + spotifyCommand + R"(
+else
+    tell application "Music" to )" + musicCommand + R"(
+end if
+)";
+
+    return "tell application \"Music\" to " + musicCommand;
 }
 
 void MusicNode::playPause()         { run (controlScript ("playpause", "playpause")); }
@@ -816,7 +890,10 @@ void MusicNode::updateNowPlaying (const juce::String& musicOutput, const juce::S
 
         if (chosen.app == App::music)
         {
-            const auto file = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("Curve Music Artwork");
+            // A file of its own, so two Music Remotes, or quick track changes, don't share one, and
+            // deleted once read
+            const auto file = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                                .getChildFile ("Curve Music Artwork " + juce::Uuid().toString());
             const auto script = R"(
 tell application "Music"
     try
@@ -835,6 +912,7 @@ return "ok"
             run (script, [this, file, setArtwork] (const juce::String& result)
             {
                 setArtwork (result == "ok" ? juce::ImageFileFormat::loadFrom (file) : juce::Image());
+                file.deleteFile();
                 sendChangeMessage();
             });
         }
@@ -843,12 +921,7 @@ return "ok"
             const auto url = chosen.artworkURL;
             auto weak = std::weak_ptr<bool> (alive);
 
-            getWorker().add ([url]
-            {
-                juce::MemoryBlock data;
-                juce::URL (url).readEntireBinaryStream (data);
-                return data.toBase64Encoding();
-            },
+            getWorker().add ([url] { return Worker::download (url).toBase64Encoding(); },
             [weak, setArtwork, this] (const juce::String& encoded)
             {
                 if (auto isAlive = weak.lock(); isAlive == nullptr || ! *isAlive)
