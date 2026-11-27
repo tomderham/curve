@@ -61,6 +61,14 @@ int main()
         auto crash = quit;
         crash.lastShutdownClean = false;
         expect (decide (crash).action == Action::ask, "unclean shutdown asks");
+
+        // Said first, with its warning and its offer not to open a preset, whatever else is so
+        crash.isOpeningRequestedFile = true;
+        expect (decide (crash).reason == Reason::didntShutDownCleanly, "a crash is said before a requested file");
+
+        crash.isOpeningRequestedFile = false;
+        crash.isOpeningInterfaceDefault = true;
+        expect (decide (crash).reason == Reason::didntShutDownCleanly, "a crash is said before another interface's default");
     }
 
     // Asked to open another preset

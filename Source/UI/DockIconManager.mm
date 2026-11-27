@@ -34,6 +34,9 @@ static std::function<void()> dockReopenCallback;
 }
 @end
 
+// Counts changes to the Dock icon, so one superseded while it waits to finish doesn't
+static unsigned int dockChangeGeneration = 0;
+
 static bool setActivationPolicy (bool showInDock)
 {
     const auto policy = showInDock ? NSApplicationActivationPolicyRegular
@@ -56,8 +59,10 @@ static void reactivate (NSArray<NSWindow*>* windows, NSWindow* keyWindow)
     else
         [NSApp activateIgnoringOtherApps: YES];
 
+    // Only those still open: one closed meanwhile, e.g. the editor, stays closed
     for (NSWindow* window in windows)
-        [window orderFrontRegardless];
+        if ([window isVisible])
+            [window orderFrontRegardless];
 
     if (keyWindow != nil && [keyWindow isVisible])
         [keyWindow makeKeyAndOrderFront: nil];
@@ -112,20 +117,28 @@ namespace DockIconManager
             if (auto* dock = [[NSRunningApplication runningApplicationsWithBundleIdentifier: @"com.apple.dock"] firstObject])
                 [dock activateWithOptions: 0];
 
-            // Copied, as a block keeps a copy of what it uses
+            // Copied, as a block keeps a copy of what it uses. Done only if nothing's changed the Dock
+            // icon since, e.g. the editor opened and closed again within the moment it takes
             auto done = std::make_shared<std::function<void()>> (std::move (onceDone));
+            const auto generation = ++dockChangeGeneration;
 
             dispatch_after (dispatch_time (DISPATCH_TIME_NOW, (int64_t) (0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                reactivate (windows, keyWindow);
+                const bool current = generation == dockChangeGeneration;
+
+                if (current)
+                    reactivate (windows, keyWindow);
+
                 [windows release];
                 [keyWindow release];
 
-                if (*done)
+                if (current && *done)
                     (*done)();
             });
         }
         else
         {
+            ++dockChangeGeneration; // A show still waiting to finish, e.g. the editor's, is over
+
             // Changing policy can deactivate the app, which leaves its windows behind
             // other apps; bring it back to the front so open windows stay visible.
             reactivate (windows, keyWindow);

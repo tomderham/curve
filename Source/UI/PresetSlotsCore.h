@@ -124,6 +124,20 @@ namespace PresetSlotsCore
     /** A preset renamed keeps its slot; one removed gives it up. */
     inline void rename (std::map<int, std::string>& assigned, const std::string& from, const std::string& to)
     {
+        if (from == to)
+            return;
+
+        // Onto the name of one that's gone, which kept its slot: that slot's given up, so a name has
+        // one slot, the renamed preset's
+        bool fromHasSlot = false;
+
+        for (const auto& entry : assigned)
+            fromHasSlot = fromHasSlot || entry.second == from;
+
+        if (fromHasSlot)
+            for (auto it = assigned.begin(); it != assigned.end();)
+                it = it->second == to ? assigned.erase (it) : std::next (it);
+
         for (auto& entry : assigned)
             if (entry.second == from)
                 entry.second = to;

@@ -59,15 +59,17 @@ namespace SessionRecoveryCore
         if (! (l.keepOnQuit || l.saveForCrashes) || ! l.hasKeptChanges)
             return {};
 
+        // First, whatever else is so: that dialog warns of it, and offers not to open a preset, in
+        // case it's what crashed it, as well as to open the one asked for
+        if (! l.lastShutdownClean)
+            return { Action::ask, Reason::didntShutDownCleanly };
+
         if (l.isOpeningRequestedFile && ! l.keptForPresetToOpen)
             return { Action::ask, Reason::requestedFile };
 
         // On the same interface, it was moved off its default deliberately
         if (l.isOpeningInterfaceDefault && ! l.keptForPresetToOpen && ! l.onSameInterface)
             return { Action::ask, Reason::interfaceDefault };
-
-        if (! l.lastShutdownClean)
-            return { Action::ask, Reason::didntShutDownCleanly };
 
         if (l.presetChangedSince)
             return { Action::ask, Reason::presetChanged };

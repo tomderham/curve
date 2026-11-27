@@ -223,6 +223,7 @@ public:
     // changed, so it's known whether there may be anything new to keep without asking every
     // plug-in for its state. Watches the plug-ins in the graph now: call it again after adding some
     void watchPluginStates();
+    void stopWatchingPluginStates();
     bool takePluginStateTouched()  { return pluginStateTouched.exchange (false); }
 
     // Whether this graph, from createXml(), isn't the preset as loaded or last saved, plug-ins'
@@ -372,7 +373,6 @@ private:
     uint32 restoreGeneration = 0, saveGeneration = 0;
     uint32 unsavedChangesGeneration = 0;   // restored by restoreUnsavedChanges(), and not saved since
     std::atomic<bool> pluginStateTouched { false };
-    void stopWatchingPluginStates();
     int pendingAsyncRestores = 0;
     StringArray pluginsFailedToRestore;
     StringArray pluginsMissingFromLoad;   // as above, but kept until the next load, for scene saves

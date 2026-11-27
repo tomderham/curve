@@ -417,6 +417,13 @@ private:
         }
 
         Array<int> getSelectedRows() const              { return getTargetRows (-1); }
+
+        // Every plug-in that failed to scan cleared, so the next scan tries them again
+        void clearFailures()
+        {
+            for (const auto& identifier : list.getBlacklistedFiles())
+                clearFailure (identifier);
+        }
         void sortOrderChanged (int column, bool forwards) override { juceModel.sortOrderChanged (column, forwards); }
 
         void paintRowBackground (Graphics& g, int row, int width, int height, bool selected) override
@@ -535,15 +542,9 @@ private:
                                             }));
             }
 
+            // As the Remove button and the Delete key do, which refreshes the rows and selection
             menu.addItem (PopupMenu::Item ("Remove from List")
-                            .setAction ([this, targets, knownTargets]
-                                        {
-                                            for (const auto& target : targets)
-                                                clearFailure (target);
-
-                                            for (const auto& known : knownTargets)
-                                                list.removeType (known);
-                                        }));
+                            .setAction ([this, rows] { removeRows (rows); }));
 
             menu.showMenuAsync (PopupMenu::Options().withTargetComponent (e.originalComponent)
                                                     .withMousePosition()
@@ -781,11 +782,19 @@ private:
                                                           "Clear List", "Cancel", this,
                                                           ModalCallbackFunction::create ([safeThis = SafePointer<CustomPluginListComponent> (this)] (int result)
                                                           {
-                                                              // Curve's own stay, for presets to find (see FailedPluginRowsModel)
+                                                              // Curve's own stay, for presets to find (see FailedPluginRowsModel).
+                                                              // Those that failed to scan go too, so a scan tries them again
                                                               if (result == 1 && safeThis != nullptr)
+                                                              {
+                                                                  safeThis->rowsModel.clearFailures();
+
                                                                   for (const auto& type : safeThis->list.getTypes())
                                                                       if (type.pluginFormatName != InternalPluginFormat::getIdentifier())
                                                                           safeThis->list.removeType (type);
+
+                                                                  safeThis->getTableListBox().updateContent();
+                                                                  safeThis->getTableListBox().deselectAllRows();
+                                                              }
                                                           }));
                         }));
 
@@ -1000,10 +1009,16 @@ MainHostWindow::MainHostWindow()
     // Started by PluginHostApp once the preset Curve opens with is decided
     sessionRecovery = std::make_unique<SessionRecovery> (
         [this]() -> PluginGraph* { return graphHolder != nullptr ? graphHolder->graph.get() : nullptr; },
+        // As Curve's launch finds it: the interface followed, or set, while it's released when idle
         [this]
         {
-            auto* device = deviceManager.getCurrentAudioDevice();
-            return device != nullptr ? device->getName() : juce::String();
+            if (auto* device = deviceManager.getCurrentAudioDevice())
+                return device->getName();
+
+            if (AudioResilienceManager::isFollowingSystemOutput())
+                return AudioResilienceManager::getFollowedOutputDeviceName();
+
+            return deviceManager.getAudioDeviceSetup().outputDeviceName;
         },
         [this] { return isLoadingPreset || isPresetLoadScheduled; });
 
@@ -1722,6 +1737,14 @@ void MainHostWindow::newPreset()
     {
         if (auto* w = safeThis.getComponent())
         {
+            // A preset still to load from switching quickly, or windows still to open for one, would
+            // replace the new preset, or open over it
+            w->pendingPresetFile = juce::File();
+            ++w->windowsOpenGeneration;
+
+            if (w->graphHolder != nullptr && w->graphHolder->graph != nullptr)
+                w->graphHolder->graph->setPresetWindowsDeferred (false);
+
             w->replaceGraph ([w]
             {
                 w->graphHolder->graph->newDocument();

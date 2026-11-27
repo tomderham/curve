@@ -148,6 +148,11 @@ public:
             // Changes made before it was watching are only found by looking
             mayHaveChanged = true;
         }
+        else if (auto* g = watched.get())
+        {
+            // Only saving for crashes asks: keeping them on quit looks at the graph then
+            g->stopWatchingPluginStates();
+        }
     }
 
     // As Curve quits, before the graph goes

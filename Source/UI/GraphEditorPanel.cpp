@@ -1692,7 +1692,13 @@ private:
         }
     };
 
-    void timerCallback() override   { refresh(); }
+    // Not while the editor's hidden, as it is most of the time: asking for the interface's volume is
+    // a call to CoreAudio. Shown again, it's up to date within a tick
+    void timerCallback() override
+    {
+        if (isShowing())
+            refresh();
+    }
 
     void refresh()
     {
@@ -1717,17 +1723,20 @@ private:
             resized();
         }
 
+        // Asked once, for both
+        const auto interfaceVolume = kind == VolumeKeyManager::VolumeControl::interface ? VolumeKeyManager::getInterfaceVolume() : 0.0f;
+
         // Not while it's being dragged, which sets it
         if (! volume.isMouseButtonDown())
         {
             if (kind == VolumeKeyManager::VolumeControl::interface)
-                volume.setValue (VolumeKeyManager::getInterfaceVolume(), dontSendNotification);
+                volume.setValue (interfaceVolume, dontSendNotification);
             else if (kind == VolumeKeyManager::VolumeControl::curve)
                 volume.setValue (VolumeKeyManager::getVolumeSteps(), dontSendNotification);
         }
 
         volumeLabel.setText (kind == VolumeKeyManager::VolumeControl::interface
-                               ? String (roundToInt (VolumeKeyManager::getInterfaceVolume() * 100.0f)) + "%"
+                               ? String (roundToInt (interfaceVolume * 100.0f)) + "%"
                                : VolumeKeyManager::describeVolume(),
                              dontSendNotification);
     }

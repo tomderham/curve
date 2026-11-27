@@ -1838,7 +1838,23 @@ bool PluginGraph::differsFromSaved (const XmlElement& current) const
         copy->removeAttribute (Curve::Scenes::groupAttribute);
 
         for (auto* node : copy->getChildWithTagNameIterator ("FILTER"))
+        {
             Curve::Scenes::removeDescriptionTimes (*node);
+
+            // The audio device nodes' channels follow the interface, not the preset, so opening it on
+            // one with more or fewer channels isn't a change to it
+            if (auto* plugin = node->getChildByName ("PLUGIN");
+                plugin != nullptr && plugin->getStringAttribute ("format").equalsIgnoreCase ("Internal")
+                && (plugin->getStringAttribute ("name").equalsIgnoreCase (Curve::AudioConstants::audioInputName)
+                    || plugin->getStringAttribute ("name").equalsIgnoreCase (Curve::AudioConstants::audioOutputName)))
+            {
+                plugin->removeAttribute ("numInputs");
+                plugin->removeAttribute ("numOutputs");
+
+                if (auto* layout = node->getChildByName ("LAYOUT"))
+                    node->removeChildElement (layout, true);
+            }
+        }
 
         return copy;
     };
@@ -1869,13 +1885,16 @@ void PluginGraph::restoreUnsavedChanges (const XmlElement& kept, const File& pre
         setFile ({});
     }
 
-    // As loadDocument(), but changed: after the change messages, which loading clears it after
+    // As loadDocument(), but changed: after the change messages, which loading clears it after. Not
+    // if another preset's loaded meanwhile, which these changes aren't to
     juce::WeakReference<PluginGraph> weakSelf (this);
-    MessageManager::callAsync ([weakSelf]
+    MessageManager::callAsync ([weakSelf, generation = restoreGeneration]
     {
         if (auto* self = weakSelf.get())
         {
-            self->setChangedFlag (true);
+            if (self->restoreGeneration == generation)
+                self->setChangedFlag (true);
+
             self->graph.addChangeListener (self);
         }
     });

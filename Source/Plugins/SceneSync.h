@@ -97,7 +97,8 @@ inline bool isNeverBypassed (const juce::XmlElement& node)
     if (plugin == nullptr || ! plugin->getStringAttribute ("format").equalsIgnoreCase ("Internal"))
         return false;
 
-    for (const auto* name : { "Audio Input", "Audio Output", "MIDI Input", "MIDI Output", "Meter" })
+    // And those with no audio or MIDI to bypass (see PluginGraph::canBeBypassed())
+    for (const auto* name : { "Audio Input", "Audio Output", "MIDI Input", "MIDI Output", "Meter", "Score Viewer", "Music Remote" })
         if (plugin->getStringAttribute ("name").equalsIgnoreCase (name)
             || plugin->getStringAttribute ("file").equalsIgnoreCase (name))
             return true;

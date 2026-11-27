@@ -50,6 +50,16 @@ int main()
     remove (assigned, "Solo");
     expect (assigned.empty(), "removed gives it up");
 
+    // Renamed onto the name of one that's gone, which kept its slot: one slot, the renamed one's
+    assigned = { { 2, "Gone" }, { 5, "Lead" } };
+    rename (assigned, "Lead", "Gone");
+    expect (assigned.size() == 1 && assigned[5] == "Gone", "renamed onto a gone one's name has one slot");
+
+    // Renamed onto a gone one's name, without a slot of its own: the gone one's slot stays
+    assigned = { { 2, "Gone" } };
+    rename (assigned, "Lead", "Gone");
+    expect (assigned.size() == 1 && assigned[2] == "Gone", "without a slot of its own, keeps the one there");
+
     // More presets than slots: the last have none, and an assigned one past them still has its own
     std::vector<std::string> many;
     for (int i = 0; i < 5; ++i)
