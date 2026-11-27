@@ -40,7 +40,8 @@
 */
 class LooperNode final : public juce::AudioPluginInstance,
                          private juce::AudioProcessorParameter::Listener,
-                         private juce::AsyncUpdater
+                         private juce::AsyncUpdater,
+                         private juce::Timer
 {
 public:
     LooperNode();
@@ -129,6 +130,11 @@ private:
     void parameterValueChanged (int, float) override;
     void parameterGestureChanged (int, bool) override {}
     void handleAsyncUpdate() override;
+    void timerCallback() override                   { takePresses(); }
+
+    // The presses, one at a time, each once the audio thread has taken the last request: what a press
+    // does depends on what the last did, and the undo copy can't be made while one could swap it
+    void takePresses();
 
     void request (Request r)                        { pendingRequest.store (r, std::memory_order_release); }
     void handleRequest (Request, double samplesPerBar);
@@ -136,6 +142,7 @@ private:
     // Audio thread
     void beginRecording();
     void finishRecording (bool thenStop, double samplesPerBar);
+    void smoothSeam (int length);
     int recordInto (juce::AudioBuffer<float>&, int start, int num);
     int playLoop (juce::AudioBuffer<float>&, int start, int num);
     void addClicks (juce::AudioBuffer<float>&, int start, int num);
@@ -169,6 +176,7 @@ private:
     // Audio thread only
     double readPosition = 0.0;              // Where it plays, between samples at half speed
     float fadeGain = 1.0f, fadeStep = 0.0f; // Stopping: down to nothing, then it stops
+    float fadeInStep = 0.0f;                // Starting: up from nothing, so it doesn't click
     int countInLength = 0, countInDone = 0;
 
     juce::LinearSmoothedValue<float> level { 1.0f };

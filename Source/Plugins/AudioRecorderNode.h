@@ -109,6 +109,9 @@ public:
 
     double getRecorderSampleRate() const noexcept   { return currentSampleRate; }
 
+    /** Why the last recording stopped by itself, e.g. the disk filled up, until the next starts. */
+    juce::String getWriteError() const              { return writeError; }
+
     /** The recordings any recorder has made, newest first, kept in user settings. */
     static juce::Array<juce::File> getRecentRecordings();
     static void forgetRecording (const juce::File&);
@@ -129,6 +132,7 @@ private:
     void timerCallback() override;
 
     void writeFromFifo (int numSamples);
+    void allocateFifo();
     void writeHistory();
     void allocateHistory();
     static void rememberRecording (const juce::File&);
@@ -140,7 +144,7 @@ private:
     std::atomic<juce::int64> samplesRecorded { 0 };
     juce::File lastRecordedFile;
 
-    static constexpr int fifoCapacity = 131072;
+    static constexpr int fifoCapacity = 131072; // At least; more at high sample rates (see allocateFifo())
     juce::AbstractFifo fifo { fifoCapacity };
     juce::AudioBuffer<float> fifoBuffer { maxRecorderChannels, fifoCapacity };
 
@@ -158,6 +162,8 @@ private:
     std::atomic<bool> heardSound { false };
 
     bool startedByAuto = false;            // Auto stops only what it started
+    std::atomic<bool> writeFailed { false };   // By the writer thread
+    juce::String writeError;
     juce::uint32 startRequestTime = 0;
 
     Format format = Format::wav32Float;

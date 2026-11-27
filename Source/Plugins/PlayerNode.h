@@ -116,7 +116,7 @@ private:
     juce::Array<juce::File> playlist;
     int currentIndex = 0;
     AtEnd atEnd = AtEnd::stop;
-    bool stoppedOnPurpose = false;
+    bool playingToEnd = false; // Playing, rather than stopped, paused or newly loaded: it goes on when the track ends
 
     InternalParameter* playParam = nullptr;
     InternalParameter* stopParam = nullptr;

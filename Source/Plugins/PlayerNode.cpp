@@ -376,6 +376,8 @@ private:
             if (player.getCurrentFile() != shownFile)
                 loadThumbnail();
 
+            // e.g. a preset, or a scene, set another
+            atEndBox.setSelectedItemIndex ((int) player.getAtEnd(), juce::dontSendNotification);
             list.updateContent();
         }
 
@@ -600,21 +602,23 @@ void PlayerNode::moveFile (int index, int newIndex)
 // Opens the track, ready to play from its start
 void PlayerNode::load (int index)
 {
-    stoppedOnPurpose = true;
+    playingToEnd = false;
     transport.stop();
     transport.setSource (nullptr);
     readerSource = nullptr;
     currentIndex = juce::jlimit (0, juce::jmax (0, playlist.size() - 1), index);
 
-    if (auto* reader = formatManager.createReaderFor (playlist[currentIndex]))
+    // Not an empty file, which, repeated, would divide by its length. setSource() prepares it, if
+    // the transport has been
+    if (std::unique_ptr<juce::AudioFormatReader> reader { formatManager.createReaderFor (playlist[currentIndex]) };
+        reader != nullptr && reader->lengthInSamples > 0 && reader->sampleRate > 0.0)
     {
-        readerSource = std::make_unique<juce::AudioFormatReaderSource> (reader, true);
+        const auto rate = reader->sampleRate;
+        readerSource = std::make_unique<juce::AudioFormatReaderSource> (reader.release(), true);
         readerSource->setLooping (atEnd == AtEnd::repeat);
-        transport.setSource (readerSource.get(), 32768, &readAhead, reader->sampleRate, 2);
-        transport.prepareToPlay (currentBlockSize, currentSampleRate);
+        transport.setSource (readerSource.get(), 32768, &readAhead, rate, 2);
     }
 
-    stoppedOnPurpose = false;
     sendChangeMessage();
 }
 
@@ -631,18 +635,21 @@ void PlayerNode::play()
     if (readerSource == nullptr && ! playlist.isEmpty())
         load (currentIndex);
 
+    if (readerSource == nullptr)
+        return;
+
     if (transport.hasStreamFinished())
         transport.setPosition (0.0);
 
+    playingToEnd = true;
     transport.start();
     sendChangeMessage();
 }
 
 void PlayerNode::pause()
 {
-    stoppedOnPurpose = true;
+    playingToEnd = false;
     transport.stop();
-    stoppedOnPurpose = false;
     sendChangeMessage();
 }
 
@@ -683,11 +690,14 @@ void PlayerNode::setAtEnd (AtEnd newAtEnd)
         readerSource->setLooping (atEnd == AtEnd::repeat);
 }
 
-// A track ended by itself: what's next
+// A track that was playing ended by itself: what's next. The transport says it's stopped after
+// the stop, so whether it was stopped on purpose is kept until then, rather than only during it
 void PlayerNode::changeListenerCallback (juce::ChangeBroadcaster*)
 {
-    if (! stoppedOnPurpose && ! transport.isPlaying() && transport.hasStreamFinished())
+    if (playingToEnd && readerSource != nullptr && ! transport.isPlaying() && transport.hasStreamFinished())
     {
+        playingToEnd = false;
+
         if (atEnd == AtEnd::next && currentIndex + 1 < playlist.size())
             selectTrack (currentIndex + 1, true);
         else
@@ -752,6 +762,10 @@ void PlayerNode::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffe
 
     // Nothing comes in: what's in the buffer is left from elsewhere in the graph
     buffer.clear();
+
+    // Not prepared yet, so nothing to play into
+    if (playBuffer.getNumSamples() <= 0)
+        return;
 
     // A bigger block than it was prepared for is played in parts
     for (int done = 0; done < numSamples;)

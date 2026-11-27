@@ -275,7 +275,9 @@ public:
         for (auto pair : { std::pair { &syncButton, &fadeButton }, { &reverseButton, &halfSpeedButton } })
         {
             auto line = options.removeFromTop (32).withTrimmedLeft (labelWidth + 10);
-            pair.first->setBounds (line.removeFromLeft (line.getWidth() / 2).withSizeKeepingCentre (line.getWidth() / 2, 26));
+            // Half the row each: taken before it's used, as the call after it would see the row halved
+            const auto left = line.removeFromLeft (line.getWidth() / 2);
+            pair.first->setBounds (left.withSizeKeepingCentre (left.getWidth(), 26));
             pair.second->setBounds (line.withSizeKeepingCentre (line.getWidth(), 26));
         }
 
@@ -502,6 +504,7 @@ LooperNode::LooperNode()
 
 LooperNode::~LooperNode()
 {
+    stopTimer();
     cancelPendingUpdate();
 
     for (auto* p : { loopParam, stopParam, undoParam, clearParam })
@@ -558,45 +561,75 @@ void LooperNode::handleAsyncUpdate()
     for (auto* p : { loopParam, stopParam, undoParam, clearParam })
         p->setValue (0.0f);
 
-    for (auto n = pressedClear.exchange (0); n > 0; --n)
-        request (clear);
+    takePresses();
+}
 
-    for (auto n = pressedLoop.exchange (0); n > 0; --n)
+// On the message thread
+void LooperNode::takePresses()
+{
+    // One press per request, so none overwrites another before the audio thread has it, and each is
+    // taken in the state the last left it in. If the audio thread hasn't taken the last yet, e.g.
+    // between blocks, it's tried again in a moment
+    while (pendingRequest.load (std::memory_order_acquire) == none)
     {
-        switch (getState())
+        const auto take = [] (std::atomic<int>& presses)
         {
-            case State::empty:       request (record); break;
-            case State::waiting:
-            case State::countIn:     request (cancel); break;
-            case State::recording:   request (closeLoop); break;
-            case State::overdubbing: request (endOverdub); break;
-            case State::stopped:     request (play); break;
+            if (presses.load() <= 0)
+                return false;
 
-            case State::playing:
+            --presses;
+            return true;
+        };
+
+        const auto s = getState();
+
+        if (take (pressedClear))
+        {
+            request (clear);
+        }
+        else if (take (pressedLoop))
+        {
+            switch (s)
             {
-                // What it was before this overdub, to go back to
-                const auto from = active.load(), to = 1 - from;
-                const auto length = getLoopLength();
+                case State::empty:       request (record); break;
+                case State::waiting:
+                case State::countIn:     request (cancel); break;
+                case State::recording:   request (closeLoop); break;
+                case State::overdubbing: request (endOverdub); break;
+                case State::stopped:     request (play); break;
 
-                for (int ch = 0; ch < loops[to].getNumChannels(); ++ch)
-                    loops[to].copyFrom (ch, 0, loops[from], ch, 0, length);
+                case State::playing:
+                {
+                    // What it was before this overdub, to go back to. Nothing's waiting for the audio
+                    // thread, so it can't swap the copies meanwhile; it says there's an undo once it
+                    // starts the overdub
+                    const auto from = active.load(), to = 1 - from;
+                    const auto length = getLoopLength();
 
-                hasUndo = true;
-                undone = false;
-                request (overdub);
-                break;
+                    for (int ch = 0; ch < loops[to].getNumChannels(); ++ch)
+                        loops[to].copyFrom (ch, 0, loops[from], ch, 0, length);
+
+                    request (overdub);
+                    break;
+                }
             }
+        }
+        else if (take (pressedStop))
+        {
+            request (s == State::stopped ? play : s == State::waiting || s == State::countIn ? cancel : stop);
+        }
+        else if (take (pressedUndo))
+        {
+            request (undo);
+        }
+        else
+        {
+            stopTimer();
+            return;
         }
     }
 
-    for (auto n = pressedStop.exchange (0); n > 0; --n)
-    {
-        const auto s = getState();
-        request (s == State::stopped ? play : s == State::waiting || s == State::countIn ? cancel : stop);
-    }
-
-    for (auto n = pressedUndo.exchange (0); n > 0; --n)
-        request (undo);
+    startTimer (5);
 }
 
 //==============================================================================
@@ -649,6 +682,7 @@ void LooperNode::finishRecording (bool thenStop, double samplesPerBar)
     }
 
     loopLength = juce::jmin (length, recorded);
+    smoothSeam (loopLength.load());
     position = thenStop ? 0 : (recorded - loopLength.load()) % juce::jmax (1, loopLength.load());
     readPosition = position.load();
     layers = 1;
@@ -662,7 +696,25 @@ void LooperNode::finishRecording (bool thenStop, double samplesPerBar)
 void LooperNode::startFade (double seconds)
 {
     fadeStep = (float) (1.0 / juce::jmax (1.0, seconds * currentSampleRate));
+    fadeInStep = 0.0f;
     fadingOut = true;
+}
+
+// Where the loop's end meets its start, a few milliseconds faded out and in, so a loop that ends
+// mid-note doesn't click each time round
+void LooperNode::smoothSeam (int length)
+{
+    auto& loop = loops[active.load (std::memory_order_relaxed)];
+    const auto fadeLength = juce::jmin (length / 4, (int) (0.004 * currentSampleRate));
+
+    if (fadeLength < 2)
+        return;
+
+    for (int ch = 0; ch < loop.getNumChannels(); ++ch)
+    {
+        loop.applyGainRamp (ch, 0, fadeLength, 0.0f, 1.0f);
+        loop.applyGainRamp (ch, length - fadeLength, fadeLength, 1.0f, 0.0f);
+    }
 }
 
 void LooperNode::handleRequest (Request r, double samplesPerBar)
@@ -716,7 +768,15 @@ void LooperNode::handleRequest (Request r, double samplesPerBar)
                 fadeGain = 1.0f;
                 fadeStep = 0.0f;
                 fadingOut = false;
+                hasUndo = true;     // The copy from before it, made as it was asked for
+                undone = false;
                 state = (int) State::overdubbing;
+            }
+            else
+            {
+                // Not started, e.g. it had stopped meanwhile: the copy made for it isn't an undo
+                hasUndo = false;
+                undone = false;
             }
             break;
 
@@ -755,7 +815,10 @@ void LooperNode::handleRequest (Request r, double samplesPerBar)
             {
                 position = 0;
                 readPosition = reverseParam->isOn() ? loopLength.load() - 1 : 0;
-                fadeGain = 1.0f;
+
+                // Faded in over 5 ms, so starting it doesn't click
+                fadeGain = 0.0f;
+                fadeInStep = (float) (1.0 / juce::jmax (1.0, 0.005 * currentSampleRate));
                 fadeStep = 0.0f;
                 fadingOut = false;
                 state = (int) State::playing;
@@ -823,6 +886,7 @@ int LooperNode::recordInto (juce::AudioBuffer<float>& buffer, int start, int num
     {
         // To the end of the bar: closed exactly there
         loopLength = target;
+        smoothSeam (target);
         position = 0;
         readPosition = reverseParam->isOn() ? target - 1 : 0;
         layers = 1;
@@ -833,6 +897,7 @@ int LooperNode::recordInto (juce::AudioBuffer<float>& buffer, int start, int num
     {
         // As long as it can be: closed there
         loopLength = maxLength;
+        smoothSeam (maxLength);
         position = 0;
         readPosition = 0.0;
         layers = 1;
@@ -861,6 +926,9 @@ int LooperNode::playLoop (juce::AudioBuffer<float>& buffer, int start, int num)
     const auto keep = dubbing ? std::pow (feedbackParam->get(), speed) : 1.0f;
 
     const auto numOut = juce::jmin (2, buffer.getNumChannels());
+
+    if (numOut == 0)
+        return num;
     const auto numLoop = loop.getNumChannels();
 
     for (int i = 0; i < num; ++i)
@@ -889,6 +957,14 @@ int LooperNode::playLoop (juce::AudioBuffer<float>& buffer, int start, int num)
             // each pass adds half
             if (dubbing && ch < numLoop)
                 stored[index] = stored[index] * keep + input * speed;
+        }
+
+        if (fadeInStep > 0.0f)
+        {
+            fadeGain = juce::jmin (1.0f, fadeGain + fadeInStep);
+
+            if (fadeGain >= 1.0f)
+                fadeInStep = 0.0f;
         }
 
         if (fadeStep > 0.0f)
@@ -1071,9 +1147,9 @@ bool LooperNode::saveLoop (const juce::File& file)
     if (length <= 0)
         return false;
 
-    // A stream onto a file that's there adds to its end
-    file.deleteFile();
-    std::unique_ptr<juce::OutputStream> stream (file.createOutputStream().release());
+    // Written beside it, then put in its place, so a file that's there isn't lost if this fails
+    const juce::TemporaryFile temp (file);
+    std::unique_ptr<juce::OutputStream> stream (temp.getFile().createOutputStream().release());
 
     if (stream == nullptr)
         return false;
@@ -1082,10 +1158,14 @@ bool LooperNode::saveLoop (const juce::File& file)
                                                          .withNumChannels (2)
                                                          .withBitsPerSample (24);
 
-    if (auto writer = juce::WavAudioFormat().createWriterFor (stream, options))
-        return writer->writeFromAudioSampleBuffer (loops[active.load()], 0, length);
+    {
+        auto writer = juce::WavAudioFormat().createWriterFor (stream, options);
 
-    return false;
+        if (writer == nullptr || ! writer->writeFromAudioSampleBuffer (loops[active.load()], 0, length))
+            return false;
+    }
+
+    return temp.overwriteTargetFileWithTemporary();
 }
 
 void LooperNode::getStateInformation (juce::MemoryBlock& destData)

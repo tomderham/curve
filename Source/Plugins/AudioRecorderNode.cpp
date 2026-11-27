@@ -320,8 +320,12 @@ private:
         const bool rec = recorder.isRecording();
         const bool autoOn = recorder.getAutoParameter().isOn();
 
-        statusLabel.setText (rec ? "Recording" : autoOn ? "Waiting for sound" : "Ready to record", juce::dontSendNotification);
-        statusLabel.setColour (juce::Label::textColourId, rec ? Curve::Colours::danger : autoOn ? Curve::Colours::warning : Curve::Colours::text);
+        const auto error = rec ? juce::String() : recorder.getWriteError();
+        statusLabel.setText (rec ? "Recording" : error.isNotEmpty() ? "Recording stopped" : autoOn ? "Waiting for sound" : "Ready to record",
+                             juce::dontSendNotification);
+        statusLabel.setColour (juce::Label::textColourId, rec || error.isNotEmpty() ? Curve::Colours::danger
+                                                          : autoOn ? Curve::Colours::warning : Curve::Colours::text);
+        statusLabel.setTooltip (error);
 
         timeLabel.setText (formatTime (rec ? (double) recorder.getRecordedSampleCount() / sampleRate : 0.0), juce::dontSendNotification);
         timeLabel.setColour (juce::Label::textColourId, rec ? Curve::Colours::text : Curve::Colours::dimText);
@@ -329,6 +333,7 @@ private:
         const auto numChannels = recorder.getMainBusNumInputChannels();
         const auto channels = numChannels == 1 ? juce::String ("Mono") : numChannels == 2 ? juce::String ("Stereo") : juce::String (numChannels) + " channels";
         detailLabel.setText (rec ? recorder.getLastRecordedFile().getFileName()
+                                 : error.isNotEmpty() ? error
                                  : channels + "  " + juce::String::fromUTF8 ("\xc2\xb7") + "  " + juce::String (sampleRate / 1000.0, 1) + " kHz",
                              juce::dontSendNotification);
 
@@ -419,8 +424,13 @@ private:
             if (! dragging && e.getDistanceFromDragStart() > 4 && file.existsAsFile())
             {
                 dragging = true;
+                // The row may be gone when the drag ends, e.g. the window closed meanwhile
                 juce::DragAndDropContainer::performExternalDragDropOfFiles ({ file.getFullPathName() }, false, this,
-                                                                            [this] { dragging = false; });
+                                                                            [safeThis = SafePointer<RecordingRow> (this)]
+                                                                            {
+                                                                                if (safeThis != nullptr)
+                                                                                    safeThis->dragging = false;
+                                                                            });
             }
         }
 
@@ -536,8 +546,28 @@ void AudioRecorderNode::handleAsyncUpdate()
         recordParam->set (isRecording() ? 1.0f : 0.0f);
 }
 
+// Room for ten seconds of what comes in while the writer catches up, e.g. writing what was kept from
+// before Record, or a slow disk: no less than before, and no more than 64 MB, however many channels
+void AudioRecorderNode::allocateFifo()
+{
+    const auto numChannels = juce::jlimit (1, maxRecorderChannels, getMainBusNumInputChannels());
+    const auto most = (64 * 1024 * 1024 / (int) sizeof (float)) / numChannels;
+    const auto samples = juce::jlimit (fifoCapacity, juce::jmax (fifoCapacity, most), (int) (currentSampleRate * 10.0));
+
+    // Made off the audio thread, then swapped in under its lock, as the history is
+    juce::AudioBuffer<float> newBuffer (numChannels, samples);
+    newBuffer.clear();
+
+    const juce::ScopedLock sl (getCallbackLock());
+    std::swap (fifoBuffer, newBuffer);
+    fifo.setTotalSize (samples);
+    fifo.reset();
+}
+
 void AudioRecorderNode::setHistorySeconds (int seconds)
 {
+    seconds = juce::jlimit (0, 60, seconds);
+
     if (seconds == historySeconds || isRecording())
         return;
 
@@ -572,8 +602,7 @@ void AudioRecorderNode::prepareToPlay (double sampleRate, int samplesPerBlock)
     if (isRecording())
         stopRecording();
 
-    fifo.reset();
-    fifoBuffer.clear();
+    allocateFifo();
 
     if (rateChanged || historyBuffer.getNumChannels() != juce::jmax (1, getMainBusNumInputChannels()) || (historySeconds > 0) != (historyBuffer.getNumSamples() > 0))
         allocateHistory();
@@ -638,7 +667,8 @@ void AudioRecorderNode::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
         historyWritten.store (written + numSamples, std::memory_order_release);
     }
 
-    if (isRecordingFlag.load (std::memory_order_relaxed) && historyMark.load (std::memory_order_acquire) >= 0)
+    // Acquired, so the reset of the FIFO and the mark, made before it was set, are seen with it
+    if (isRecordingFlag.load (std::memory_order_acquire) && historyMark.load (std::memory_order_acquire) >= 0)
     {
         int start1, size1, start2, size2;
         fifo.prepareToWrite (numSamples, start1, size1, start2, size2);
@@ -660,6 +690,9 @@ void AudioRecorderNode::startRecording()
 {
     if (isRecordingFlag.load (std::memory_order_acquire))
         return;
+
+    writeError.clear();
+    writeFailed = false;
 
     const auto numChans = juce::jlimit (1, maxRecorderChannels, getMainBusNumInputChannels());
     fifo.reset();
@@ -776,6 +809,14 @@ void AudioRecorderNode::stopRecording()
 
 void AudioRecorderNode::timerCallback()
 {
+    // A write that failed, e.g. the disk's full: stopped, and said, rather than recording nothing
+    if (writeFailed.exchange (false) && isRecording())
+    {
+        stopRecording();
+        writeError = "Couldn't write to " + lastRecordedFile.getFileName() + ". Is the disk full, or gone?";
+        startedByAuto = false;
+    }
+
     // Without audio running, nothing marks where the recording starts: soon, it starts anyway, without
     // what's kept
     if (isRecording() && historyMark.load() < 0 && juce::Time::getMillisecondCounter() - startRequestTime > 300)
@@ -827,11 +868,18 @@ void AudioRecorderNode::writeHistory()
     if (writer == nullptr)
         return;
 
-    while (length > 0)
+    // In chunks, so it stops soon if the recording does, and a minute of FLAC doesn't hold it for long
+    while (length > 0 && ! threadShouldExit())
     {
         const auto pos = (int) (from % size);
-        const auto chunk = (int) juce::jmin (length, size - pos);
-        writer->writeFromAudioSampleBuffer (historyBuffer, pos, chunk);
+        const auto chunk = (int) juce::jmin (length, size - pos, (juce::int64) 8192);
+
+        if (! writer->writeFromAudioSampleBuffer (historyBuffer, pos, chunk))
+        {
+            writeFailed = true;
+            return;
+        }
+
         from += chunk;
         length -= chunk;
         samplesRecorded.fetch_add (chunk, std::memory_order_relaxed);
@@ -846,12 +894,13 @@ void AudioRecorderNode::writeFromFifo (int numSamples)
     {
         const juce::ScopedLock sl (writerLock);
 
+        // A disk that's full, or gone: said, and the recording's stopped (see timerCallback())
         if (writer != nullptr)
         {
-            if (size1 > 0)
-                writer->writeFromAudioSampleBuffer (fifoBuffer, start1, size1);
-            if (size2 > 0)
-                writer->writeFromAudioSampleBuffer (fifoBuffer, start2, size2);
+            if (size1 > 0 && ! writer->writeFromAudioSampleBuffer (fifoBuffer, start1, size1))
+                writeFailed = true;
+            if (size2 > 0 && ! writer->writeFromAudioSampleBuffer (fifoBuffer, start2, size2))
+                writeFailed = true;
         }
     }
 
@@ -994,8 +1043,7 @@ void AudioRecorderNode::processorLayoutsChanged()
     if (isRecording())
         stopRecording();
 
-    fifo.reset();
-    fifoBuffer.clear();
+    allocateFifo();
 
     // As many channels kept as it records
     if (historyBuffer.getNumChannels() != juce::jmax (1, getMainBusNumInputChannels()) && historySeconds > 0)
