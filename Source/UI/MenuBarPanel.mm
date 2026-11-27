@@ -800,6 +800,7 @@ struct MenuBarPanel::Impl : private juce::Timer
     {
         *alive = false;
         source.setMetering (false);
+        source.setPluginMetering (false);
         stopWatching();
         stopTimer();
         source.onChange = nullptr;
@@ -896,6 +897,10 @@ private:
     NSLayoutConstraint* presetsHeight = nil;
     NSLayoutConstraint* pluginsHeight = nil;
 
+    // The room left beside each list for its scroll bar, which it needs if it's made shorter
+    NSLayoutConstraint* presetsTrailing = nil;
+    NSLayoutConstraint* pluginsTrailing = nil;
+
     // How tall a list may be before it scrolls: a share of the screen's height, and no more than a
     // few rows, so the panel stays short however many presets and plug-ins there are
     CGFloat getListHeightLimit (double share, int maxRows, CGFloat rowPitch) const
@@ -905,7 +910,7 @@ private:
 
     // A list in a scroll view as tall as it is, up to maxHeight, which can be made shorter later
     NSScrollView* makeScrollingList (NSView* list, CGFloat contentHeight, CGFloat maxHeight, CGFloat trailingRoom,
-                                     NSLayoutConstraint*& heightConstraint)
+                                     NSLayoutConstraint*& heightConstraint, NSLayoutConstraint** trailingConstraint = nullptr)
     {
         NSScrollView* scroll = [[[NSScrollView alloc] init] autorelease];
         [scroll setHasVerticalScroller: YES];
@@ -920,10 +925,14 @@ private:
 
         NSClipView* clip = [scroll contentView];
         heightConstraint = [[scroll heightAnchor] constraintEqualToConstant: std::min (contentHeight, maxHeight)];
+        NSLayoutConstraint* trailing = [[list trailingAnchor] constraintEqualToAnchor: [document trailingAnchor] constant: -trailingRoom];
+
+        if (trailingConstraint != nullptr)
+            *trailingConstraint = trailing;
 
         [NSLayoutConstraint activateConstraints: @[
             [[list leadingAnchor] constraintEqualToAnchor: [document leadingAnchor]],
-            [[list trailingAnchor] constraintEqualToAnchor: [document trailingAnchor] constant: -trailingRoom],
+            trailing,
             [[list topAnchor] constraintEqualToAnchor: [document topAnchor]],
             [[list bottomAnchor] constraintEqualToAnchor: [document bottomAnchor]],
             [[document leadingAnchor] constraintEqualToAnchor: [clip leadingAnchor]],
@@ -1075,6 +1084,7 @@ private:
         stopTimer();
         source.setListening (false);
         source.setMetering (false);
+        source.setPluginMetering (false);
         meter = nil;
         lastCloseTime = juce::Time::getMillisecondCounter();
     }
@@ -1184,6 +1194,8 @@ private:
         [actions removeAllObjects];
         presetsHeight = nil;
         pluginsHeight = nil;
+        presetsTrailing = nil;
+        pluginsTrailing = nil;
         meter = nil;
         volumeSlider = nil;
         tempoField = nil;
@@ -1238,7 +1250,16 @@ private:
         // or solid, as set in Preferences
         const auto background = MenuBarPanel::getBackground();
         [root setWantsLayer: YES];
-        [[root layer] setBackgroundColor: background == MenuBarPanel::Background::solid ? [[NSColor windowBackgroundColor] CGColor] : nil];
+        [[root layer] setBackgroundColor: nil];
+
+        // In the panel's own appearance, which may not be the system's: a layer's colour is fixed when
+        // it's set, so the window colour is resolved for that appearance here
+        if (background == MenuBarPanel::Background::solid)
+        {
+            NSAppearance* appearance = [popover appearance] != nil ? [popover appearance] : [NSApp effectiveAppearance];
+            CALayer* layer = [root layer];
+            [appearance performAsCurrentDrawingAppearance: ^{ [layer setBackgroundColor: [[NSColor windowBackgroundColor] CGColor]]; }];
+        }
 
         if (background == MenuBarPanel::Background::frosted)
         {
@@ -1250,27 +1271,33 @@ private:
             [root addSubview: frost positioned: NSWindowBelow relativeTo: nil];
         }
 
-        // Meter plug-ins measure for the panel only while metering's on
-        if (! pluginMeters.empty())
-            source.setMetering (true);
+        // Meter plug-ins measure for the panel only while it shows them, without the output meter,
+        // which may not be shown
+        source.setPluginMetering (! pluginMeters.empty());
 
         [root layoutSubtreeIfNeeded];
 
         // Taller than the screen allows: the lists made shorter, presets first, down to a few rows each
         if (auto excess = [stack fittingSize].height - availableHeight; excess > 0)
         {
-            for (auto [constraint, minHeight] : { std::pair { presetsHeight, 3 * (tileHeight + tileGap) - tileGap },
-                                                  { pluginsHeight, 3 * (pluginRowHeight + pluginRowGap) - pluginRowGap } })
+            struct List { NSLayoutConstraint* height; NSLayoutConstraint* trailing; CGFloat minHeight, scrollBarRoom; };
+
+            for (const auto& list : { List { presetsHeight, presetsTrailing, 3 * (tileHeight + tileGap) - tileGap, 10 },
+                                      List { pluginsHeight, pluginsTrailing, 3 * (pluginRowHeight + pluginRowGap) - pluginRowGap, 14 } })
             {
-                if (constraint == nil || excess <= 0)
+                if (list.height == nil || excess <= 0)
                     continue;
 
-                const CGFloat by = std::min (excess, [constraint constant] - minHeight);
+                const CGFloat by = std::min (excess, [list.height constant] - list.minHeight);
 
                 if (by > 0)
                 {
-                    [constraint setConstant: [constraint constant] - by];
+                    [list.height setConstant: [list.height constant] - by];
                     excess -= by;
+
+                    // It scrolls now, if it didn't: room for its scroll bar, so it isn't over the rows' ends
+                    if (list.trailing != nil && [list.trailing constant] > -list.scrollBarRoom)
+                        [list.trailing setConstant: -list.scrollBarRoom];
                 }
             }
 
@@ -1470,7 +1497,7 @@ private:
         const CGFloat maxHeight = getListHeightLimit (0.4, 10, tileHeight + tileGap) + 2 * cardPadding;
 
         // Room for the scrollbar, if it scrolls
-        NSScrollView* scroll = makeScrollingList (list, contentHeight, maxHeight, contentHeight > maxHeight ? 10 : 0, presetsHeight);
+        NSScrollView* scroll = makeScrollingList (list, contentHeight, maxHeight, contentHeight > maxHeight ? 10 : 0, presetsHeight, &presetsTrailing);
         addFullWidth (scroll);
 
         // The current preset in view, once the panel's been laid out
@@ -1715,7 +1742,7 @@ private:
         }
 
         // In a scroll view even when it fits, so it can be made shorter if the panel's too tall for the screen
-        addFullWidth (makeScrollingList (makeCard (rows, 12), contentHeight, maxHeight, trailingRoom, pluginsHeight));
+        addFullWidth (makeScrollingList (makeCard (rows, 12), contentHeight, maxHeight, trailingRoom, pluginsHeight, &pluginsTrailing));
     }
 
     // What Curve plays out: switches for checking it and its volume, with its level at the right

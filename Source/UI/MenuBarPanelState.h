@@ -122,6 +122,10 @@ namespace MenuBarPanelState
 
         /** The output's peak levels since the last read, 0 to 1, while metering is on. */
         virtual void setMetering (bool) = 0;
+
+        /** Whether the Meter plug-ins in the plug-in list measure for the panel, apart from the
+            output meter, which may not be shown. */
+        virtual void setPluginMetering (bool) = 0;
         virtual void readOutputPeaks (float& left, float& right) = 0;
 
         /** A Meter plug-in's measurements, while metering is on. Each call takes the peaks since the last. */

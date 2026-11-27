@@ -48,6 +48,7 @@ public:
     {
         setListening (false);
         setMetering (false);
+        setPluginMetering (false);
     }
 
     void setListening (bool shouldListen) override
@@ -283,9 +284,10 @@ public:
             graph->setPluginWindowPositionsLocked (shouldLock);
     }
 
-    void setMetering (bool shouldMeter) override
+    void setMetering (bool shouldMeter) override    { OutputMeter::setEnabled (shouldMeter); }
+
+    void setPluginMetering (bool shouldMeter) override
     {
-        OutputMeter::setEnabled (shouldMeter);
         metering = shouldMeter;
 
         if (! shouldMeter)
